@@ -215,21 +215,40 @@ static Expr* parse_term(Parser* parser) {
 }
 
 // Precedence: * /
+static Expr* parse_power(Parser* parser);
+
 static Expr* parse_factor(Parser* parser) {
-    Expr* expr = parse_unary(parser);
+    Expr* expr = parse_power(parser);
     
     while (true) {
         if (match(parser, TOKEN_STAR)) {
             SourceLoc loc = parser->previous.loc;
-            Expr* right = parse_unary(parser);
+            Expr* right = parse_power(parser);
             expr = expr_binary(parser->arena, BINOP_MUL, expr, right, loc);
         } else if (match(parser, TOKEN_SLASH)) {
             SourceLoc loc = parser->previous.loc;
-            Expr* right = parse_unary(parser);
+            Expr* right = parse_power(parser);
             expr = expr_binary(parser->arena, BINOP_DIV, expr, right, loc);
+        } else if (match(parser, TOKEN_PERCENT)) {
+            SourceLoc loc = parser->previous.loc;
+            Expr* right = parse_power(parser);
+            expr = expr_binary(parser->arena, BINOP_MOD, expr, right, loc);
         } else {
             break;
         }
+    }
+    
+    return expr;
+}
+
+// Precedence: ** (right-associative)
+static Expr* parse_power(Parser* parser) {
+    Expr* expr = parse_unary(parser);
+    
+    if (match(parser, TOKEN_POWER)) {
+        SourceLoc loc = parser->previous.loc;
+        Expr* right = parse_power(parser); // Right-recursive for right-associativity
+        expr = expr_binary(parser->arena, BINOP_POW, expr, right, loc);
     }
     
     return expr;

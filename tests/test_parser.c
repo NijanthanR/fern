@@ -1890,6 +1890,68 @@ void test_parse_method_call(void) {
     arena_destroy(arena);
 }
 
+/* Test: Parse modulo operator */
+void test_parse_modulo(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "10 % 3");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_BINARY);
+    ASSERT_EQ(expr->data.binary.op, BINOP_MOD);
+    ASSERT_EQ(expr->data.binary.left->type, EXPR_INT_LIT);
+    ASSERT_EQ(expr->data.binary.right->type, EXPR_INT_LIT);
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse power operator */
+void test_parse_power(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "2 ** 3");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_BINARY);
+    ASSERT_EQ(expr->data.binary.op, BINOP_POW);
+    ASSERT_EQ(expr->data.binary.left->type, EXPR_INT_LIT);
+    ASSERT_EQ(expr->data.binary.right->type, EXPR_INT_LIT);
+
+    arena_destroy(arena);
+}
+
+/* Test: Power is right-associative: 2 ** 3 ** 2 = 2 ** (3 ** 2) */
+void test_parse_power_right_assoc(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "2 ** 3 ** 2");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_BINARY);
+    ASSERT_EQ(expr->data.binary.op, BINOP_POW);
+    // Right side should be (3 ** 2), not flat
+    ASSERT_EQ(expr->data.binary.right->type, EXPR_BINARY);
+    ASSERT_EQ(expr->data.binary.right->data.binary.op, BINOP_POW);
+
+    arena_destroy(arena);
+}
+
+/* Test: Power binds tighter than multiply: 2 * 3 ** 2 = 2 * (3 ** 2) */
+void test_parse_power_precedence(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "2 * 3 ** 2");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_BINARY);
+    ASSERT_EQ(expr->data.binary.op, BINOP_MUL);
+    // Right side should be (3 ** 2)
+    ASSERT_EQ(expr->data.binary.right->type, EXPR_BINARY);
+    ASSERT_EQ(expr->data.binary.right->data.binary.op, BINOP_POW);
+
+    arena_destroy(arena);
+}
+
 /* Test: Parse lambda expression */
 void test_parse_lambda(void) {
     Arena* arena = arena_create(4096);
@@ -2026,6 +2088,10 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_dot_access);
     TEST_RUN(test_parse_dot_chain);
     TEST_RUN(test_parse_method_call);
+    TEST_RUN(test_parse_modulo);
+    TEST_RUN(test_parse_power);
+    TEST_RUN(test_parse_power_right_assoc);
+    TEST_RUN(test_parse_power_precedence);
     TEST_RUN(test_parse_lambda);
     TEST_RUN(test_parse_lambda_multi_params);
     TEST_RUN(test_parse_lambda_in_pipe);
