@@ -444,7 +444,7 @@ Stmt* stmt_defer(Arena* arena, Expr* expr, SourceLoc loc) {
 
 /* Create type definition statement */
 Stmt* stmt_type_def(Arena* arena, String* name, bool is_public, StringVec* type_params,
-                    TypeVariantVec* variants, TypeFieldVec* record_fields, SourceLoc loc) {
+                    StringVec* derives, TypeVariantVec* variants, TypeFieldVec* record_fields, SourceLoc loc) {
     assert(arena != NULL);
     assert(name != NULL);
 
@@ -454,6 +454,7 @@ Stmt* stmt_type_def(Arena* arena, String* name, bool is_public, StringVec* type_
     stmt->data.type_def.name = name;
     stmt->data.type_def.is_public = is_public;
     stmt->data.type_def.type_params = type_params;
+    stmt->data.type_def.derives = derives;
     stmt->data.type_def.variants = variants;
     stmt->data.type_def.record_fields = record_fields;
 

@@ -2483,6 +2483,37 @@ void test_parse_let_else_tuple(void) {
     arena_destroy(arena);
 }
 
+/* Test: type User derive(Show, Eq): — derive clause */
+void test_parse_type_derive(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "type User derive(Show, Eq): name: String, age: Int");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_TYPE_DEF);
+    ASSERT_STR_EQ(string_cstr(stmt->data.type_def.name), "User");
+    ASSERT_NOT_NULL(stmt->data.type_def.derives);
+    ASSERT_EQ(stmt->data.type_def.derives->len, 2);
+    ASSERT_STR_EQ(string_cstr(StringVec_get(stmt->data.type_def.derives, 0)), "Show");
+    ASSERT_STR_EQ(string_cstr(StringVec_get(stmt->data.type_def.derives, 1)), "Eq");
+    ASSERT_NOT_NULL(stmt->data.type_def.record_fields);
+
+    arena_destroy(arena);
+}
+
+/* Test: type without derive — derives is NULL */
+void test_parse_type_no_derive(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "type Color: Red, Green, Blue");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_TYPE_DEF);
+    ASSERT_NULL(stmt->data.type_def.derives);
+
+    arena_destroy(arena);
+}
+
 void run_parser_tests(void) {
     printf("\n=== Parser Tests ===\n");
     TEST_RUN(test_parse_int_literal);
@@ -2611,4 +2642,6 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_list_comp_filter);
     TEST_RUN(test_parse_let_else);
     TEST_RUN(test_parse_let_else_tuple);
+    TEST_RUN(test_parse_type_derive);
+    TEST_RUN(test_parse_type_no_derive);
 }

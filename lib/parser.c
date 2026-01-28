@@ -1067,7 +1067,19 @@ Stmt* parse_stmt(Parser* parser) {
             consume(parser, TOKEN_RPAREN, "Expected ')' after type parameters");
         }
 
-        // TODO: parse optional derive(...) clause
+        // Optional derive clause: type Name derive(Show, Eq):
+        StringVec* derives = NULL;
+        if (match(parser, TOKEN_DERIVE)) {
+            consume(parser, TOKEN_LPAREN, "Expected '(' after derive");
+            derives = StringVec_new(parser->arena);
+            if (!check(parser, TOKEN_RPAREN)) {
+                do {
+                    Token trait_tok = consume(parser, TOKEN_IDENT, "Expected trait name in derive");
+                    StringVec_push(parser->arena, derives, trait_tok.text);
+                } while (match(parser, TOKEN_COMMA));
+            }
+            consume(parser, TOKEN_RPAREN, "Expected ')' after derive traits");
+        }
 
         consume(parser, TOKEN_COLON, "Expected ':' after type name");
 
@@ -1107,7 +1119,7 @@ Stmt* parse_stmt(Parser* parser) {
                 field.type_ann = field_type;
                 TypeFieldVec_push(parser->arena, fields, field);
             }
-            return stmt_type_def(parser->arena, name_tok.text, is_public, type_params, NULL, fields, loc);
+            return stmt_type_def(parser->arena, name_tok.text, is_public, type_params, derives, NULL, fields, loc);
         } else {
             // Sum type: Variant, Variant(fields), ...
             TypeVariantVec* variants = TypeVariantVec_new(parser->arena);
@@ -1148,7 +1160,7 @@ Stmt* parse_stmt(Parser* parser) {
                 variant.fields = fields;
                 TypeVariantVec_push(parser->arena, variants, variant);
             }
-            return stmt_type_def(parser->arena, name_tok.text, is_public, type_params, variants, NULL, loc);
+            return stmt_type_def(parser->arena, name_tok.text, is_public, type_params, derives, variants, NULL, loc);
         }
     }
 

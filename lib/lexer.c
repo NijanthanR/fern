@@ -113,7 +113,10 @@ static TokenType identifier_type(const char* start, size_t length) {
         case 'd':
             if (length > 1) {
                 switch (start[1]) {
-                    case 'e': return check_keyword(start, length, "defer", TOKEN_DEFER);
+                    case 'e':
+                        if (length == 5) return check_keyword(start, length, "defer", TOKEN_DEFER);
+                        if (length == 6) return check_keyword(start, length, "derive", TOKEN_DERIVE);
+                        break;
                     case 'o': return check_keyword(start, length, "do", TOKEN_DO);
                 }
             }

@@ -369,6 +369,7 @@ typedef struct {
     String* name;
     bool is_public;
     StringVec* type_params;      // NULL if no type params (e.g., Option(a) has ["a"])
+    StringVec* derives;          // NULL if no derive clause (e.g., derive(Show, Eq))
     TypeVariantVec* variants;    // Sum type variants (NULL for pure record types)
     TypeFieldVec* record_fields; // Record fields (NULL for sum types)
 } TypeDef;
@@ -547,7 +548,7 @@ Stmt* stmt_fn(Arena* arena, String* name, bool is_public, ParameterVec* params, 
 Stmt* stmt_import(Arena* arena, StringVec* path, StringVec* items, String* alias, SourceLoc loc);
 Stmt* stmt_defer(Arena* arena, Expr* expr, SourceLoc loc);
 Stmt* stmt_type_def(Arena* arena, String* name, bool is_public, StringVec* type_params,
-                    TypeVariantVec* variants, TypeFieldVec* record_fields, SourceLoc loc);
+                    StringVec* derives, TypeVariantVec* variants, TypeFieldVec* record_fields, SourceLoc loc);
 Stmt* stmt_break(Arena* arena, Expr* value, SourceLoc loc);
 Stmt* stmt_continue(Arena* arena, SourceLoc loc);
 Stmt* stmt_trait(Arena* arena, String* name, StringVec* type_params, StmtVec* methods, SourceLoc loc);
