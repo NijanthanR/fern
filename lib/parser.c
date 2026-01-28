@@ -19,11 +19,14 @@ static Expr* parse_primary_internal(Parser* parser);
 
 // Helper functions
 static void advance(Parser* parser);
+static void advance_raw(Parser* parser);
+static void skip_newlines(Parser* parser);
 static bool check(Parser* parser, TokenType type);
 static bool match(Parser* parser, TokenType type);
 static Token consume(Parser* parser, TokenType type, const char* message);
 static void error_at_current(Parser* parser, const char* message);
 static Pattern* parse_pattern(Parser* parser);
+static Expr* parse_indented_block(Parser* parser);
 
 /**
  * Create a new parser for the given source code.
@@ -67,16 +70,37 @@ static bool is_layout_token(TokenType type) {
 }
 
 /**
- * Advance to the next token.
+ * Advance to the next token (raw, keeps layout tokens).
  * @param parser The parser to advance.
  */
-static void advance(Parser* parser) {
+static void advance_raw(Parser* parser) {
     // FERN_STYLE: allow(assertion-density) trivial state update
     parser->previous = parser->current;
     parser->current = lexer_next(parser->lexer);
+}
+
+/**
+ * Skip newline tokens only (not INDENT/DEDENT).
+ * @param parser The parser.
+ */
+static void __attribute__((unused)) skip_newlines(Parser* parser) {
+    // FERN_STYLE: allow(assertion-density) simple skip loop
+    while (parser->current.type == TOKEN_NEWLINE) {
+        advance_raw(parser);
+    }
+}
+
+/**
+ * Advance to the next token, skipping layout tokens.
+ * Use this for most parsing; use advance_raw when layout matters.
+ * @param parser The parser to advance.
+ */
+static void advance(Parser* parser) {
+    // FERN_STYLE: allow(assertion-density) trivial state update with skip
+    advance_raw(parser);
     
-    // Skip layout tokens (NEWLINE, INDENT, DEDENT) for now
-    // TODO: Once parser supports indentation-based blocks, handle these properly
+    // Skip layout tokens for backward compatibility in most contexts
+    // Don't use advance_raw here - we don't want to overwrite previous
     while (is_layout_token(parser->current.type)) {
         parser->current = lexer_next(parser->lexer);
     }
@@ -207,6 +231,84 @@ static void error_at_current(Parser* parser, const char* message) {
         }
         fprintf(stderr, " %s\n\n", message);
     }
+}
+
+// Indentation-based block parsing
+
+/**
+ * Check if current token can start an expression within a block.
+ * Excludes top-level declarations like 'fn', 'type', 'trait', etc.
+ * @param parser The parser to check.
+ * @return True if this token can start an expression in a block.
+ */
+static bool can_start_block_expr(Parser* parser) {
+    // FERN_STYLE: allow(assertion-density) simple predicate
+    TokenType t = parser->current.type;
+    /* Tokens that can start expressions within a function body */
+    return t == TOKEN_IDENT || t == TOKEN_INT || t == TOKEN_FLOAT ||
+           t == TOKEN_STRING || t == TOKEN_TRUE || t == TOKEN_FALSE ||
+           t == TOKEN_LPAREN || t == TOKEN_LBRACKET || t == TOKEN_LBRACE ||
+           t == TOKEN_IF || t == TOKEN_MATCH || t == TOKEN_NOT ||
+           t == TOKEN_MINUS || t == TOKEN_LET || t == TOKEN_RETURN ||
+           t == TOKEN_DEFER || t == TOKEN_BREAK || t == TOKEN_CONTINUE ||
+           t == TOKEN_FOR;
+    /* Notably EXCLUDES: TOKEN_FN, TOKEN_TYPE, TOKEN_TRAIT, TOKEN_IMPL, TOKEN_PUB */
+}
+
+/**
+ * Parse an indented block after a colon.
+ * Expects: NEWLINE INDENT stmt* expr DEDENT (or single expression on same line)
+ * @param parser The parser to use.
+ * @return A block expression containing the statements and final expression.
+ */
+static Expr* parse_indented_block(Parser* parser) {
+    // FERN_STYLE: allow(assertion-density) parsing logic with implicit invariants
+    assert(parser != NULL);
+    assert(parser->arena != NULL);
+    
+    SourceLoc loc = parser->previous.loc;
+    
+    StmtVec* stmts = StmtVec_new(parser->arena);
+    Expr* final_expr = NULL;
+    
+    /* Parse statements: let, return, defer, or expression statements */
+    /* Stop when we see something that can't be part of this block (like 'fn') */
+    while (!check(parser, TOKEN_EOF) && can_start_block_expr(parser)) {
+        /* Check for statement keywords */
+        if (check(parser, TOKEN_LET) || check(parser, TOKEN_RETURN) || 
+            check(parser, TOKEN_DEFER) || check(parser, TOKEN_BREAK) ||
+            check(parser, TOKEN_CONTINUE)) {
+            Stmt* stmt = parse_stmt(parser);
+            StmtVec_push(parser->arena, stmts, stmt);
+        } else {
+            /* Parse as expression */
+            Expr* expr = parse_expression(parser);
+            
+            /* Check if this is followed by another expression in the block */
+            if (can_start_block_expr(parser)) {
+                /* More stuff follows - this expression is a statement */
+                Stmt* stmt = stmt_expr(parser->arena, expr, expr->loc);
+                StmtVec_push(parser->arena, stmts, stmt);
+            } else {
+                /* Nothing follows at this indent level - this is the final expr */
+                final_expr = expr;
+                break;
+            }
+        }
+    }
+    
+    /* If we have statements but no final expression, use unit (0) */
+    if (final_expr == NULL) {
+        final_expr = expr_int_lit(parser->arena, 0, loc);
+    }
+    
+    /* If there are no statements, just return the expression directly
+     * (no need to wrap single expressions in a block) */
+    if (stmts->len == 0) {
+        return final_expr;
+    }
+    
+    return expr_block(parser->arena, stmts, final_expr, loc);
 }
 
 // Expression parsing (operator precedence climbing)
@@ -1550,9 +1652,9 @@ Stmt* parse_stmt(Parser* parser) {
                 } while (match(parser, TOKEN_COMMA));
             }
 
-            // Parse body after colon
+            // Parse body after colon (may be indented block or single expression)
             consume(parser, TOKEN_COLON, "Expected ':' after function signature");
-            Expr* body = parse_expression(parser);
+            Expr* body = parse_indented_block(parser);
 
             Stmt* fn_stmt = stmt_fn(parser->arena, name_tok.text, is_public, params, return_type, body, loc);
             fn_stmt->data.fn.where_clauses = where_clauses;

@@ -1,2 +1,4 @@
 fn main() -> Int:
-    { println(42), println(100), 0 }
+    println(42)
+    println(100)
+    0
