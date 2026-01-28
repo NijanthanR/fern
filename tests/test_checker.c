@@ -525,6 +525,68 @@ void test_check_block_returns_final(void) {
     arena_destroy(arena);
 }
 
+/* ========== Let Statement Tests ========== */
+
+void test_check_let_infers_type(void) {
+    Arena* arena = arena_create(4096);
+    
+    // let x = 42, then use x
+    Type* t = check_expr(arena, "{ let x = 42, x }");
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_INT);
+    
+    arena_destroy(arena);
+}
+
+void test_check_let_with_type_annotation(void) {
+    Arena* arena = arena_create(4096);
+    
+    // let x: Int = 42
+    Type* t = check_expr(arena, "{ let x: Int = 42, x }");
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_INT);
+    
+    arena_destroy(arena);
+}
+
+void test_check_let_type_mismatch(void) {
+    Arena* arena = arena_create(4096);
+    
+    // let x: String = 42 should fail
+    const char* err = check_expr_error(arena, "{ let x: String = 42, x }");
+    
+    ASSERT_NOT_NULL(err);
+    // Should report type mismatch
+    
+    arena_destroy(arena);
+}
+
+void test_check_let_multiple(void) {
+    Arena* arena = arena_create(4096);
+    
+    // Multiple let bindings
+    Type* t = check_expr(arena, "{ let a = 1, let b = 2, a + b }");
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_INT);
+    
+    arena_destroy(arena);
+}
+
+void test_check_let_shadowing(void) {
+    Arena* arena = arena_create(4096);
+    
+    // let x = 1, let x = "hello", x should be String
+    Type* t = check_expr(arena, "{ let x = 1, let x = \"hello\", x }");
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_STRING);
+    
+    arena_destroy(arena);
+}
+
 /* ========== Test Runner ========== */
 
 void run_checker_tests(void) {
@@ -585,4 +647,11 @@ void run_checker_tests(void) {
     
     // Block expressions
     TEST_RUN(test_check_block_returns_final);
+    
+    // Let statements
+    TEST_RUN(test_check_let_infers_type);
+    TEST_RUN(test_check_let_with_type_annotation);
+    TEST_RUN(test_check_let_type_mismatch);
+    TEST_RUN(test_check_let_multiple);
+    TEST_RUN(test_check_let_shadowing);
 }

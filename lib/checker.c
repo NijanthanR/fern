@@ -434,12 +434,196 @@ Type* checker_infer_expr(Checker* checker, Expr* expr) {
     return error_type(checker, "Unknown expression type");
 }
 
+/* ========== Type Expression Resolution ========== */
+
+/* Convert a TypeExpr (AST type annotation) to a Type */
+static Type* resolve_type_expr(Checker* checker, TypeExpr* type_expr) {
+    if (!type_expr) return NULL;
+    
+    switch (type_expr->kind) {
+        case TYPE_NAMED: {
+            String* name = type_expr->data.named.name;
+            const char* name_str = string_cstr(name);
+            
+            /* Check for built-in primitive types */
+            if (strcmp(name_str, "Int") == 0) {
+                return type_int(checker->arena);
+            }
+            if (strcmp(name_str, "Float") == 0) {
+                return type_float(checker->arena);
+            }
+            if (strcmp(name_str, "String") == 0) {
+                return type_string(checker->arena);
+            }
+            if (strcmp(name_str, "Bool") == 0) {
+                return type_bool(checker->arena);
+            }
+            
+            /* Check for parameterized types */
+            TypeExprVec* args = type_expr->data.named.args;
+            if (args && args->len > 0) {
+                /* Resolve type arguments */
+                TypeVec* resolved_args = TypeVec_new(checker->arena);
+                for (size_t i = 0; i < args->len; i++) {
+                    Type* arg = resolve_type_expr(checker, args->data[i]);
+                    if (!arg || arg->kind == TYPE_ERROR) return arg;
+                    TypeVec_push(checker->arena, resolved_args, arg);
+                }
+                
+                /* Common parameterized types */
+                if (strcmp(name_str, "List") == 0 && resolved_args->len == 1) {
+                    return type_list(checker->arena, resolved_args->data[0]);
+                }
+                if (strcmp(name_str, "Option") == 0 && resolved_args->len == 1) {
+                    return type_option(checker->arena, resolved_args->data[0]);
+                }
+                if (strcmp(name_str, "Result") == 0 && resolved_args->len == 2) {
+                    return type_result(checker->arena, 
+                        resolved_args->data[0], resolved_args->data[1]);
+                }
+                if (strcmp(name_str, "Map") == 0 && resolved_args->len == 2) {
+                    return type_map(checker->arena,
+                        resolved_args->data[0], resolved_args->data[1]);
+                }
+                
+                /* User-defined parameterized type */
+                return type_con(checker->arena, name, resolved_args);
+            }
+            
+            /* Look up in type environment */
+            Type* defined = type_env_lookup_type(checker->env, name);
+            if (defined) {
+                return defined;
+            }
+            
+            /* Unknown type - treat as a simple type constructor */
+            return type_con(checker->arena, name, NULL);
+        }
+        
+        case TYPE_FUNCTION: {
+            /* Resolve parameter types */
+            TypeVec* params = TypeVec_new(checker->arena);
+            for (size_t i = 0; i < type_expr->data.func.params->len; i++) {
+                Type* param = resolve_type_expr(checker, 
+                    type_expr->data.func.params->data[i]);
+                if (!param || param->kind == TYPE_ERROR) return param;
+                TypeVec_push(checker->arena, params, param);
+            }
+            
+            /* Resolve return type */
+            Type* ret = resolve_type_expr(checker, type_expr->data.func.return_type);
+            if (!ret || ret->kind == TYPE_ERROR) return ret;
+            
+            return type_fn(checker->arena, params, ret);
+        }
+    }
+    
+    return error_type(checker, "Unknown type expression kind");
+}
+
 /* ========== Statement Type Checking ========== */
 
+/* Bind a pattern to a type in the environment */
+static bool bind_pattern(Checker* checker, Pattern* pattern, Type* type) {
+    switch (pattern->type) {
+        case PATTERN_IDENT:
+            checker_define(checker, pattern->data.ident, type);
+            return true;
+            
+        case PATTERN_WILDCARD:
+            /* _ doesn't bind anything */
+            return true;
+            
+        case PATTERN_LIT:
+            /* Literal patterns don't bind */
+            return true;
+            
+        case PATTERN_TUPLE: {
+            /* Type must be a tuple with matching arity */
+            if (type->kind != TYPE_TUPLE) {
+                add_error(checker, "Cannot destructure non-tuple type %s",
+                    string_cstr(type_to_string(checker->arena, type)));
+                return false;
+            }
+            PatternVec* sub = pattern->data.tuple;
+            TypeVec* elem_types = type->data.tuple.elements;
+            if (sub->len != elem_types->len) {
+                add_error(checker, "Tuple pattern has %zu elements but type has %zu",
+                    sub->len, elem_types->len);
+                return false;
+            }
+            for (size_t i = 0; i < sub->len; i++) {
+                if (!bind_pattern(checker, sub->data[i], elem_types->data[i])) {
+                    return false;
+                }
+            }
+            return true;
+        }
+            
+        case PATTERN_CONSTRUCTOR:
+        case PATTERN_REST:
+            /* TODO: Implement constructor pattern binding */
+            return true;
+    }
+    
+    return false;
+}
+
+static bool check_let_stmt(Checker* checker, LetStmt* stmt) {
+    /* Infer type of the value expression */
+    Type* value_type = checker_infer_expr(checker, stmt->value);
+    if (value_type->kind == TYPE_ERROR) {
+        return false;
+    }
+    
+    /* If there's a type annotation, resolve it and check compatibility */
+    if (stmt->type_ann) {
+        Type* annotated = resolve_type_expr(checker, stmt->type_ann);
+        if (!annotated || annotated->kind == TYPE_ERROR) {
+            return false;
+        }
+        
+        if (!type_assignable(value_type, annotated)) {
+            add_error(checker, "Type mismatch: expected %s, got %s",
+                string_cstr(type_to_string(checker->arena, annotated)),
+                string_cstr(type_to_string(checker->arena, value_type)));
+            return false;
+        }
+        
+        /* Use the annotated type for the binding */
+        value_type = annotated;
+    }
+    
+    /* Bind the pattern to the inferred/annotated type */
+    return bind_pattern(checker, stmt->pattern, value_type);
+}
+
 bool checker_check_stmt(Checker* checker, Stmt* stmt) {
-    (void)checker;  /* TODO: Implement */
-    (void)stmt;
-    return true;
+    switch (stmt->type) {
+        case STMT_LET:
+            return check_let_stmt(checker, &stmt->data.let);
+            
+        case STMT_EXPR:
+            /* Type check the expression but discard the result */
+            checker_infer_expr(checker, stmt->data.expr.expr);
+            return !checker_has_errors(checker);
+            
+        case STMT_RETURN:
+        case STMT_FN:
+        case STMT_IMPORT:
+        case STMT_DEFER:
+        case STMT_TYPE_DEF:
+        case STMT_BREAK:
+        case STMT_CONTINUE:
+        case STMT_TRAIT:
+        case STMT_IMPL:
+        case STMT_NEWTYPE:
+        case STMT_MODULE:
+            /* TODO: Implement other statement types */
+            return true;
+    }
+    
+    return false;
 }
 
 bool checker_check_stmts(Checker* checker, StmtVec* stmts) {
