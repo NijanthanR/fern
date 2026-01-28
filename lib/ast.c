@@ -209,6 +209,21 @@ Expr* expr_with(Arena* arena, WithBindingVec* bindings, Expr* body, MatchArmVec*
     return expr;
 }
 
+/* Create dot access expression */
+Expr* expr_dot(Arena* arena, Expr* object, String* field, SourceLoc loc) {
+    assert(arena != NULL);
+    assert(object != NULL);
+    assert(field != NULL);
+
+    Expr* expr = arena_alloc(arena, sizeof(Expr));
+    expr->type = EXPR_DOT;
+    expr->loc = loc;
+    expr->data.dot.object = object;
+    expr->data.dot.field = field;
+
+    return expr;
+}
+
 /* Create range expression */
 Expr* expr_range(Arena* arena, Expr* start, Expr* end, bool inclusive, SourceLoc loc) {
     assert(arena != NULL);

@@ -1847,6 +1847,49 @@ void test_parse_call_mixed_args(void) {
     arena_destroy(arena);
 }
 
+/* Test: Parse dot access */
+void test_parse_dot_access(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "user.name");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_DOT);
+    ASSERT_EQ(expr->data.dot.object->type, EXPR_IDENT);
+    ASSERT_STR_EQ(string_cstr(expr->data.dot.field), "name");
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse chained dot access */
+void test_parse_dot_chain(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "a.b.c");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_DOT);
+    ASSERT_STR_EQ(string_cstr(expr->data.dot.field), "c");
+    ASSERT_EQ(expr->data.dot.object->type, EXPR_DOT);
+    ASSERT_STR_EQ(string_cstr(expr->data.dot.object->data.dot.field), "b");
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse method call (dot + call) */
+void test_parse_method_call(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "list.len()");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_CALL);
+    ASSERT_EQ(expr->data.call.func->type, EXPR_DOT);
+    ASSERT_STR_EQ(string_cstr(expr->data.call.func->data.dot.field), "len");
+
+    arena_destroy(arena);
+}
+
 void run_parser_tests(void) {
     printf("\n=== Parser Tests ===\n");
     TEST_RUN(test_parse_int_literal);
@@ -1937,4 +1980,7 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_trait_multiple_methods);
     TEST_RUN(test_parse_call_labeled_args);
     TEST_RUN(test_parse_call_mixed_args);
+    TEST_RUN(test_parse_dot_access);
+    TEST_RUN(test_parse_dot_chain);
+    TEST_RUN(test_parse_method_call);
 }

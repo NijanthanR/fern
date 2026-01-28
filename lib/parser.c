@@ -256,7 +256,15 @@ static Expr* parse_unary(Parser* parser) {
 static Expr* parse_call(Parser* parser) {
     Expr* expr = parse_primary_internal(parser);
     
-    while (match(parser, TOKEN_LPAREN)) {
+    while (check(parser, TOKEN_LPAREN) || check(parser, TOKEN_DOT)) {
+    if (match(parser, TOKEN_DOT)) {
+        SourceLoc loc = parser->previous.loc;
+        Token field_tok = consume(parser, TOKEN_IDENT, "Expected field name after '.'");
+        expr = expr_dot(parser->arena, expr, field_tok.text, loc);
+        continue;
+    }
+    match(parser, TOKEN_LPAREN); // consume '('
+    {
         SourceLoc loc = parser->previous.loc;
         
         CallArgVec* arg_vec = CallArgVec_new(parser->arena);
@@ -291,7 +299,8 @@ static Expr* parse_call(Parser* parser) {
         call->data.call.func = expr;
         call->data.call.args = arg_vec;
         expr = call;
-    }
+    } // end call block
+    } // end while
     
     return expr;
 }

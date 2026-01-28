@@ -38,6 +38,7 @@ typedef enum {
     EXPR_LIST,          // [1, 2, 3]
     EXPR_BIND,          // x <- operation()
     EXPR_WITH,          // with x <- f(), y <- g(x) do Ok(y) else Err(e) -> e
+    EXPR_DOT,           // object.field
     EXPR_RANGE,         // 0..10 or 0..=10
     EXPR_FOR,           // for item in iterable: body
     EXPR_WHILE,         // while condition: body
@@ -178,6 +179,12 @@ typedef struct {
     MatchArmVec* else_arms;  // NULL if no else clause
 } WithExpr;
 
+/* Dot access expression: object.field */
+typedef struct {
+    Expr* object;
+    String* field;
+} DotExpr;
+
 /* Range expression: start..end or start..=end */
 typedef struct {
     Expr* start;
@@ -222,6 +229,7 @@ struct Expr {
         ListExpr list;
         BindExpr bind;
         WithExpr with_expr;
+        DotExpr dot;
         RangeExpr range;
         ForExpr for_loop;
         WhileExpr while_loop;
@@ -442,6 +450,7 @@ Expr* expr_block(Arena* arena, StmtVec* stmts, Expr* final_expr, SourceLoc loc);
 Expr* expr_list(Arena* arena, ExprVec* elements, SourceLoc loc);
 Expr* expr_bind(Arena* arena, String* name, Expr* value, SourceLoc loc);
 Expr* expr_with(Arena* arena, WithBindingVec* bindings, Expr* body, MatchArmVec* else_arms, SourceLoc loc);
+Expr* expr_dot(Arena* arena, Expr* object, String* field, SourceLoc loc);
 Expr* expr_range(Arena* arena, Expr* start, Expr* end, bool inclusive, SourceLoc loc);
 Expr* expr_for(Arena* arena, String* var_name, Expr* iterable, Expr* body, SourceLoc loc);
 Expr* expr_while(Arena* arena, Expr* condition, Expr* body, SourceLoc loc);
