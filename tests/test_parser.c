@@ -2745,6 +2745,57 @@ void test_parse_pub_newtype(void) {
     arena_destroy(arena);
 }
 
+/* Test: Try operator (?) for Result propagation */
+void test_parse_try_operator(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "read_file(path)?");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_TRY);
+    ASSERT_NOT_NULL(expr->data.try_expr.operand);
+    ASSERT_EQ(expr->data.try_expr.operand->type, EXPR_CALL);
+
+    arena_destroy(arena);
+}
+
+/* Test: Chained try operator */
+void test_parse_try_chain(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "parse(read_file(path)?)?");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_TRY);
+    // Inner is a call to parse()
+    Expr* inner = expr->data.try_expr.operand;
+    ASSERT_EQ(inner->type, EXPR_CALL);
+    // Argument to parse is also a try expression
+    CallArgVec* args = inner->data.call.args;
+    ASSERT_EQ(args->len, (size_t)1);
+    ASSERT_EQ(args->data[0].value->type, EXPR_TRY);
+
+    arena_destroy(arena);
+}
+
+/* Test: Try operator with method call */
+void test_parse_try_method(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "file.read()?.trim()");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    // Should be: (file.read()?).trim()
+    // Outer is a method call on a try expression
+    ASSERT_EQ(expr->type, EXPR_CALL);
+    Expr* callee = expr->data.call.func;
+    ASSERT_EQ(callee->type, EXPR_DOT);
+    // The object of the dot is the try expression
+    ASSERT_EQ(callee->data.dot.object->type, EXPR_TRY);
+
+    arena_destroy(arena);
+}
+
 void run_parser_tests(void) {
     printf("\n=== Parser Tests ===\n");
     TEST_RUN(test_parse_int_literal);
@@ -2894,4 +2945,7 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_send);
     TEST_RUN(test_parse_receive);
     TEST_RUN(test_parse_receive_after);
+    TEST_RUN(test_parse_try_operator);
+    TEST_RUN(test_parse_try_chain);
+    TEST_RUN(test_parse_try_method);
 }

@@ -53,6 +53,7 @@ typedef enum {
     EXPR_SPAWN,         // spawn(expr)
     EXPR_SEND,          // send(pid, msg)
     EXPR_RECEIVE,       // receive: pattern -> body ...
+    EXPR_TRY,           // expr? (Result propagation)
 } ExprType;
 
 /* Binary operators */
@@ -275,6 +276,11 @@ typedef struct {
     Expr* after_body;       // NULL if no after clause
 } ReceiveExpr;
 
+/* Try expression: expr? (Result propagation) */
+typedef struct {
+    Expr* operand;
+} TryExpr;
+
 /* Map entry: key: value */
 typedef struct {
     Expr* key;
@@ -321,6 +327,7 @@ struct Expr {
         SpawnExpr spawn_expr;
         SendExpr send_expr;
         ReceiveExpr receive_expr;
+        TryExpr try_expr;
     } data;
 };
 
@@ -582,6 +589,7 @@ Expr* expr_index(Arena* arena, Expr* object, Expr* index, SourceLoc loc);
 Expr* expr_spawn(Arena* arena, Expr* func, SourceLoc loc);
 Expr* expr_send(Arena* arena, Expr* pid, Expr* message, SourceLoc loc);
 Expr* expr_receive(Arena* arena, MatchArmVec* arms, Expr* after_timeout, Expr* after_body, SourceLoc loc);
+Expr* expr_try(Arena* arena, Expr* operand, SourceLoc loc);
 
 /* Create statements */
 Stmt* stmt_let(Arena* arena, Pattern* pattern, TypeExpr* type_ann, Expr* value, SourceLoc loc);

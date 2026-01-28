@@ -367,6 +367,18 @@ Expr* expr_receive(Arena* arena, MatchArmVec* arms, Expr* after_timeout, Expr* a
     return expr;
 }
 
+Expr* expr_try(Arena* arena, Expr* operand, SourceLoc loc) {
+    assert(arena != NULL);
+    assert(operand != NULL);
+
+    Expr* expr = arena_alloc(arena, sizeof(Expr));
+    expr->type = EXPR_TRY;
+    expr->loc = loc;
+    expr->data.try_expr.operand = operand;
+
+    return expr;
+}
+
 Expr* expr_map(Arena* arena, MapEntryVec* entries, SourceLoc loc) {
     assert(arena != NULL);
     assert(entries != NULL);

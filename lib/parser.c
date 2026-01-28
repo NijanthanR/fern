@@ -279,7 +279,13 @@ static Expr* parse_unary(Parser* parser) {
 static Expr* parse_call(Parser* parser) {
     Expr* expr = parse_primary_internal(parser);
     
-    while (check(parser, TOKEN_LPAREN) || check(parser, TOKEN_DOT) || check(parser, TOKEN_LBRACKET)) {
+    while (check(parser, TOKEN_LPAREN) || check(parser, TOKEN_DOT) || check(parser, TOKEN_LBRACKET) || check(parser, TOKEN_QUESTION)) {
+    // Try operator: expr?
+    if (match(parser, TOKEN_QUESTION)) {
+        SourceLoc loc = parser->previous.loc;
+        expr = expr_try(parser->arena, expr, loc);
+        continue;
+    }
     if (match(parser, TOKEN_LBRACKET)) {
         SourceLoc loc = parser->previous.loc;
         Expr* index = parse_expression(parser);

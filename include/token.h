@@ -100,6 +100,7 @@ typedef enum {
     TOKEN_ELLIPSIS,     // ...
     TOKEN_UNDERSCORE,   // _
     TOKEN_AT,           // @
+    TOKEN_QUESTION,     // ?
     
     /* String interpolation tokens */
     TOKEN_STRING_BEGIN, // "Hello, {     (text before first interpolation)

@@ -390,6 +390,21 @@ void test_lex_octal_literal(void) {
     arena_destroy(arena);
 }
 
+void test_lex_question_mark(void) {
+    Arena* arena = arena_create(4096);
+    Lexer* lex = lexer_new(arena, "value?");
+
+    Token t1 = lexer_next(lex);
+    ASSERT_EQ(t1.type, TOKEN_IDENT);
+    ASSERT_STR_EQ(string_cstr(t1.text), "value");
+
+    Token t2 = lexer_next(lex);
+    ASSERT_EQ(t2.type, TOKEN_QUESTION);
+    ASSERT_STR_EQ(string_cstr(t2.text), "?");
+
+    arena_destroy(arena);
+}
+
 void run_lexer_tests(void) {
     printf("\n=== Lexer Tests ===\n");
     TEST_RUN(test_lex_integer);
@@ -415,4 +430,5 @@ void run_lexer_tests(void) {
     TEST_RUN(test_lex_hex_literal);
     TEST_RUN(test_lex_binary_literal);
     TEST_RUN(test_lex_octal_literal);
+    TEST_RUN(test_lex_question_mark);
 }

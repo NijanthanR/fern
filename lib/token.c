@@ -91,6 +91,7 @@ const char* token_type_name(TokenType type) {
         case TOKEN_ELLIPSIS: return "ELLIPSIS";
         case TOKEN_UNDERSCORE: return "UNDERSCORE";
         case TOKEN_AT: return "AT";
+        case TOKEN_QUESTION: return "QUESTION";
         
         case TOKEN_COMMENT: return "COMMENT";
         case TOKEN_BLOCK_COMMENT: return "BLOCK_COMMENT";

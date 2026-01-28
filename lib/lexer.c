@@ -444,6 +444,7 @@ Token lexer_next(Lexer* lex) {
         case '%': return make_token(lex, TOKEN_PERCENT, lex->current - 1, lex->current);
         case '_': return make_token(lex, TOKEN_UNDERSCORE, lex->current - 1, lex->current);
         case '@': return make_token(lex, TOKEN_AT, lex->current - 1, lex->current);
+        case '?': return make_token(lex, TOKEN_QUESTION, lex->current - 1, lex->current);
     }
     
     // Unknown character
