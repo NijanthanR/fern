@@ -1017,6 +1017,19 @@ static bool is_typed_params(Parser* parser) {
 
 // Statement parsing
 Stmt* parse_stmt(Parser* parser) {
+    // Module declaration: module math.geometry
+    if (match(parser, TOKEN_MODULE)) {
+        SourceLoc loc = parser->previous.loc;
+        StringVec* path = StringVec_new(parser->arena);
+        Token first = consume(parser, TOKEN_IDENT, "Expected module name after 'module'");
+        StringVec_push(parser->arena, path, first.text);
+        while (match(parser, TOKEN_DOT)) {
+            Token part = consume(parser, TOKEN_IDENT, "Expected identifier after '.' in module name");
+            StringVec_push(parser->arena, path, part.text);
+        }
+        return stmt_module(parser->arena, path, loc);
+    }
+
     // Import declaration: import path.to.module [.{items}] [as alias]
     if (match(parser, TOKEN_IMPORT)) {
         SourceLoc loc = parser->previous.loc;

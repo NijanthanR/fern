@@ -413,6 +413,7 @@ typedef enum {
     STMT_TRAIT,         // trait Name(params): methods
     STMT_IMPL,          // impl Trait(Type): methods
     STMT_NEWTYPE,       // newtype Name = Constructor(InnerType)
+    STMT_MODULE,        // module math.geometry
 } StmtType;
 
 /* Let statement */
@@ -469,6 +470,11 @@ typedef struct {
     TypeExpr* inner_type;    // The wrapped type
 } NewtypeDef;
 
+/* Module declaration: module math.geometry */
+typedef struct {
+    StringVec* path;    // Path segments: ["math", "geometry"]
+} ModuleDecl;
+
 /* Break statement: break [value] */
 typedef struct {
     Expr* value;        // NULL for bare break
@@ -490,6 +496,7 @@ struct Stmt {
         TraitDef trait_def;
         ImplDef impl_def;
         NewtypeDef newtype_def;
+        ModuleDecl module_decl;
     } data;
 };
 
@@ -591,6 +598,7 @@ Stmt* stmt_defer(Arena* arena, Expr* expr, SourceLoc loc);
 Stmt* stmt_type_def(Arena* arena, String* name, bool is_public, StringVec* type_params,
                     StringVec* derives, TypeVariantVec* variants, TypeFieldVec* record_fields, SourceLoc loc);
 Stmt* stmt_newtype(Arena* arena, String* name, bool is_public, String* constructor, TypeExpr* inner_type, SourceLoc loc);
+Stmt* stmt_module(Arena* arena, StringVec* path, SourceLoc loc);
 Stmt* stmt_break(Arena* arena, Expr* value, SourceLoc loc);
 Stmt* stmt_continue(Arena* arena, SourceLoc loc);
 Stmt* stmt_trait(Arena* arena, String* name, StringVec* type_params, TypeExprVec* constraints, StmtVec* methods, SourceLoc loc);

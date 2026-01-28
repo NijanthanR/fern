@@ -520,6 +520,18 @@ Stmt* stmt_newtype(Arena* arena, String* name, bool is_public, String* construct
     return stmt;
 }
 
+Stmt* stmt_module(Arena* arena, StringVec* path, SourceLoc loc) {
+    assert(arena != NULL);
+    assert(path != NULL);
+
+    Stmt* stmt = arena_alloc(arena, sizeof(Stmt));
+    stmt->type = STMT_MODULE;
+    stmt->loc = loc;
+    stmt->data.module_decl.path = path;
+
+    return stmt;
+}
+
 Stmt* stmt_break(Arena* arena, Expr* value, SourceLoc loc) {
     assert(arena != NULL);
 

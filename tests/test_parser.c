@@ -2557,6 +2557,33 @@ void test_parse_fn_no_where(void) {
     arena_destroy(arena);
 }
 
+void test_parse_module_simple(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "module main");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_MODULE);
+    ASSERT_EQ(stmt->data.module_decl.path->len, (size_t)1);
+    ASSERT_STR_EQ(string_cstr(StringVec_get(stmt->data.module_decl.path, 0)), "main");
+
+    arena_destroy(arena);
+}
+
+void test_parse_module_dotted(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "module math.geometry");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_MODULE);
+    ASSERT_EQ(stmt->data.module_decl.path->len, (size_t)2);
+    ASSERT_STR_EQ(string_cstr(StringVec_get(stmt->data.module_decl.path, 0)), "math");
+    ASSERT_STR_EQ(string_cstr(StringVec_get(stmt->data.module_decl.path, 1)), "geometry");
+
+    arena_destroy(arena);
+}
+
 void test_parse_trait_with_constraint(void) {
     Arena* arena = arena_create(4096);
     Parser* parser = parser_new(arena, "trait Ord(a) with Eq(a): fn compare(x: a, y: a) -> Int: 0");
@@ -2853,6 +2880,8 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_fn_no_where);
     TEST_RUN(test_parse_newtype);
     TEST_RUN(test_parse_pub_newtype);
+    TEST_RUN(test_parse_module_simple);
+    TEST_RUN(test_parse_module_dotted);
     TEST_RUN(test_parse_trait_with_constraint);
     TEST_RUN(test_parse_trait_multi_constraints);
     TEST_RUN(test_parse_trait_no_constraint);
