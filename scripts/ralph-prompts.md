@@ -4,7 +4,8 @@ These are the specialized prompts for the IMPLEMENTER and CONTROLLER agents in t
 
 ## IMPLEMENTER Agent Prompt
 
-**Model**: Claude Opus 4.5 (for complex implementation work)
+**Model**: Claude Haiku 4.5 (budget-conscious, surprisingly capable for focused tasks)
+**Upgrade to**: Sonnet 4.5 only if Haiku struggles with complexity
 
 ```
 You are the IMPLEMENTER agent in the Ralph Loop autonomous development system.
@@ -134,7 +135,7 @@ Now hand off to CONTROLLER for verification.
 
 ## CONTROLLER Agent Prompt
 
-**Model**: Claude Sonnet 4.5 (for verification and task selection - faster and cheaper)
+**Model**: Claude Haiku 4.5 (verification is straightforward, Haiku is perfect)
 
 ```
 You are the CONTROLLER agent in the Ralph Loop autonomous development system.

@@ -82,7 +82,9 @@ The agents use special markers in ROADMAP.md to communicate:
 
 ### IMPLEMENTER Agent
 
-**Model**: Claude Opus 4.5 (complex implementation requires most capable model)
+**Model**: Claude Haiku 4.5 (default, budget-conscious)
+**Upgrade**: Sonnet 4.5 only if task is too complex for Haiku
+**Budget**: Stay within $100/month Max Plan limit
 
 **Responsibilities:**
 1. Read next task from ROADMAP.md
@@ -107,7 +109,7 @@ The agents use special markers in ROADMAP.md to communicate:
 
 ### CONTROLLER Agent
 
-**Model**: Claude Sonnet 4.5 (verification is faster/cheaper than implementation)
+**Model**: Claude Haiku 4.5 (verification is simple, Haiku is sufficient)
 
 **Responsibilities:**
 1. Read ROADMAP.md status
@@ -366,42 +368,74 @@ Track in ROADMAP.md:
 
 ## Cost Optimization
 
-### Model Selection Strategy
+### Model Selection Strategy (Budget-Conscious)
 
-**IMPLEMENTER**: Claude Opus 4.5
-- Complex implementation requires most capable model
-- Writing tests and code is cognitively demanding
-- Cost justified by quality and reduced iterations
+**⚠️ IMPORTANT: Monthly Budget = $100 (Max Plan)**
 
-**CONTROLLER**: Claude Sonnet 4.5
-- Verification is more straightforward than implementation
-- Running tests and checking criteria doesn't need Opus
-- 5x cheaper than Opus for similar verification quality
+Current status (Jan 2026): $110.16 spent - OVER BUDGET
+Strategy: Use Haiku 4.5 as default to stay within budget
+
+**IMPLEMENTER**: Claude Haiku 4.5 (default)
+- Haiku is surprisingly capable for focused tasks
+- Excellent test coverage guides implementation
+- Clear specifications in DESIGN.md reduce complexity
+- **Cost**: ~$0.02-0.04 per iteration (20x cheaper than Opus!)
+- **Upgrade to Sonnet**: Only if Haiku genuinely struggles
+
+**CONTROLLER**: Claude Haiku 4.5 (always)
+- Verification is straightforward (run tests, check criteria)
+- Haiku is perfect for this role
+- **Cost**: ~$0.01-0.02 per iteration
 
 **Token Management**:
-- Monitor with `ccusage` command
-- Current session: ~75k tokens (37% of 200k budget)
-- Average iteration: ~10-15k tokens
-- Budget allows ~10-15 iterations per session
+- Monitor with `ccusage` command daily
+- Check budget: `ccusage | grep Total`
+- Target: <$3.33/day average ($100/30 days)
+- Stop if approaching monthly limit
 
-**Cost Projection**:
-- IMPLEMENTER (Opus): ~$0.10-0.20 per iteration
-- CONTROLLER (Sonnet): ~$0.02-0.04 per iteration
-- Total per iteration: ~$0.12-0.24
-- Full milestone (20 iterations): ~$2.40-4.80
+**Cost Projection (Revised)**:
+- IMPLEMENTER (Haiku): ~$0.02-0.04 per iteration
+- CONTROLLER (Haiku): ~$0.01-0.02 per iteration
+- **Total**: ~$0.03-0.06 per iteration
+- **Full milestone (20 iterations)**: ~$0.60-1.20
+- **Budget allows**: 60-100 iterations per month!
 
-### When to Use Haiku
+### Model Upgrade Path
 
-Claude Haiku 4.5 can be used for:
-- Simple file searches
-- Documentation updates
-- Formatting/linting fixes
-- Running tests (no implementation)
+Start with Haiku, upgrade only if needed:
 
-**Not recommended for**:
-- Complex implementation (use Opus)
-- Code review (use Sonnet)
-- Architecture decisions (use Opus)
+1. **Try Haiku first** (default)
+   - Most tasks work fine with Haiku
+   - Great for TDD with good tests
+   
+2. **Upgrade to Sonnet if**:
+   - Haiku produces buggy code repeatedly
+   - Complex algorithm needs deeper reasoning
+   - Architecture decision needed
+   
+3. **Never use Opus**:
+   - Too expensive for $100/month budget
+   - Haiku + good tests > Opus alone
+
+### When to Use Each Model
+
+**Haiku 4.5** (USE FOR EVERYTHING):
+- ✅ All implementation work (yes!)
+- ✅ All verification tasks
+- ✅ Documentation updates
+- ✅ Test writing
+- ✅ Debugging
+- ✅ Code reviews
+- ✅ Formatting/linting
+
+**Sonnet 4.5** (ONLY IF HAIKU FAILS):
+- ⚠️ Complex algorithms after Haiku fails
+- ⚠️ Tricky bugs Haiku can't solve
+- ⚠️ Architecture decisions
+
+**Opus 4.5** (NEVER):
+- ❌ Too expensive - avoid completely
+- ❌ Not worth cost for this budget
 
 ## Safety Measures
 
