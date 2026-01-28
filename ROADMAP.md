@@ -712,26 +712,52 @@ stdlib/
 
 ## Milestone 8: Actor Runtime
 
-**Goal:** Implement actor-based concurrency
+**Goal:** Implement BEAM-inspired actor-based concurrency with supervision trees
 
 ### Tasks
 
-- [ ] Actor runtime
-  - [ ] spawn() implementation
-  - [ ] send() implementation
-  - [ ] receive pattern matching
-  - [ ] Message queues
-  - [ ] Process scheduling
+- [ ] **Core Actor Runtime**
+  - [ ] spawn() - Create lightweight processes
+  - [ ] send() - Async message passing
+  - [ ] receive - Pattern matching on mailbox
+  - [ ] self() - Get current actor's PID
+  - [ ] Message queues (mailboxes)
+  - [ ] Cooperative scheduler (no OS threads per actor)
 
-- [ ] Test actor patterns
-  - [ ] Cache actor
-  - [ ] Queue actor
-  - [ ] Supervision
+- [ ] **Supervision Trees**
+  - [ ] Supervisor behaviour
+  - [ ] Restart strategies:
+    - [ ] `:one_for_one` - Restart only failed child
+    - [ ] `:one_for_all` - Restart all children
+    - [ ] `:rest_for_one` - Restart failed + subsequent children
+  - [ ] Restart intensity (max_restarts, max_seconds)
+  - [ ] Child specifications
+  - [ ] Dynamic child management (start_child, terminate_child)
+
+- [ ] **Process Linking & Monitoring**
+  - [ ] link() / unlink() - Bidirectional failure propagation
+  - [ ] monitor() / demonitor() - Unidirectional death notification
+  - [ ] trap_exit flag - Convert exits to messages
+  - [ ] Exit reasons (normal, shutdown, custom)
+
+- [ ] **Testing with FernSim** (see FernSim section)
+  - [ ] Deterministic scheduler for simulation
+  - [ ] Fault injection hooks
+  - [ ] Supervision strategy verification
+  - [ ] Property-based actor tests
+
+- [ ] **Example Patterns**
+  - [ ] GenServer-style request/response
+  - [ ] Cache actor with TTL
+  - [ ] Job queue with workers
+  - [ ] Pub/sub broker
 
 **Success Criteria:**
-- Actor examples from DESIGN.md work
-- Binary includes runtime only when needed
-- Performance targets met
+- Actor examples from DESIGN.md work correctly
+- Supervision trees handle failures per BEAM semantics
+- FernSim finds no invariant violations after 1M simulated steps
+- Binary includes runtime only when actors are used
+- Performance: 100K+ actors, <1ms message latency
 
 ---
 
@@ -959,6 +985,126 @@ make fuzz-forever
 - [ ] Add round-trip property tests
 - [ ] Add crash detection
 - [ ] Integrate with CI (run on every PR)
+
+---
+
+## FernSim - Deterministic Actor Simulation (Planned)
+
+**Status**: Planned for Milestone 8 (Actor Runtime)
+**Inspiration**: TigerBeetle's VOPR, FoundationDB's simulation testing, Erlang/BEAM
+
+To achieve BEAM-level reliability for the actor system and supervision trees,
+we need deterministic simulation testing that can explore edge cases impossible
+to hit in real-world testing.
+
+### Why Deterministic Simulation?
+
+The BEAM's legendary reliability comes from decades of battle-testing. We can
+accelerate this by using simulation:
+
+- **Explore interleavings**: Test millions of process scheduling orders
+- **Inject failures**: Simulate crashes, timeouts, network issues deterministically
+- **Reproduce bugs**: Any failure can be replayed with its seed
+- **Time travel**: Control virtual clocks to test timeout behavior
+- **Find rare bugs**: Edge cases that would take years to hit naturally
+
+### Components
+
+1. **Deterministic Scheduler**
+   - Seed-based random scheduling of actor execution
+   - Reproducible message delivery ordering
+   - Virtual time (no real sleeps, instant "timeout" testing)
+
+2. **Fault Injection**
+   - **Process crashes**: Random actor deaths at any point
+   - **Supervisor restarts**: Verify restart strategies work
+   - **Message loss**: Simulate network unreliability
+   - **Slow actors**: Mailbox backpressure scenarios
+   - **Resource exhaustion**: Memory limits, mailbox overflow
+
+3. **Supervision Tree Verification**
+   - `:one_for_one` - Only crashed child restarts
+   - `:one_for_all` - All children restart on any crash
+   - `:rest_for_one` - Crashed child and those after it restart
+   - Restart intensity limits (max restarts per period)
+   - Cascading failure handling
+
+4. **Property Tests**
+   - **No orphan messages**: All sent messages are eventually received or actor is dead
+   - **Supervisor invariants**: Children always restarted according to strategy
+   - **No deadlocks**: System always makes progress
+   - **Graceful degradation**: Failures don't cascade unexpectedly
+
+### Example Simulation Scenarios
+
+```c
+// Scenario: Supervisor with 3 workers, one_for_one strategy
+// Inject: Random worker crashes
+// Verify: Only crashed worker restarts, others unaffected
+
+SimConfig config = {
+    .seed = 0xDEADBEEF,
+    .max_steps = 100000,
+    .fault_injection = {
+        .process_crash_probability = 0.01,
+        .message_delay_probability = 0.05,
+    },
+};
+
+SimResult result = fernsim_run(config, supervisor_scenario);
+assert(result.invariant_violations == 0);
+assert(result.deadlocks == 0);
+```
+
+### Usage (Planned)
+
+```bash
+# Run actor simulation with random seed
+make sim
+
+# Reproduce a specific failure
+make sim SEED=0xDEADBEEF
+
+# Run overnight with many seeds
+make sim-overnight ITERATIONS=1000000
+
+# Test specific supervision strategy
+make sim SCENARIO=one_for_all_stress
+```
+
+### Implementation Tasks
+
+**Phase 1: Core Infrastructure**
+- [ ] Deterministic PRNG with seed support
+- [ ] Virtual clock implementation
+- [ ] Simulated actor scheduler (no OS threads)
+- [ ] Event trace recording for replay
+
+**Phase 2: Fault Injection**
+- [ ] Process crash injection
+- [ ] Message delay/loss simulation
+- [ ] Mailbox overflow scenarios
+- [ ] Timeout simulation via virtual time
+
+**Phase 3: Supervision Testing**
+- [ ] one_for_one strategy verification
+- [ ] one_for_all strategy verification
+- [ ] rest_for_one strategy verification
+- [ ] Restart intensity limit testing
+- [ ] Cascading failure scenarios
+
+**Phase 4: Property-Based Testing**
+- [ ] Invariant checkers (no orphans, no deadlocks)
+- [ ] Shrinking (find minimal failing case)
+- [ ] Coverage tracking (which interleavings tested)
+- [ ] CI integration (run on every PR)
+
+### Success Criteria
+
+- Can reproduce any actor bug with a seed
+- Finds bugs that real-world testing misses
+- Supervision trees verified against all failure modes
+- Confidence to claim "BEAM-like reliability"
 
 ---
 
