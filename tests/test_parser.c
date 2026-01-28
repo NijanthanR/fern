@@ -292,6 +292,42 @@ void test_parse_match_with_default(void) {
     arena_destroy(arena);
 }
 
+/* Test: Parse simple block expression */
+void test_parse_block_simple(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "{ let x = 5; x + 1 }");
+    
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_BLOCK);
+    ASSERT_NOT_NULL(expr->data.block.stmts);
+    ASSERT_EQ(expr->data.block.stmts->len, 1);
+    
+    // Check final expression
+    ASSERT_NOT_NULL(expr->data.block.final_expr);
+    ASSERT_EQ(expr->data.block.final_expr->type, EXPR_BINARY);
+    
+    arena_destroy(arena);
+}
+
+/* Test: Parse block with multiple statements */
+void test_parse_block_multiple_statements(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "{ let a = 1; let b = 2; a + b }");
+    
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_BLOCK);
+    ASSERT_NOT_NULL(expr->data.block.stmts);
+    ASSERT_EQ(expr->data.block.stmts->len, 2);
+    
+    // Check final expression
+    ASSERT_NOT_NULL(expr->data.block.final_expr);
+    ASSERT_EQ(expr->data.block.final_expr->type, EXPR_BINARY);
+    
+    arena_destroy(arena);
+}
+
 void run_parser_tests(void) {
     printf("\n=== Parser Tests ===\n");
     TEST_RUN(test_parse_int_literal);
@@ -311,4 +347,6 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_if_else);
     TEST_RUN(test_parse_match_simple);
     TEST_RUN(test_parse_match_with_default);
+    TEST_RUN(test_parse_block_simple);
+    TEST_RUN(test_parse_block_multiple_statements);
 }
