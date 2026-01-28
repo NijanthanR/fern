@@ -1,0 +1,240 @@
+/* Parser Tests
+ * 
+ * Test-driven development: Write tests FIRST, then implement parser.
+ * Based on DESIGN.md specification.
+ */
+
+#include "test.h"
+#include "arena.h"
+#include "parser.h"
+#include "ast.h"
+
+/* Test: Parse integer literal */
+void test_parse_int_literal(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "42");
+    
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_INT_LIT);
+    ASSERT_EQ(expr->data.int_lit.value, 42);
+    
+    arena_destroy(arena);
+}
+
+/* Test: Parse string literal */
+void test_parse_string_literal(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "\"hello\"");
+    
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_STRING_LIT);
+    ASSERT_STR_EQ(string_cstr(expr->data.string_lit.value), "hello");
+    
+    arena_destroy(arena);
+}
+
+/* Test: Parse boolean literals */
+void test_parse_bool_literal(void) {
+    Arena* arena = arena_create(4096);
+    
+    Parser* p1 = parser_new(arena, "true");
+    Expr* expr1 = parse_expr(p1);
+    ASSERT_EQ(expr1->type, EXPR_BOOL_LIT);
+    ASSERT_TRUE(expr1->data.bool_lit.value);
+    
+    Parser* p2 = parser_new(arena, "false");
+    Expr* expr2 = parse_expr(p2);
+    ASSERT_EQ(expr2->type, EXPR_BOOL_LIT);
+    ASSERT_FALSE(expr2->data.bool_lit.value);
+    
+    arena_destroy(arena);
+}
+
+/* Test: Parse identifier */
+void test_parse_identifier(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "my_variable");
+    
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_IDENT);
+    ASSERT_STR_EQ(string_cstr(expr->data.ident.name), "my_variable");
+    
+    arena_destroy(arena);
+}
+
+/* Test: Parse binary expression (addition) */
+void test_parse_binary_add(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "1 + 2");
+    
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_BINARY);
+    ASSERT_EQ(expr->data.binary.op, BINOP_ADD);
+    
+    ASSERT_EQ(expr->data.binary.left->type, EXPR_INT_LIT);
+    ASSERT_EQ(expr->data.binary.left->data.int_lit.value, 1);
+    
+    ASSERT_EQ(expr->data.binary.right->type, EXPR_INT_LIT);
+    ASSERT_EQ(expr->data.binary.right->data.int_lit.value, 2);
+    
+    arena_destroy(arena);
+}
+
+/* Test: Parse binary expression with precedence (1 + 2 * 3) */
+void test_parse_binary_precedence(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "1 + 2 * 3");
+    
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    
+    // Should parse as: 1 + (2 * 3)
+    ASSERT_EQ(expr->type, EXPR_BINARY);
+    ASSERT_EQ(expr->data.binary.op, BINOP_ADD);
+    
+    // Left side: 1
+    ASSERT_EQ(expr->data.binary.left->type, EXPR_INT_LIT);
+    ASSERT_EQ(expr->data.binary.left->data.int_lit.value, 1);
+    
+    // Right side: 2 * 3
+    Expr* right = expr->data.binary.right;
+    ASSERT_EQ(right->type, EXPR_BINARY);
+    ASSERT_EQ(right->data.binary.op, BINOP_MUL);
+    ASSERT_EQ(right->data.binary.left->data.int_lit.value, 2);
+    ASSERT_EQ(right->data.binary.right->data.int_lit.value, 3);
+    
+    arena_destroy(arena);
+}
+
+/* Test: Parse comparison expression */
+void test_parse_comparison(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "x == 42");
+    
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_BINARY);
+    ASSERT_EQ(expr->data.binary.op, BINOP_EQ);
+    
+    arena_destroy(arena);
+}
+
+/* Test: Parse function call (no arguments) */
+void test_parse_call_no_args(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "foo()");
+    
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_CALL);
+    ASSERT_EQ(expr->data.call.func->type, EXPR_IDENT);
+    ASSERT_EQ(expr->data.call.args->len, 0);
+    
+    arena_destroy(arena);
+}
+
+/* Test: Parse function call (with arguments) */
+void test_parse_call_with_args(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "add(1, 2)");
+    
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_CALL);
+    ASSERT_EQ(expr->data.call.args->len, 2);
+    
+    // First argument
+    CallArg arg1 = CallArgVec_get(expr->data.call.args, 0);
+    ASSERT_NULL(arg1.label);  // Positional argument
+    ASSERT_EQ(arg1.value->type, EXPR_INT_LIT);
+    ASSERT_EQ(arg1.value->data.int_lit.value, 1);
+    
+    // Second argument
+    CallArg arg2 = CallArgVec_get(expr->data.call.args, 1);
+    ASSERT_NULL(arg2.label);
+    ASSERT_EQ(arg2.value->type, EXPR_INT_LIT);
+    ASSERT_EQ(arg2.value->data.int_lit.value, 2);
+    
+    arena_destroy(arena);
+}
+
+/* Test: Parse let statement */
+void test_parse_let_statement(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "let x = 42");
+    
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_LET);
+    ASSERT_EQ(stmt->data.let.pattern->type, PATTERN_IDENT);
+    ASSERT_STR_EQ(string_cstr(stmt->data.let.pattern->data.ident), "x");
+    ASSERT_EQ(stmt->data.let.value->type, EXPR_INT_LIT);
+    ASSERT_EQ(stmt->data.let.value->data.int_lit.value, 42);
+    
+    arena_destroy(arena);
+}
+
+/* Test: Parse return statement */
+void test_parse_return_statement(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "return 42");
+    
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_RETURN);
+    ASSERT_NOT_NULL(stmt->data.return_stmt.value);
+    ASSERT_EQ(stmt->data.return_stmt.value->type, EXPR_INT_LIT);
+    ASSERT_EQ(stmt->data.return_stmt.value->data.int_lit.value, 42);
+    
+    arena_destroy(arena);
+}
+
+/* Test: Parse unary expression (negation) */
+void test_parse_unary_neg(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "-42");
+    
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_UNARY);
+    ASSERT_EQ(expr->data.unary.op, UNOP_NEG);
+    ASSERT_EQ(expr->data.unary.operand->type, EXPR_INT_LIT);
+    ASSERT_EQ(expr->data.unary.operand->data.int_lit.value, 42);
+    
+    arena_destroy(arena);
+}
+
+/* Test: Parse unary expression (not) */
+void test_parse_unary_not(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "not true");
+    
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_UNARY);
+    ASSERT_EQ(expr->data.unary.op, UNOP_NOT);
+    ASSERT_EQ(expr->data.unary.operand->type, EXPR_BOOL_LIT);
+    
+    arena_destroy(arena);
+}
+
+void run_parser_tests(void) {
+    printf("\n=== Parser Tests ===\n");
+    TEST_RUN(test_parse_int_literal);
+    TEST_RUN(test_parse_string_literal);
+    TEST_RUN(test_parse_bool_literal);
+    TEST_RUN(test_parse_identifier);
+    TEST_RUN(test_parse_binary_add);
+    TEST_RUN(test_parse_binary_precedence);
+    TEST_RUN(test_parse_comparison);
+    TEST_RUN(test_parse_call_no_args);
+    TEST_RUN(test_parse_call_with_args);
+    TEST_RUN(test_parse_let_statement);
+    TEST_RUN(test_parse_return_statement);
+    TEST_RUN(test_parse_unary_neg);
+    TEST_RUN(test_parse_unary_not);
+}
