@@ -661,18 +661,37 @@ static Expr* parse_primary_internal(Parser* parser) {
         return expr_block(parser->arena, stmts, final_expr, loc);
     }
     
-    // List literal
+    // List literal or list comprehension
     if (match(parser, TOKEN_LBRACKET)) {
         SourceLoc loc = parser->previous.loc;
         
         ExprVec* elements = ExprVec_new(parser->arena);
         
-        // Parse comma-separated expressions: [expr, expr, ...]
+        // Parse first element, then check for comprehension or list
         if (!check(parser, TOKEN_RBRACKET)) {
-            do {
+            Expr* first = parse_expression(parser);
+            
+            // List comprehension: [expr for var in iterable [if cond]]
+            if (match(parser, TOKEN_FOR)) {
+                Token var_tok = consume(parser, TOKEN_IDENT, "Expected variable name after 'for'");
+                consume(parser, TOKEN_IN, "Expected 'in' after comprehension variable");
+                Expr* iterable = parse_expression(parser);
+                
+                Expr* condition = NULL;
+                if (match(parser, TOKEN_IF)) {
+                    condition = parse_expression(parser);
+                }
+                
+                consume(parser, TOKEN_RBRACKET, "Expected ']' after list comprehension");
+                return expr_list_comp(parser->arena, first, var_tok.text, iterable, condition, loc);
+            }
+            
+            // Regular list: first element already parsed
+            ExprVec_push(parser->arena, elements, first);
+            while (match(parser, TOKEN_COMMA)) {
                 Expr* elem = parse_expression(parser);
                 ExprVec_push(parser->arena, elements, elem);
-            } while (match(parser, TOKEN_COMMA));
+            }
         }
         
         consume(parser, TOKEN_RBRACKET, "Expected ']' after list elements");

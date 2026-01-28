@@ -2420,6 +2420,38 @@ void test_parse_tuple_field_chain(void) {
     arena_destroy(arena);
 }
 
+/* Test: [x * x for x in numbers] — list comprehension */
+void test_parse_list_comp(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "[x * x for x in numbers]");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_LIST_COMP);
+    ASSERT_NOT_NULL(expr->data.list_comp.body);
+    ASSERT_EQ(expr->data.list_comp.body->type, EXPR_BINARY);
+    ASSERT_STR_EQ(string_cstr(expr->data.list_comp.var_name), "x");
+    ASSERT_EQ(expr->data.list_comp.iterable->type, EXPR_IDENT);
+    ASSERT_NULL(expr->data.list_comp.condition);
+
+    arena_destroy(arena);
+}
+
+/* Test: [x for x in numbers if x % 2 == 0] — list comprehension with filter */
+void test_parse_list_comp_filter(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "[x for x in numbers if x % 2 == 0]");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_LIST_COMP);
+    ASSERT_STR_EQ(string_cstr(expr->data.list_comp.var_name), "x");
+    ASSERT_NOT_NULL(expr->data.list_comp.condition);
+    ASSERT_EQ(expr->data.list_comp.condition->type, EXPR_BINARY);
+
+    arena_destroy(arena);
+}
+
 void run_parser_tests(void) {
     printf("\n=== Parser Tests ===\n");
     TEST_RUN(test_parse_int_literal);
@@ -2544,4 +2576,6 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_return_postfix_unless);
     TEST_RUN(test_parse_tuple_field_access);
     TEST_RUN(test_parse_tuple_field_chain);
+    TEST_RUN(test_parse_list_comp);
+    TEST_RUN(test_parse_list_comp_filter);
 }

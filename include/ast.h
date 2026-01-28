@@ -49,6 +49,7 @@ typedef enum {
     EXPR_MAP,           // %{ key: value, ... }
     EXPR_TUPLE,         // (a, b, c)
     EXPR_RECORD_UPDATE, // { user | age: 31 }
+    EXPR_LIST_COMP,     // [expr for var in iterable if condition]
 } ExprType;
 
 /* Binary operators */
@@ -250,6 +251,14 @@ typedef struct {
     RecordFieldVec* fields;
 } RecordUpdateExpr;
 
+/* List comprehension: [expr for var in iterable if condition] */
+typedef struct {
+    Expr* body;         // The expression to evaluate per element
+    String* var_name;   // Loop variable name
+    Expr* iterable;     // Collection to iterate over
+    Expr* condition;    // Optional filter condition (NULL if no 'if')
+} ListCompExpr;
+
 /* Map entry: key: value */
 typedef struct {
     Expr* key;
@@ -292,6 +301,7 @@ struct Expr {
         MapExpr map;
         TupleExpr tuple;
         RecordUpdateExpr record_update;
+        ListCompExpr list_comp;
     } data;
 };
 
@@ -526,6 +536,7 @@ Expr* expr_interp_string(Arena* arena, ExprVec* parts, SourceLoc loc);
 Expr* expr_map(Arena* arena, MapEntryVec* entries, SourceLoc loc);
 Expr* expr_tuple(Arena* arena, ExprVec* elements, SourceLoc loc);
 Expr* expr_record_update(Arena* arena, Expr* base, RecordFieldVec* fields, SourceLoc loc);
+Expr* expr_list_comp(Arena* arena, Expr* body, String* var_name, Expr* iterable, Expr* condition, SourceLoc loc);
 
 /* Create statements */
 Stmt* stmt_let(Arena* arena, Pattern* pattern, TypeExpr* type_ann, Expr* value, SourceLoc loc);

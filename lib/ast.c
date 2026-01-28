@@ -324,6 +324,23 @@ Expr* expr_record_update(Arena* arena, Expr* base, RecordFieldVec* fields, Sourc
     return expr;
 }
 
+Expr* expr_list_comp(Arena* arena, Expr* body, String* var_name, Expr* iterable, Expr* condition, SourceLoc loc) {
+    assert(arena != NULL);
+    assert(body != NULL);
+    assert(var_name != NULL);
+    assert(iterable != NULL);
+
+    Expr* expr = arena_alloc(arena, sizeof(Expr));
+    expr->type = EXPR_LIST_COMP;
+    expr->loc = loc;
+    expr->data.list_comp.body = body;
+    expr->data.list_comp.var_name = var_name;
+    expr->data.list_comp.iterable = iterable;
+    expr->data.list_comp.condition = condition;
+
+    return expr;
+}
+
 Expr* expr_map(Arena* arena, MapEntryVec* entries, SourceLoc loc) {
     assert(arena != NULL);
     assert(entries != NULL);
