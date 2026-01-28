@@ -239,6 +239,31 @@ typedef struct {
 /* String vector (for import paths and items) */
 VEC_TYPE(StringVec, String*)
 
+/* Type variant field (name: Type) — used in sum type variants and record types */
+typedef struct {
+    String* name;
+    TypeExpr* type_ann;
+} TypeField;
+
+VEC_TYPE(TypeFieldVec, TypeField)
+
+/* Type variant — a constructor in a sum type (e.g., Some(a), None, Circle(radius: Float)) */
+typedef struct {
+    String* name;
+    TypeFieldVec* fields; // NULL if no fields (e.g., None, Active)
+} TypeVariant;
+
+VEC_TYPE(TypeVariantVec, TypeVariant)
+
+/* Type definition: type Name(params): variants/fields */
+typedef struct {
+    String* name;
+    bool is_public;
+    StringVec* type_params;      // NULL if no type params (e.g., Option(a) has ["a"])
+    TypeVariantVec* variants;    // Sum type variants (NULL for pure record types)
+    TypeFieldVec* record_fields; // Record fields (NULL for sum types)
+} TypeDef;
+
 /* Statement types */
 typedef enum {
     STMT_LET,           // let x = expr
@@ -247,6 +272,7 @@ typedef enum {
     STMT_FN,            // fn name(params) -> type: body
     STMT_IMPORT,        // import path.to.module
     STMT_DEFER,         // defer expr
+    STMT_TYPE_DEF,      // type Name: variants/fields
 } StmtType;
 
 /* Let statement */
@@ -289,6 +315,7 @@ struct Stmt {
         FunctionDef fn;
         ImportDecl import;
         DeferStmt defer_stmt;
+        TypeDef type_def;
     } data;
 };
 
@@ -364,6 +391,8 @@ Stmt* stmt_expr(Arena* arena, Expr* expr, SourceLoc loc);
 Stmt* stmt_fn(Arena* arena, String* name, bool is_public, ParameterVec* params, TypeExpr* return_type, Expr* body, SourceLoc loc);
 Stmt* stmt_import(Arena* arena, StringVec* path, StringVec* items, String* alias, SourceLoc loc);
 Stmt* stmt_defer(Arena* arena, Expr* expr, SourceLoc loc);
+Stmt* stmt_type_def(Arena* arena, String* name, bool is_public, StringVec* type_params,
+                    TypeVariantVec* variants, TypeFieldVec* record_fields, SourceLoc loc);
 
 /* Create patterns */
 Pattern* pattern_ident(Arena* arena, String* name, SourceLoc loc);

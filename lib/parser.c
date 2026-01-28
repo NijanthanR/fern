@@ -683,14 +683,115 @@ Stmt* parse_stmt(Parser* parser) {
         return stmt_defer(parser->arena, expr, loc);
     }
 
-    // Public function: pub fn name(...)
-    // Check for 'pub' keyword prefix
+    // Public declaration: pub fn ... or pub type ...
     bool is_public = false;
     if (match(parser, TOKEN_PUB)) {
         is_public = true;
-        // pub must be followed by fn
-        if (!check(parser, TOKEN_FN)) {
-            error_at_current(parser, "Expected 'fn' after 'pub'");
+        if (!check(parser, TOKEN_FN) && !check(parser, TOKEN_TYPE)) {
+            error_at_current(parser, "Expected 'fn' or 'type' after 'pub'");
+        }
+    }
+
+    // Type definition: type Name[(params)]: variants/fields
+    if (match(parser, TOKEN_TYPE)) {
+        SourceLoc loc = parser->previous.loc;
+        Token name_tok = consume(parser, TOKEN_IDENT, "Expected type name after 'type'");
+
+        // Optional type parameters: (a, b)
+        StringVec* type_params = NULL;
+        if (match(parser, TOKEN_LPAREN)) {
+            type_params = StringVec_new(parser->arena);
+            if (!check(parser, TOKEN_RPAREN)) {
+                do {
+                    Token param = consume(parser, TOKEN_IDENT, "Expected type parameter name");
+                    StringVec_push(parser->arena, type_params, param.text);
+                } while (match(parser, TOKEN_COMMA));
+            }
+            consume(parser, TOKEN_RPAREN, "Expected ')' after type parameters");
+        }
+
+        // TODO: parse optional derive(...) clause
+
+        consume(parser, TOKEN_COLON, "Expected ':' after type name");
+
+        // Determine if this is a sum type or record type.
+        // Record type: first member is lowercase ident followed by ':'
+        // Sum type: first member is uppercase ident (variant constructor)
+        // We use a heuristic: peek at the first identifier and the token after it.
+        bool is_record = false;
+        if (check(parser, TOKEN_IDENT)) {
+            const char* first_char = string_cstr(parser->current.text);
+            if (first_char[0] >= 'a' && first_char[0] <= 'z') {
+                // Lowercase identifier — check if followed by ':'
+                Token after = lexer_peek(parser->lexer);
+                if (after.type == TOKEN_COLON) {
+                    is_record = true;
+                }
+            }
+        }
+
+        if (is_record) {
+            // Record type: name: Type, name: Type, ...
+            TypeFieldVec* fields = TypeFieldVec_new(parser->arena);
+            // Parse fields until we hit something that's not a lowercase ident followed by ':'
+            while (check(parser, TOKEN_IDENT)) {
+                const char* fc = string_cstr(parser->current.text);
+                if (fc[0] >= 'A' && fc[0] <= 'Z') break; // uppercase = not a field
+                Token peek_tok = lexer_peek(parser->lexer);
+                if (peek_tok.type != TOKEN_COLON) break;
+
+                Token field_name = parser->current;
+                advance(parser);
+                consume(parser, TOKEN_COLON, "Expected ':' after field name");
+                TypeExpr* field_type = parse_type(parser);
+
+                TypeField field;
+                field.name = field_name.text;
+                field.type_ann = field_type;
+                TypeFieldVec_push(parser->arena, fields, field);
+            }
+            return stmt_type_def(parser->arena, name_tok.text, is_public, type_params, NULL, fields, loc);
+        } else {
+            // Sum type: Variant, Variant(fields), ...
+            TypeVariantVec* variants = TypeVariantVec_new(parser->arena);
+            while (check(parser, TOKEN_IDENT)) {
+                Token variant_name = parser->current;
+                advance(parser);
+
+                TypeFieldVec* fields = NULL;
+                if (match(parser, TOKEN_LPAREN)) {
+                    fields = TypeFieldVec_new(parser->arena);
+                    if (!check(parser, TOKEN_RPAREN)) {
+                        do {
+                            // Variant fields can be either:
+                            //   name: Type (named field)
+                            //   Type       (positional/type-only, e.g., Some(a))
+                            Token field_tok = consume(parser, TOKEN_IDENT, "Expected field name or type");
+                            if (match(parser, TOKEN_COLON)) {
+                                // Named field: name: Type
+                                TypeExpr* field_type = parse_type(parser);
+                                TypeField f;
+                                f.name = field_tok.text;
+                                f.type_ann = field_type;
+                                TypeFieldVec_push(parser->arena, fields, f);
+                            } else {
+                                // Positional/type-only: just a type name (e.g., Some(a))
+                                TypeField f;
+                                f.name = field_tok.text;
+                                f.type_ann = NULL;
+                                TypeFieldVec_push(parser->arena, fields, f);
+                            }
+                        } while (match(parser, TOKEN_COMMA));
+                    }
+                    consume(parser, TOKEN_RPAREN, "Expected ')' after variant fields");
+                }
+
+                TypeVariant variant;
+                variant.name = variant_name.text;
+                variant.fields = fields;
+                TypeVariantVec_push(parser->arena, variants, variant);
+            }
+            return stmt_type_def(parser->arena, name_tok.text, is_public, type_params, variants, NULL, loc);
         }
     }
 

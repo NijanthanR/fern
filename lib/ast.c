@@ -286,6 +286,24 @@ Stmt* stmt_defer(Arena* arena, Expr* expr, SourceLoc loc) {
     return stmt;
 }
 
+/* Create type definition statement */
+Stmt* stmt_type_def(Arena* arena, String* name, bool is_public, StringVec* type_params,
+                    TypeVariantVec* variants, TypeFieldVec* record_fields, SourceLoc loc) {
+    assert(arena != NULL);
+    assert(name != NULL);
+
+    Stmt* stmt = arena_alloc(arena, sizeof(Stmt));
+    stmt->type = STMT_TYPE_DEF;
+    stmt->loc = loc;
+    stmt->data.type_def.name = name;
+    stmt->data.type_def.is_public = is_public;
+    stmt->data.type_def.type_params = type_params;
+    stmt->data.type_def.variants = variants;
+    stmt->data.type_def.record_fields = record_fields;
+
+    return stmt;
+}
+
 /* Create let statement */
 Stmt* stmt_let(Arena* arena, Pattern* pattern, TypeExpr* type_ann, Expr* value, SourceLoc loc) {
     assert(arena != NULL);
