@@ -1,10 +1,8 @@
-/* Fern Runtime Library
+/**
+ * Fern Runtime Library
  *
- * Provides runtime support for Fern programs:
- * - Result type (Ok/Err tagged union)
- * - String operations
- * - List operations
- * - Memory allocation
+ * This library provides core functions for compiled Fern programs.
+ * It is linked into every Fern executable.
  */
 
 #ifndef FERN_RUNTIME_H
@@ -12,105 +10,154 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <stdbool.h>
 
-/* ========== Result Type ========== */
+/* ========== I/O Functions ========== */
 
-/* Result tag values */
-#define FERN_OK  0
-#define FERN_ERR 1
-
-/* Result type - a tagged union
- * Layout: [tag: i32][padding: i32][value: i64]
- * Total size: 16 bytes (aligned)
+/**
+ * Print an integer to stdout (no newline).
+ * @param n The integer to print.
  */
-typedef struct {
-    int32_t tag;      /* 0 = Ok, 1 = Err */
-    int32_t _pad;     /* Padding for alignment */
-    int64_t value;    /* The Ok or Err value */
-} FernResult;
+void fern_print_int(int64_t n);
 
-/* Create an Ok result */
-static inline FernResult fern_ok(int64_t value) {
-    return (FernResult){ .tag = FERN_OK, ._pad = 0, .value = value };
-}
-
-/* Create an Err result */
-static inline FernResult fern_err(int64_t error) {
-    return (FernResult){ .tag = FERN_ERR, ._pad = 0, .value = error };
-}
-
-/* Check if result is Ok */
-static inline bool fern_is_ok(FernResult r) {
-    return r.tag == FERN_OK;
-}
-
-/* Check if result is Err */
-static inline bool fern_is_err(FernResult r) {
-    return r.tag == FERN_ERR;
-}
-
-/* Unwrap Ok value (undefined behavior if Err) */
-static inline int64_t fern_unwrap(FernResult r) {
-    return r.value;
-}
-
-/* ========== String Type ========== */
-
-/* Fern strings are length-prefixed
- * Layout: [length: i64][data: char*]
+/**
+ * Print an integer to stdout with newline.
+ * @param n The integer to print.
  */
-typedef struct {
-    int64_t length;
-    char* data;
-} FernString;
+void fern_println_int(int64_t n);
 
-/* Create a string from C string literal */
-FernString* fern_string_new(const char* cstr);
-
-/* Get string length */
-int64_t fern_string_len(FernString* s);
-
-/* Concatenate two strings */
-FernString* fern_string_concat(FernString* a, FernString* b);
-
-/* Compare strings for equality */
-bool fern_string_eq(FernString* a, FernString* b);
-
-/* ========== List Type ========== */
-
-/* Fern lists are length + capacity + data
- * Layout: [length: i64][capacity: i64][data: void*]
+/**
+ * Print a string to stdout (no newline).
+ * @param s The null-terminated string to print.
  */
-typedef struct {
-    int64_t length;
-    int64_t capacity;
-    void* data;
+void fern_print_str(const char* s);
+
+/**
+ * Print a string to stdout with newline.
+ * @param s The null-terminated string to print.
+ */
+void fern_println_str(const char* s);
+
+/**
+ * Print a boolean to stdout (no newline).
+ * @param b The boolean to print (0 = false, non-zero = true).
+ */
+void fern_print_bool(int64_t b);
+
+/**
+ * Print a boolean to stdout with newline.
+ * @param b The boolean to print.
+ */
+void fern_println_bool(int64_t b);
+
+/* ========== String Functions ========== */
+
+/**
+ * Get the length of a string.
+ * @param s The null-terminated string.
+ * @return The length in bytes.
+ */
+int64_t fern_str_len(const char* s);
+
+/**
+ * Concatenate two strings.
+ * @param a First string.
+ * @param b Second string.
+ * @return Newly allocated concatenated string (caller must free).
+ */
+char* fern_str_concat(const char* a, const char* b);
+
+/**
+ * Compare two strings for equality.
+ * @param a First string.
+ * @param b Second string.
+ * @return 1 if equal, 0 otherwise.
+ */
+int64_t fern_str_eq(const char* a, const char* b);
+
+/* ========== List Functions ========== */
+
+/**
+ * Fern list structure.
+ * Lists are immutable; operations return new lists.
+ */
+typedef struct FernList {
+    int64_t* data;      /* Array of elements (int64_t for now) */
+    int64_t len;        /* Number of elements */
+    int64_t cap;        /* Allocated capacity */
 } FernList;
 
-/* Create an empty list */
+/**
+ * Create a new empty list.
+ * @return Pointer to new list.
+ */
 FernList* fern_list_new(void);
 
-/* Get list length */
+/**
+ * Create a list with given capacity.
+ * @param cap Initial capacity.
+ * @return Pointer to new list.
+ */
+FernList* fern_list_with_capacity(int64_t cap);
+
+/**
+ * Get the length of a list.
+ * @param list The list.
+ * @return Number of elements.
+ */
 int64_t fern_list_len(FernList* list);
 
-/* Push an element to the list */
-void fern_list_push(FernList* list, int64_t elem);
-
-/* Get element at index */
+/**
+ * Get element at index.
+ * @param list The list.
+ * @param index The index (0-based).
+ * @return The element value.
+ */
 int64_t fern_list_get(FernList* list, int64_t index);
 
-/* ========== Memory ========== */
+/**
+ * Append an element to a list (returns new list).
+ * @param list The original list.
+ * @param value The value to append.
+ * @return New list with element appended.
+ */
+FernList* fern_list_push(FernList* list, int64_t value);
 
-/* Allocate memory (uses malloc, to be replaced with GC) */
+/**
+ * Map a function over a list.
+ * @param list The list.
+ * @param fn Function pointer (int64_t -> int64_t).
+ * @return New list with function applied to each element.
+ */
+FernList* fern_list_map(FernList* list, int64_t (*fn)(int64_t));
+
+/**
+ * Fold a list from left.
+ * @param list The list.
+ * @param init Initial accumulator value.
+ * @param fn Function (acc, elem) -> acc.
+ * @return Final accumulated value.
+ */
+int64_t fern_list_fold(FernList* list, int64_t init, int64_t (*fn)(int64_t, int64_t));
+
+/**
+ * Free a list.
+ * @param list The list to free.
+ */
+void fern_list_free(FernList* list);
+
+/* ========== Memory Functions ========== */
+
+/**
+ * Allocate memory.
+ * @param size Number of bytes.
+ * @return Pointer to allocated memory.
+ */
 void* fern_alloc(size_t size);
 
-/* Free memory */
+/**
+ * Free memory.
+ * @param ptr Pointer to free.
+ */
 void fern_free(void* ptr);
-
-/* ========== Panic ========== */
-
-/* Panic with message (for unwrap failures, etc.) */
-void fern_panic(const char* msg) __attribute__((noreturn));
 
 #endif /* FERN_RUNTIME_H */

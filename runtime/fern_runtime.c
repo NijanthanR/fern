@@ -1,134 +1,251 @@
-/* Fern Runtime Library Implementation */
+/**
+ * Fern Runtime Library Implementation
+ *
+ * Core functions for compiled Fern programs.
+ */
 
 #include "fern_runtime.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
+#include <assert.h>
 
-/* ========== Memory ========== */
+/* ========== I/O Functions ========== */
 
-void* fern_alloc(size_t size) {
-    void* ptr = malloc(size);
-    if (!ptr) {
-        fern_panic("out of memory");
-    }
-    return ptr;
+/**
+ * Print an integer to stdout (no newline).
+ * @param n The integer to print.
+ */
+void fern_print_int(int64_t n) {
+    printf("%lld", (long long)n);
 }
 
-void fern_free(void* ptr) {
-    free(ptr);
+/**
+ * Print an integer to stdout with newline.
+ * @param n The integer to print.
+ */
+void fern_println_int(int64_t n) {
+    printf("%lld\n", (long long)n);
 }
 
-/* ========== Panic ========== */
-
-void fern_panic(const char* msg) {
-    fprintf(stderr, "panic: %s\n", msg);
-    exit(1);
+/**
+ * Print a string to stdout (no newline).
+ * @param s The null-terminated string to print.
+ */
+void fern_print_str(const char* s) {
+    assert(s != NULL);
+    printf("%s", s);
 }
 
-/* ========== String Type ========== */
-
-FernString* fern_string_new(const char* cstr) {
-    size_t len = strlen(cstr);
-    FernString* s = fern_alloc(sizeof(FernString));
-    s->length = (int64_t)len;
-    s->data = fern_alloc(len + 1);
-    memcpy(s->data, cstr, len + 1);
-    return s;
+/**
+ * Print a string to stdout with newline.
+ * @param s The null-terminated string to print.
+ */
+void fern_println_str(const char* s) {
+    assert(s != NULL);
+    printf("%s\n", s);
 }
 
-int64_t fern_string_len(FernString* s) {
-    return s ? s->length : 0;
+/**
+ * Print a boolean to stdout (no newline).
+ * @param b The boolean to print (0 = false, non-zero = true).
+ */
+void fern_print_bool(int64_t b) {
+    printf("%s", b ? "true" : "false");
 }
 
-FernString* fern_string_concat(FernString* a, FernString* b) {
-    if (!a || !b) return NULL;
-    
-    size_t new_len = (size_t)(a->length + b->length);
-    FernString* s = fern_alloc(sizeof(FernString));
-    s->length = (int64_t)new_len;
-    s->data = fern_alloc(new_len + 1);
-    memcpy(s->data, a->data, (size_t)a->length);
-    memcpy(s->data + a->length, b->data, (size_t)b->length);
-    s->data[new_len] = '\0';
-    return s;
+/**
+ * Print a boolean to stdout with newline.
+ * @param b The boolean to print.
+ */
+void fern_println_bool(int64_t b) {
+    printf("%s\n", b ? "true" : "false");
 }
 
-bool fern_string_eq(FernString* a, FernString* b) {
-    if (!a || !b) return a == b;
-    if (a->length != b->length) return false;
-    return memcmp(a->data, b->data, (size_t)a->length) == 0;
+/* ========== String Functions ========== */
+
+/**
+ * Get the length of a string.
+ * @param s The null-terminated string.
+ * @return The length in bytes.
+ */
+int64_t fern_str_len(const char* s) {
+    assert(s != NULL);
+    return (int64_t)strlen(s);
 }
 
-/* ========== List Type ========== */
+/**
+ * Concatenate two strings.
+ * @param a First string.
+ * @param b Second string.
+ * @return Newly allocated concatenated string (caller must free).
+ */
+char* fern_str_concat(const char* a, const char* b) {
+    assert(a != NULL);
+    assert(b != NULL);
+    size_t len_a = strlen(a);
+    size_t len_b = strlen(b);
+    char* result = malloc(len_a + len_b + 1);
+    assert(result != NULL);
+    memcpy(result, a, len_a);
+    memcpy(result + len_a, b, len_b + 1);
+    return result;
+}
 
-#define INITIAL_CAPACITY 8
+/**
+ * Compare two strings for equality.
+ * @param a First string.
+ * @param b Second string.
+ * @return 1 if equal, 0 otherwise.
+ */
+int64_t fern_str_eq(const char* a, const char* b) {
+    assert(a != NULL);
+    assert(b != NULL);
+    return strcmp(a, b) == 0 ? 1 : 0;
+}
 
+/* ========== List Functions ========== */
+
+/**
+ * Create a new empty list.
+ * @return Pointer to new list.
+ */
 FernList* fern_list_new(void) {
-    FernList* list = fern_alloc(sizeof(FernList));
-    list->length = 0;
-    list->capacity = INITIAL_CAPACITY;
-    list->data = fern_alloc(INITIAL_CAPACITY * sizeof(int64_t));
+    return fern_list_with_capacity(8);
+}
+
+/**
+ * Create a list with given capacity.
+ * @param cap Initial capacity.
+ * @return Pointer to new list.
+ */
+FernList* fern_list_with_capacity(int64_t cap) {
+    assert(cap > 0);
+    FernList* list = malloc(sizeof(FernList));
+    assert(list != NULL);
+    list->data = malloc((size_t)cap * sizeof(int64_t));
+    assert(list->data != NULL);
+    list->len = 0;
+    list->cap = cap;
     return list;
 }
 
+/**
+ * Get the length of a list.
+ * @param list The list.
+ * @return Number of elements.
+ */
 int64_t fern_list_len(FernList* list) {
-    return list ? list->length : 0;
+    assert(list != NULL);
+    return list->len;
 }
 
-void fern_list_push(FernList* list, int64_t elem) {
-    if (!list) return;
-    
-    /* Grow if needed */
-    if (list->length >= list->capacity) {
-        list->capacity *= 2;
-        int64_t* new_data = fern_alloc((size_t)list->capacity * sizeof(int64_t));
-        memcpy(new_data, list->data, (size_t)list->length * sizeof(int64_t));
-        fern_free(list->data);
-        list->data = new_data;
-    }
-    
-    ((int64_t*)list->data)[list->length++] = elem;
-}
-
+/**
+ * Get element at index.
+ * @param list The list.
+ * @param index The index (0-based).
+ * @return The element value.
+ */
 int64_t fern_list_get(FernList* list, int64_t index) {
-    if (!list || index < 0 || index >= list->length) {
-        fern_panic("list index out of bounds");
+    assert(list != NULL);
+    assert(index >= 0 && index < list->len);
+    return list->data[index];
+}
+
+/**
+ * Append an element to a list (returns new list).
+ * @param list The original list.
+ * @param value The value to append.
+ * @return New list with element appended.
+ */
+FernList* fern_list_push(FernList* list, int64_t value) {
+    assert(list != NULL);
+
+    /* Create new list with copied data */
+    int64_t new_cap = list->len + 1;
+    if (new_cap < list->cap) {
+        new_cap = list->cap;
     }
-    return ((int64_t*)list->data)[index];
-}
+    FernList* new_list = fern_list_with_capacity(new_cap);
+    assert(new_list != NULL);
 
-/* ========== Result Helper Functions (called from generated code) ========== */
-
-/* These are exported as symbols that QBE-generated code can call */
-
-/* Create Ok result - returns the struct by value (passed as pointer in QBE) */
-FernResult fern_result_ok(int64_t value) {
-    return fern_ok(value);
-}
-
-/* Create Err result */
-FernResult fern_result_err(int64_t error) {
-    return fern_err(error);
-}
-
-/* Check if result is Ok (returns 1 or 0) */
-int64_t fern_result_is_ok(FernResult* r) {
-    return r->tag == FERN_OK ? 1 : 0;
-}
-
-/* Get the value from a result (panics if Err) */
-int64_t fern_result_unwrap(FernResult* r) {
-    if (r->tag == FERN_ERR) {
-        fern_panic("unwrap called on Err");
+    /* Copy existing elements */
+    for (int64_t i = 0; i < list->len; i++) {
+        new_list->data[i] = list->data[i];
     }
-    return r->value;
+    new_list->data[list->len] = value;
+    new_list->len = list->len + 1;
+
+    return new_list;
 }
 
-/* Get the error from a result (panics if Ok) */
-int64_t fern_result_unwrap_err(FernResult* r) {
-    if (r->tag == FERN_OK) {
-        fern_panic("unwrap_err called on Ok");
+/**
+ * Map a function over a list.
+ * @param list The list.
+ * @param fn Function pointer (int64_t -> int64_t).
+ * @return New list with function applied to each element.
+ */
+FernList* fern_list_map(FernList* list, int64_t (*fn)(int64_t)) {
+    assert(list != NULL);
+    assert(fn != NULL);
+
+    FernList* new_list = fern_list_with_capacity(list->len > 0 ? list->len : 1);
+    assert(new_list != NULL);
+
+    for (int64_t i = 0; i < list->len; i++) {
+        new_list->data[i] = fn(list->data[i]);
     }
-    return r->value;
+    new_list->len = list->len;
+
+    return new_list;
+}
+
+/**
+ * Fold a list from left.
+ * @param list The list.
+ * @param init Initial accumulator value.
+ * @param fn Function (acc, elem) -> acc.
+ * @return Final accumulated value.
+ */
+int64_t fern_list_fold(FernList* list, int64_t init, int64_t (*fn)(int64_t, int64_t)) {
+    assert(list != NULL);
+    assert(fn != NULL);
+
+    int64_t acc = init;
+    for (int64_t i = 0; i < list->len; i++) {
+        acc = fn(acc, list->data[i]);
+    }
+    return acc;
+}
+
+/**
+ * Free a list.
+ * @param list The list to free.
+ */
+void fern_list_free(FernList* list) {
+    if (list != NULL) {
+        free(list->data);
+        free(list);
+    }
+}
+
+/* ========== Memory Functions ========== */
+
+/**
+ * Allocate memory.
+ * @param size Number of bytes.
+ * @return Pointer to allocated memory.
+ */
+void* fern_alloc(size_t size) {
+    void* ptr = malloc(size);
+    assert(ptr != NULL);
+    return ptr;
+}
+
+/**
+ * Free memory.
+ * @param ptr Pointer to free.
+ */
+void fern_free(void* ptr) {
+    free(ptr);
 }

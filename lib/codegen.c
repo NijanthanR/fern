@@ -404,8 +404,26 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                         string_cstr(result), string_cstr(err));
                     return result;
                 }
+
+                /* Handle print(value) - prints to stdout without newline */
+                if (strcmp(fn_name, "print") == 0 && call->args->len == 1) {
+                    String* val = codegen_expr(cg, call->args->data[0].value);
+                    /* Call runtime print function - assume Int for now */
+                    emit(cg, "    call $fern_print_int(w %s)\n", string_cstr(val));
+                    emit(cg, "    %s =w copy 0\n", string_cstr(result));
+                    return result;
+                }
+
+                /* Handle println(value) - prints to stdout with newline */
+                if (strcmp(fn_name, "println") == 0 && call->args->len == 1) {
+                    String* val = codegen_expr(cg, call->args->data[0].value);
+                    /* Call runtime println function - assume Int for now */
+                    emit(cg, "    call $fern_println_int(w %s)\n", string_cstr(val));
+                    emit(cg, "    %s =w copy 0\n", string_cstr(result));
+                    return result;
+                }
             }
-            
+
             /* Generate code for arguments */
             String** arg_temps = NULL;
             if (call->args->len > 0) {

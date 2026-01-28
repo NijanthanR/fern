@@ -14,16 +14,22 @@ LIB_DIR = lib
 INCLUDE_DIR = include
 BUILD_DIR = build
 BIN_DIR = bin
+RUNTIME_DIR = runtime
 
 # Source files
 SRCS = $(wildcard $(SRC_DIR)/*.c)
 TEST_SRCS = $(wildcard $(TEST_DIR)/*.c)
 LIB_SRCS = $(wildcard $(LIB_DIR)/*.c)
+RUNTIME_SRCS = $(wildcard $(RUNTIME_DIR)/*.c)
 
 # Object files
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
 TEST_OBJS = $(TEST_SRCS:$(TEST_DIR)/%.c=$(BUILD_DIR)/test_%.o)
 LIB_OBJS = $(LIB_SRCS:$(LIB_DIR)/%.c=$(BUILD_DIR)/lib_%.o)
+RUNTIME_OBJS = $(RUNTIME_SRCS:$(RUNTIME_DIR)/%.c=$(BUILD_DIR)/runtime_%.o)
+
+# Runtime library (linked into compiled Fern programs)
+RUNTIME_LIB = $(BIN_DIR)/libfern_runtime.a
 
 # Binaries
 FERN_BIN = $(BIN_DIR)/fern
@@ -36,17 +42,22 @@ all: debug
 # Debug build
 .PHONY: debug
 debug: CFLAGS += $(DEBUGFLAGS)
-debug: $(FERN_BIN)
+debug: $(FERN_BIN) $(RUNTIME_LIB)
 
 # Release build
 .PHONY: release
 release: CFLAGS += $(RELEASEFLAGS)
-release: clean $(FERN_BIN)
+release: clean $(FERN_BIN) $(RUNTIME_LIB)
 
 # Build fern compiler
 $(FERN_BIN): $(OBJS) $(LIB_OBJS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 	@echo "✓ Built fern compiler: $@"
+
+# Build runtime library (static archive for linking into Fern programs)
+$(RUNTIME_LIB): $(RUNTIME_OBJS) | $(BIN_DIR)
+	ar rcs $@ $^
+	@echo "✓ Built runtime library: $@"
 
 # Build and run tests
 .PHONY: test
@@ -71,6 +82,10 @@ $(BUILD_DIR)/test_%.o: $(TEST_DIR)/%.c | $(BUILD_DIR)
 # Compile library files
 $(BUILD_DIR)/lib_%.o: $(LIB_DIR)/%.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+# Compile runtime files
+$(BUILD_DIR)/runtime_%.o: $(RUNTIME_DIR)/%.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -I$(RUNTIME_DIR) -c $< -o $@
 
 # Create directories
 $(BUILD_DIR):

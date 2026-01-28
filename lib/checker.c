@@ -145,6 +145,21 @@ Checker* checker_new(Arena* arena) {
     checker->env = type_env_new(arena);
     checker->errors = NULL;
     checker->errors_tail = NULL;
+
+    /* Register built-in functions from the runtime library */
+
+    /* print(Int) -> Int - prints integer without newline, returns 0 */
+    TypeVec* print_params = TypeVec_new(arena);
+    TypeVec_push(arena, print_params, type_int(arena));
+    Type* print_type = type_fn(arena, print_params, type_int(arena));
+    type_env_define(checker->env, string_new(arena, "print"), print_type);
+
+    /* println(Int) -> Int - prints integer with newline, returns 0 */
+    TypeVec* println_params = TypeVec_new(arena);
+    TypeVec_push(arena, println_params, type_int(arena));
+    Type* println_type = type_fn(arena, println_params, type_int(arena));
+    type_env_define(checker->env, string_new(arena, "println"), println_type);
+
     return checker;
 }
 

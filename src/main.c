@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -142,6 +143,52 @@ static Codegen* compile_to_qbe(Arena* arena, const char* source, const char* fil
 }
 
 /**
+ * Find the runtime library path relative to fern executable.
+ * @param exe_path Path to the fern executable (argv[0]).
+ * @param buf Buffer to write the runtime library path (output parameter).
+ * @param buf_size Size of the buffer.
+ * @return true if found, false otherwise.
+ */
+static bool find_runtime_lib(const char* exe_path, char* buf, size_t buf_size) {  // FERN_STYLE: allow(no-raw-char) buf is output parameter
+    // FERN_STYLE: allow(assertion-density) path manipulation with multiple checks
+    
+    // Try to find runtime library in same directory as fern executable
+    // Find the directory containing the executable
+    const char* last_slash = NULL;
+    for (const char* p = exe_path; *p; p++) {
+        if (*p == '/' || *p == '\\') {
+            last_slash = p;
+        }
+    }
+    
+    if (last_slash) {
+        size_t dir_len = (size_t)(last_slash - exe_path);
+        if (dir_len + 20 < buf_size) {
+            memcpy(buf, exe_path, dir_len);
+            strcpy(buf + dir_len, "/libfern_runtime.a");
+            
+            // Check if file exists
+            struct stat st;
+            if (stat(buf, &st) == 0) {
+                return true;
+            }
+        }
+    }
+    
+    // Try current directory
+    snprintf(buf, buf_size, "./bin/libfern_runtime.a");
+    struct stat st;
+    if (stat(buf, &st) == 0) {
+        return true;
+    }
+    
+    return false;
+}
+
+/* Global variable to store exe path from main */
+static const char* g_exe_path = NULL;
+
+/**
  * Run QBE compiler and linker to create executable.
  * @param ssa_file Path to QBE IR file.
  * @param output_file Path for output executable.
@@ -172,9 +219,15 @@ static int run_qbe_and_link(const char* ssa_file, const char* output_file) {
         return 1;
     }
     
-    // Link with runtime (if it exists)
-    // For now, just link the object file
-    snprintf(cmd, sizeof(cmd), "cc -o %s %s 2>&1", output_file, obj_file);
+    // Find and link with runtime library
+    char runtime_lib[512];
+    if (g_exe_path && find_runtime_lib(g_exe_path, runtime_lib, sizeof(runtime_lib))) {
+        snprintf(cmd, sizeof(cmd), "cc -o %s %s %s 2>&1", output_file, obj_file, runtime_lib);
+    } else {
+        // Fall back to linking without runtime (will fail if runtime functions used)
+        snprintf(cmd, sizeof(cmd), "cc -o %s %s 2>&1", output_file, obj_file);
+    }
+    
     ret = system(cmd);
     if (ret != 0) {
         fprintf(stderr, "Error: Linking failed\n");
@@ -316,6 +369,9 @@ static int cmd_emit(Arena* arena, const char* filename) {
  */
 int main(int argc, char** argv) {
     // FERN_STYLE: allow(assertion-density) main entry point - handles args and setup
+    
+    // Store executable path for runtime library lookup
+    g_exe_path = argv[0];
     
     if (argc < 3) {
         print_usage();
