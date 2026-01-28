@@ -768,3 +768,82 @@ make test
 - Use Datatype99 for tagged unions
 - Use SDS for all strings
 - Use stb_ds for hash maps and arrays
+
+## Ralph Loop Status
+
+**Current Milestone**: 2 - Parser
+**Current Iteration**: 1
+**Agent Turn**: CONTROLLER
+**Status**: WAITING_VERIFICATION
+**Started**: 2026-01-28 02:00:00
+**Last Updated**: 2026-01-28 02:15:00
+
+### Current Task
+
+- [ ] Implement if expression parsing
+
+**Expected Tests**:
+- test_parse_if_simple() - Parse simple if: "if true: 42"
+- test_parse_if_else() - Parse if-else: "if x > 0: 1 else: 0"
+
+**Expected Files**:
+- tests/test_parser.c (add 2 new tests)
+- lib/parser.c (add if parsing in parse_primary_internal)
+- lib/ast.c (add expr_if helper function)
+- include/ast.h (add expr_if declaration)
+
+**Success Criteria**:
+- Both new tests pass
+- No regression in existing 36 tests (should be 38/38 total)
+- No compiler warnings
+- Follows existing parser patterns
+
+**Context**:
+This is the first real Ralph Loop iteration. The task is small and well-defined.
+If expressions use syntax: if <condition>: <then_expr> [else: <else_expr>]
+
+### Implementation Notes
+
+**Written by**: IMPLEMENTER (Sonnet 4.5)
+**Time**: 2026-01-28 02:15:00
+
+Implemented if expression parsing following strict TDD workflow.
+
+**RED Phase (Tests First)**:
+- Added test_parse_if_simple() - tests simple if without else
+- Added test_parse_if_else() - tests if with else branch
+- Tests failed as expected (36/38 passing)
+- Committed: test(parser): add if expression tests (RED) - 0674f57
+
+**GREEN Phase (Implementation)**:
+- Added expr_if() helper function in lib/ast.c
+- Added if parsing in parse_primary_internal() in lib/parser.c
+- Handles optional else branch correctly
+- All tests passing (38/38)
+- Committed: feat(parser): implement if expressions (GREEN) - 3e725f3
+
+**Results**:
+- Tests: 38/38 passing ✓
+- No compiler warnings ✓
+- Follows existing parser patterns ✓
+- Uses arena allocation ✓
+
+**Commits**:
+- 0674f57: test(parser): add if expression tests (TDD - RED phase)
+- 3e725f3: feat(parser): implement if expression parsing (TDD - GREEN phase)
+
+**Files Changed**:
+- tests/test_parser.c (+37 lines, 2 new tests)
+- lib/parser.c (+17 lines, if parsing)
+- lib/ast.c (+17 lines, expr_if helper)
+- include/ast.h (+1 line, expr_if declaration)
+
+### Verification Notes
+
+(CONTROLLER will fill this after verification)
+
+### Blockers
+
+None
+
+---
