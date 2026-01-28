@@ -209,6 +209,22 @@ Expr* expr_with(Arena* arena, WithBindingVec* bindings, Expr* body, MatchArmVec*
     return expr;
 }
 
+/* Create range expression */
+Expr* expr_range(Arena* arena, Expr* start, Expr* end, bool inclusive, SourceLoc loc) {
+    assert(arena != NULL);
+    assert(start != NULL);
+    assert(end != NULL);
+
+    Expr* expr = arena_alloc(arena, sizeof(Expr));
+    expr->type = EXPR_RANGE;
+    expr->loc = loc;
+    expr->data.range.start = start;
+    expr->data.range.end = end;
+    expr->data.range.inclusive = inclusive;
+
+    return expr;
+}
+
 /* Create for loop expression */
 Expr* expr_for(Arena* arena, String* var_name, Expr* iterable, Expr* body, SourceLoc loc) {
     assert(arena != NULL);

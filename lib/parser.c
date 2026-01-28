@@ -6,6 +6,7 @@
 // Forward declarations for expression parsing with precedence
 static Expr* parse_expression(Parser* parser);
 static Expr* parse_pipe(Parser* parser);
+static Expr* parse_range(Parser* parser);
 static Expr* parse_logical_or(Parser* parser);
 static Expr* parse_logical_and(Parser* parser);
 static Expr* parse_equality(Parser* parser);
@@ -91,14 +92,28 @@ static Expr* parse_expression(Parser* parser) {
 
 // Precedence: pipe (lowest)
 static Expr* parse_pipe(Parser* parser) {
-    Expr* expr = parse_logical_or(parser);
+    Expr* expr = parse_range(parser);
     
     while (match(parser, TOKEN_PIPE)) {
         SourceLoc loc = parser->previous.loc;
-        Expr* right = parse_logical_or(parser);
+        Expr* right = parse_range(parser);
         expr = expr_binary(parser->arena, BINOP_PIPE, expr, right, loc);
     }
     
+    return expr;
+}
+
+// Precedence: range (above logical, below pipe)
+static Expr* parse_range(Parser* parser) {
+    Expr* expr = parse_logical_or(parser);
+
+    if (match(parser, TOKEN_DOTDOT)) {
+        SourceLoc loc = parser->previous.loc;
+        // TODO: check for ..= (inclusive) when TOKEN_DOTDOT_EQ exists
+        Expr* end = parse_logical_or(parser);
+        expr = expr_range(parser->arena, expr, end, false, loc);
+    }
+
     return expr;
 }
 

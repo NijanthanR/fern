@@ -1711,6 +1711,37 @@ void test_parse_continue(void) {
     arena_destroy(arena);
 }
 
+/* Test: Parse range expression (exclusive) */
+void test_parse_range_exclusive(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "0..10");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_RANGE);
+    ASSERT_EQ(expr->data.range.start->type, EXPR_INT_LIT);
+    ASSERT_EQ(expr->data.range.start->data.int_lit.value, 0);
+    ASSERT_EQ(expr->data.range.end->type, EXPR_INT_LIT);
+    ASSERT_EQ(expr->data.range.end->data.int_lit.value, 10);
+    ASSERT_FALSE(expr->data.range.inclusive);
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse range in for loop */
+void test_parse_for_range(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "for i in 0..5: process(i)");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_FOR);
+    ASSERT_EQ(expr->data.for_loop.iterable->type, EXPR_RANGE);
+    ASSERT_FALSE(expr->data.for_loop.iterable->data.range.inclusive);
+
+    arena_destroy(arena);
+}
+
 void run_parser_tests(void) {
     printf("\n=== Parser Tests ===\n");
     TEST_RUN(test_parse_int_literal);
@@ -1794,4 +1825,6 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_break);
     TEST_RUN(test_parse_break_with_value);
     TEST_RUN(test_parse_continue);
+    TEST_RUN(test_parse_range_exclusive);
+    TEST_RUN(test_parse_for_range);
 }
