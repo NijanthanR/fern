@@ -1113,6 +1113,128 @@ void test_check_match_result_ok_err(void) {
     arena_destroy(arena);
 }
 
+/* ========== Range Expression Tests ========== */
+
+void test_check_range_int(void) {
+    Arena* arena = arena_create(4096);
+    
+    // 0..10 should have type Range(Int)
+    Type* t = check_expr(arena, "0..10");
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_CON);
+    ASSERT_STR_EQ(string_cstr(t->data.con.name), "Range");
+    ASSERT_EQ(t->data.con.args->data[0]->kind, TYPE_INT);
+    
+    arena_destroy(arena);
+}
+
+void test_check_range_inclusive(void) {
+    Arena* arena = arena_create(4096);
+    
+    // 1..=100 should have type Range(Int)
+    Type* t = check_expr(arena, "1..=100");
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_CON);
+    ASSERT_STR_EQ(string_cstr(t->data.con.name), "Range");
+    
+    arena_destroy(arena);
+}
+
+void test_check_range_requires_same_type(void) {
+    Arena* arena = arena_create(4096);
+    
+    // 0.."ten" should error - bounds must be same type
+    const char* err = check_expr_error(arena, "0..\"ten\"");
+    
+    ASSERT_NOT_NULL(err);
+    // Should report type mismatch
+    
+    arena_destroy(arena);
+}
+
+/* ========== Map Literal Tests ========== */
+
+void test_check_map_string_int(void) {
+    Arena* arena = arena_create(4096);
+    
+    // %{ "a": 1, "b": 2 } should have type Map(String, Int)
+    Type* t = check_expr(arena, "%{ \"a\": 1, \"b\": 2 }");
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_CON);
+    ASSERT_STR_EQ(string_cstr(t->data.con.name), "Map");
+    ASSERT_EQ(t->data.con.args->len, 2);
+    ASSERT_EQ(t->data.con.args->data[0]->kind, TYPE_STRING);
+    ASSERT_EQ(t->data.con.args->data[1]->kind, TYPE_INT);
+    
+    arena_destroy(arena);
+}
+
+void test_check_map_empty(void) {
+    Arena* arena = arena_create(4096);
+    
+    // %{} should have type Map(a, b) with type variables
+    Type* t = check_expr(arena, "%{}");
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_CON);
+    ASSERT_STR_EQ(string_cstr(t->data.con.name), "Map");
+    
+    arena_destroy(arena);
+}
+
+void test_check_map_mixed_keys_error(void) {
+    Arena* arena = arena_create(4096);
+    
+    // %{ "a": 1, 2: 3 } should error - keys must have same type
+    const char* err = check_expr_error(arena, "%{ \"a\": 1, 2: 3 }");
+    
+    ASSERT_NOT_NULL(err);
+    // Should report key type mismatch
+    
+    arena_destroy(arena);
+}
+
+/* ========== Tuple Field Access Tests ========== */
+
+void test_check_tuple_field_access(void) {
+    Arena* arena = arena_create(4096);
+    
+    // (1, "hello", true).0 should be Int
+    Type* t = check_expr(arena, "(1, \"hello\", true).0");
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_INT);
+    
+    arena_destroy(arena);
+}
+
+void test_check_tuple_field_access_second(void) {
+    Arena* arena = arena_create(4096);
+    
+    // (1, "hello", true).1 should be String
+    Type* t = check_expr(arena, "(1, \"hello\", true).1");
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_STRING);
+    
+    arena_destroy(arena);
+}
+
+void test_check_tuple_field_out_of_bounds(void) {
+    Arena* arena = arena_create(4096);
+    
+    // (1, 2).5 should error - index out of bounds
+    const char* err = check_expr_error(arena, "(1, 2).5");
+    
+    ASSERT_NOT_NULL(err);
+    // Should report index out of bounds
+    
+    arena_destroy(arena);
+}
+
 /* ========== Test Runner ========== */
 
 void run_checker_tests(void) {
@@ -1227,4 +1349,19 @@ void run_checker_tests(void) {
     TEST_RUN(test_check_match_option_some);
     TEST_RUN(test_check_match_option_none);
     TEST_RUN(test_check_match_result_ok_err);
+    
+    // Range expressions
+    TEST_RUN(test_check_range_int);
+    TEST_RUN(test_check_range_inclusive);
+    TEST_RUN(test_check_range_requires_same_type);
+    
+    // Map literals
+    TEST_RUN(test_check_map_string_int);
+    TEST_RUN(test_check_map_empty);
+    TEST_RUN(test_check_map_mixed_keys_error);
+    
+    // Tuple field access (dot notation)
+    TEST_RUN(test_check_tuple_field_access);
+    TEST_RUN(test_check_tuple_field_access_second);
+    TEST_RUN(test_check_tuple_field_out_of_bounds);
 }

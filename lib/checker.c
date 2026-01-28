@@ -3,6 +3,7 @@
 #include "checker.h"
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* Error message storage */
@@ -1073,11 +1074,119 @@ Type* checker_infer_expr(Checker* checker, Expr* expr) {
                 string_cstr(type_to_string(checker->arena, obj_type)));
         }
             
+        case EXPR_DOT: {
+            /* Dot expression: object.field
+             * For tuples: returns the field type at the given index
+             * For records: would look up field type (not yet implemented)
+             */
+            DotExpr* dot = &expr->data.dot;
+            Type* obj_type = checker_infer_expr(checker, dot->object);
+            if (obj_type->kind == TYPE_ERROR) return obj_type;
+            
+            /* Tuple field access: tuple.0, tuple.1, etc. */
+            if (obj_type->kind == TYPE_TUPLE) {
+                const char* field_str = string_cstr(dot->field);
+                /* Parse field as index */
+                char* endptr;
+                long index = strtol(field_str, &endptr, 10);
+                if (*endptr != '\0' || index < 0) {
+                    return error_type_at(checker, expr->loc, 
+                        "Invalid tuple field: %s (expected numeric index)", field_str);
+                }
+                
+                size_t idx = (size_t)index;
+                if (idx >= obj_type->data.tuple.elements->len) {
+                    return error_type_at(checker, expr->loc,
+                        "Tuple index %zu out of bounds (tuple has %zu elements)",
+                        idx, obj_type->data.tuple.elements->len);
+                }
+                
+                return obj_type->data.tuple.elements->data[idx];
+            }
+            
+            /* TODO: Record field access */
+            return error_type_at(checker, expr->loc, "Cannot access field '%s' on type %s",
+                string_cstr(dot->field),
+                string_cstr(type_to_string(checker->arena, obj_type)));
+        }
+            
+        case EXPR_RANGE: {
+            /* Range expression: start..end or start..=end
+             * Both bounds must be the same type (typically Int)
+             * Returns Range(element_type)
+             */
+            RangeExpr* range = &expr->data.range;
+            Type* start_type = checker_infer_expr(checker, range->start);
+            if (start_type->kind == TYPE_ERROR) return start_type;
+            
+            Type* end_type = checker_infer_expr(checker, range->end);
+            if (end_type->kind == TYPE_ERROR) return end_type;
+            
+            /* Bounds must have the same type */
+            if (!type_equals(start_type, end_type)) {
+                return error_type_at(checker, expr->loc,
+                    "Range bounds must have same type: %s vs %s",
+                    string_cstr(type_to_string(checker->arena, start_type)),
+                    string_cstr(type_to_string(checker->arena, end_type)));
+            }
+            
+            /* Return Range(element_type) */
+            TypeVec* args = TypeVec_new(checker->arena);
+            TypeVec_push(checker->arena, args, start_type);
+            return type_con(checker->arena, string_new(checker->arena, "Range"), args);
+        }
+            
+        case EXPR_MAP: {
+            /* Map literal: %{ key: value, ... }
+             * All keys must have same type, all values must have same type
+             * Returns Map(key_type, value_type)
+             */
+            MapExpr* map = &expr->data.map;
+            
+            if (map->entries->len == 0) {
+                /* Empty map has type Map(a, b) with fresh type variables */
+                int key_var = type_fresh_var_id();
+                int val_var = type_fresh_var_id();
+                Type* key_type = type_var(checker->arena, string_new(checker->arena, "k"), key_var);
+                Type* val_type = type_var(checker->arena, string_new(checker->arena, "v"), val_var);
+                return type_map(checker->arena, key_type, val_type);
+            }
+            
+            /* Infer types from first entry */
+            Type* key_type = checker_infer_expr(checker, map->entries->data[0].key);
+            if (key_type->kind == TYPE_ERROR) return key_type;
+            
+            Type* val_type = checker_infer_expr(checker, map->entries->data[0].value);
+            if (val_type->kind == TYPE_ERROR) return val_type;
+            
+            /* Check all entries have consistent types */
+            for (size_t i = 1; i < map->entries->len; i++) {
+                Type* k = checker_infer_expr(checker, map->entries->data[i].key);
+                if (k->kind == TYPE_ERROR) return k;
+                
+                if (!type_equals(key_type, k)) {
+                    return error_type_at(checker, expr->loc,
+                        "Map key type mismatch at entry %zu: expected %s, got %s",
+                        i, string_cstr(type_to_string(checker->arena, key_type)),
+                        string_cstr(type_to_string(checker->arena, k)));
+                }
+                
+                Type* v = checker_infer_expr(checker, map->entries->data[i].value);
+                if (v->kind == TYPE_ERROR) return v;
+                
+                if (!type_equals(val_type, v)) {
+                    return error_type_at(checker, expr->loc,
+                        "Map value type mismatch at entry %zu: expected %s, got %s",
+                        i, string_cstr(type_to_string(checker->arena, val_type)),
+                        string_cstr(type_to_string(checker->arena, v)));
+                }
+            }
+            
+            return type_map(checker->arena, key_type, val_type);
+        }
+            
         /* TODO: Implement remaining expression types */
-        case EXPR_DOT:
-        case EXPR_RANGE:
         case EXPR_INTERP_STRING:
-        case EXPR_MAP:
         case EXPR_RECORD_UPDATE:
         case EXPR_LIST_COMP:
         case EXPR_TRY: {
