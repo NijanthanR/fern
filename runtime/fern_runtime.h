@@ -145,6 +145,129 @@ int64_t fern_list_fold(FernList* list, int64_t init, int64_t (*fn)(int64_t, int6
  */
 void fern_list_free(FernList* list);
 
+/* ========== Result Type ========== */
+
+/**
+ * Fern Result type.
+ * Tag: 0 = Ok, 1 = Err
+ * Value: The ok or err value (int64_t for simplicity).
+ *
+ * Represented as a packed 64-bit value:
+ * - Upper 32 bits: value
+ * - Lower 32 bits: tag (0 = Ok, 1 = Err)
+ */
+
+/**
+ * Create an Ok result.
+ * @param value The success value.
+ * @return Packed Result value.
+ */
+int64_t fern_result_ok(int64_t value);
+
+/**
+ * Create an Err result.
+ * @param value The error value.
+ * @return Packed Result value.
+ */
+int64_t fern_result_err(int64_t value);
+
+/**
+ * Check if a Result is Ok.
+ * @param result The packed Result value.
+ * @return 1 if Ok, 0 if Err.
+ */
+int64_t fern_result_is_ok(int64_t result);
+
+/**
+ * Unwrap the value from a Result.
+ * @param result The packed Result value.
+ * @return The contained value (ok or err).
+ */
+int64_t fern_result_unwrap(int64_t result);
+
+/**
+ * Map a function over an Ok value.
+ * @param result The Result.
+ * @param fn Function to apply if Ok.
+ * @return New Result with mapped value, or original Err.
+ */
+int64_t fern_result_map(int64_t result, int64_t (*fn)(int64_t));
+
+/**
+ * Chain a function that returns Result over an Ok value.
+ * @param result The Result.
+ * @param fn Function to apply if Ok (returns Result).
+ * @return Result from fn if Ok, or original Err.
+ */
+int64_t fern_result_and_then(int64_t result, int64_t (*fn)(int64_t));
+
+/**
+ * Get the Ok value or a default.
+ * @param result The Result.
+ * @param default_val Value to return if Err.
+ * @return Ok value or default.
+ */
+int64_t fern_result_unwrap_or(int64_t result, int64_t default_val);
+
+/**
+ * Get the Ok value or compute a default from the error.
+ * @param result The Result.
+ * @param fn Function to compute default from error.
+ * @return Ok value or fn(err_value).
+ */
+int64_t fern_result_unwrap_or_else(int64_t result, int64_t (*fn)(int64_t));
+
+/* ========== Option Type ========== */
+
+/**
+ * Fern Option type.
+ * Tag: 0 = None, 1 = Some
+ * Represented as packed 64-bit value (same as Result).
+ */
+
+/**
+ * Create a Some option.
+ * @param value The contained value.
+ * @return Packed Option value.
+ */
+int64_t fern_option_some(int64_t value);
+
+/**
+ * Create a None option.
+ * @return Packed Option value representing None.
+ */
+int64_t fern_option_none(void);
+
+/**
+ * Check if an Option is Some.
+ * @param option The packed Option value.
+ * @return 1 if Some, 0 if None.
+ */
+int64_t fern_option_is_some(int64_t option);
+
+/**
+ * Unwrap the value from an Option.
+ * @param option The packed Option value.
+ * @return The contained value (undefined if None).
+ */
+int64_t fern_option_unwrap(int64_t option);
+
+/**
+ * Map a function over a Some value.
+ * @param option The Option.
+ * @param fn Function to apply if Some.
+ * @return New Option with mapped value, or None.
+ */
+int64_t fern_option_map(int64_t option, int64_t (*fn)(int64_t));
+
+/**
+ * Get the Some value or a default.
+ * @param option The Option.
+ * @param default_val Value to return if None.
+ * @return Some value or default.
+ */
+int64_t fern_option_unwrap_or(int64_t option, int64_t default_val);
+
 /* ========== Memory Functions ========== */
 
 /**

@@ -249,3 +249,184 @@ void* fern_alloc(size_t size) {
 void fern_free(void* ptr) {
     free(ptr);
 }
+
+/* ========== Result Type ========== */
+
+/*
+ * Result encoding (packed 64-bit):
+ * - Bits 0-31: tag (0 = Ok, 1 = Err)
+ * - Bits 32-63: value
+ */
+
+#define RESULT_TAG_OK  0
+#define RESULT_TAG_ERR 1
+
+/**
+ * Create an Ok result.
+ * @param value The success value.
+ * @return Packed Result value.
+ */
+int64_t fern_result_ok(int64_t value) {
+    /* Pack: value in upper 32 bits, tag=0 in lower 32 bits */
+    return ((value & 0xFFFFFFFF) << 32) | RESULT_TAG_OK;
+}
+
+/**
+ * Create an Err result.
+ * @param value The error value.
+ * @return Packed Result value.
+ */
+int64_t fern_result_err(int64_t value) {
+    /* Pack: value in upper 32 bits, tag=1 in lower 32 bits */
+    return ((value & 0xFFFFFFFF) << 32) | RESULT_TAG_ERR;
+}
+
+/**
+ * Check if a Result is Ok.
+ * @param result The packed Result value.
+ * @return 1 if Ok, 0 if Err.
+ */
+int64_t fern_result_is_ok(int64_t result) {
+    return (result & 0xFFFFFFFF) == RESULT_TAG_OK ? 1 : 0;
+}
+
+/**
+ * Unwrap the value from a Result.
+ * @param result The packed Result value.
+ * @return The contained value (ok or err).
+ */
+int64_t fern_result_unwrap(int64_t result) {
+    /* Extract value from upper 32 bits, sign-extend */
+    return (int64_t)((int32_t)(result >> 32));
+}
+
+/**
+ * Map a function over an Ok value.
+ * @param result The Result.
+ * @param fn Function to apply if Ok.
+ * @return New Result with mapped value, or original Err.
+ */
+int64_t fern_result_map(int64_t result, int64_t (*fn)(int64_t)) {
+    assert(fn != NULL);
+    if (fern_result_is_ok(result)) {
+        int64_t value = fern_result_unwrap(result);
+        return fern_result_ok(fn(value));
+    }
+    return result;
+}
+
+/**
+ * Chain a function that returns Result over an Ok value.
+ * @param result The Result.
+ * @param fn Function to apply if Ok (returns Result).
+ * @return Result from fn if Ok, or original Err.
+ */
+int64_t fern_result_and_then(int64_t result, int64_t (*fn)(int64_t)) {
+    assert(fn != NULL);
+    if (fern_result_is_ok(result)) {
+        int64_t value = fern_result_unwrap(result);
+        return fn(value);
+    }
+    return result;
+}
+
+/**
+ * Get the Ok value or a default.
+ * @param result The Result.
+ * @param default_val Value to return if Err.
+ * @return Ok value or default.
+ */
+int64_t fern_result_unwrap_or(int64_t result, int64_t default_val) {
+    if (fern_result_is_ok(result)) {
+        return fern_result_unwrap(result);
+    }
+    return default_val;
+}
+
+/**
+ * Get the Ok value or compute a default from the error.
+ * @param result The Result.
+ * @param fn Function to compute default from error.
+ * @return Ok value or fn(err_value).
+ */
+int64_t fern_result_unwrap_or_else(int64_t result, int64_t (*fn)(int64_t)) {
+    assert(fn != NULL);
+    if (fern_result_is_ok(result)) {
+        return fern_result_unwrap(result);
+    }
+    return fn(fern_result_unwrap(result));
+}
+
+/* ========== Option Type ========== */
+
+/*
+ * Option encoding (packed 64-bit):
+ * - Bits 0-31: tag (0 = None, 1 = Some)
+ * - Bits 32-63: value (only meaningful if Some)
+ */
+
+#define OPTION_TAG_NONE 0
+#define OPTION_TAG_SOME 1
+
+/**
+ * Create a Some option.
+ * @param value The contained value.
+ * @return Packed Option value.
+ */
+int64_t fern_option_some(int64_t value) {
+    return ((value & 0xFFFFFFFF) << 32) | OPTION_TAG_SOME;
+}
+
+/**
+ * Create a None option.
+ * @return Packed Option value representing None.
+ */
+int64_t fern_option_none(void) {
+    return OPTION_TAG_NONE;
+}
+
+/**
+ * Check if an Option is Some.
+ * @param option The packed Option value.
+ * @return 1 if Some, 0 if None.
+ */
+int64_t fern_option_is_some(int64_t option) {
+    return (option & 0xFFFFFFFF) == OPTION_TAG_SOME ? 1 : 0;
+}
+
+/**
+ * Unwrap the value from an Option.
+ * @param option The packed Option value.
+ * @return The contained value (undefined if None).
+ */
+int64_t fern_option_unwrap(int64_t option) {
+    return (int64_t)((int32_t)(option >> 32));
+}
+
+/**
+ * Map a function over a Some value.
+ * @param option The Option.
+ * @param fn Function to apply if Some.
+ * @return New Option with mapped value, or None.
+ */
+int64_t fern_option_map(int64_t option, int64_t (*fn)(int64_t)) {
+    assert(fn != NULL);
+    if (fern_option_is_some(option)) {
+        int64_t value = fern_option_unwrap(option);
+        return fern_option_some(fn(value));
+    }
+    return option;
+}
+
+/**
+ * Get the Some value or a default.
+ * @param option The Option.
+ * @param default_val Value to return if None.
+ * @return Some value or default.
+ */
+int64_t fern_option_unwrap_or(int64_t option, int64_t default_val) {
+    if (fern_option_is_some(option)) {
+        return fern_option_unwrap(option);
+    }
+    return default_val;
+}
