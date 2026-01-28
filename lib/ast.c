@@ -549,3 +549,17 @@ Pattern* pattern_wildcard(Arena* arena, SourceLoc loc) {
     
     return pat;
 }
+
+Pattern* pattern_constructor(Arena* arena, String* name, PatternVec* args, SourceLoc loc) {
+    assert(arena != NULL);
+    assert(name != NULL);
+    assert(args != NULL);
+
+    Pattern* pat = arena_alloc(arena, sizeof(Pattern));
+    pat->type = PATTERN_CONSTRUCTOR;
+    pat->loc = loc;
+    pat->data.constructor.name = name;
+    pat->data.constructor.args = args;
+
+    return pat;
+}

@@ -23,6 +23,7 @@ static bool check(Parser* parser, TokenType type);
 static bool match(Parser* parser, TokenType type);
 static Token consume(Parser* parser, TokenType type, const char* message);
 static void error_at_current(Parser* parser, const char* message);
+static Pattern* parse_pattern(Parser* parser);
 
 // Parser lifecycle
 Parser* parser_new(Arena* arena, const char* source) {
@@ -332,6 +333,42 @@ Expr* parse_primary(Parser* parser) {
     return parse_primary_internal(parser);
 }
 
+// Parse a pattern: _, identifier, literal, or constructor (Name(sub_patterns))
+static Pattern* parse_pattern(Parser* parser) {
+    if (match(parser, TOKEN_UNDERSCORE)) {
+        return pattern_wildcard(parser->arena, parser->previous.loc);
+    }
+
+    if (check(parser, TOKEN_IDENT)) {
+        Token ident_tok = parser->current;
+        advance(parser);
+
+        // Constructor pattern: Name(sub_pat, sub_pat, ...)
+        if (check(parser, TOKEN_LPAREN)) {
+            advance(parser); // consume '('
+            PatternVec* args = PatternVec_new(parser->arena);
+            if (!check(parser, TOKEN_RPAREN)) {
+                do {
+                    Pattern* sub = parse_pattern(parser);
+                    PatternVec_push(parser->arena, args, sub);
+                } while (match(parser, TOKEN_COMMA));
+            }
+            consume(parser, TOKEN_RPAREN, "Expected ')' after constructor pattern arguments");
+            return pattern_constructor(parser->arena, ident_tok.text, args, ident_tok.loc);
+        }
+
+        return pattern_ident(parser->arena, ident_tok.text, ident_tok.loc);
+    }
+
+    // Literal patterns: integers, strings, booleans
+    Expr* pattern_expr = parse_primary_internal(parser);
+    Pattern* pat = arena_alloc(parser->arena, sizeof(Pattern));
+    pat->type = PATTERN_LIT;
+    pat->loc = pattern_expr->loc;
+    pat->data.literal = pattern_expr;
+    return pat;
+}
+
 static Expr* parse_primary_internal(Parser* parser) {
     // Integer literal
     if (match(parser, TOKEN_INT)) {
@@ -445,23 +482,7 @@ static Expr* parse_primary_internal(Parser* parser) {
         MatchArmVec* arms = MatchArmVec_new(parser->arena);
         
         do {
-            // Parse pattern
-            Pattern* pattern;
-            if (match(parser, TOKEN_UNDERSCORE)) {
-                pattern = pattern_wildcard(parser->arena, parser->previous.loc);
-            } else if (check(parser, TOKEN_IDENT)) {
-                // Identifier pattern: binding pattern that captures the matched value
-                Token ident_tok = parser->current;
-                advance(parser);
-                pattern = pattern_ident(parser->arena, ident_tok.text, ident_tok.loc);
-            } else {
-                // Literal patterns: integers, strings, booleans
-                Expr* pattern_expr = parse_primary_internal(parser);
-                pattern = arena_alloc(parser->arena, sizeof(Pattern));
-                pattern->type = PATTERN_LIT;
-                pattern->loc = pattern_expr->loc;
-                pattern->data.literal = pattern_expr;
-            }
+            Pattern* pattern = parse_pattern(parser);
             
             // Optional guard: pattern if condition -> body
             Expr* guard = NULL;
@@ -583,55 +604,7 @@ static Expr* parse_primary_internal(Parser* parser) {
         if (match(parser, TOKEN_ELSE)) {
             else_arms = MatchArmVec_new(parser->arena);
             do {
-                // Parse pattern
-                Pattern* pattern;
-                if (match(parser, TOKEN_UNDERSCORE)) {
-                    pattern = pattern_wildcard(parser->arena, parser->previous.loc);
-                } else if (check(parser, TOKEN_IDENT)) {
-                    // Check if this is a constructor call pattern like Err(e)
-                    // For now, parse as identifier pattern
-                    Token ident_tok = parser->current;
-                    advance(parser);
-                    // If followed by '(', parse as a literal pattern (constructor call)
-                    if (check(parser, TOKEN_LPAREN)) {
-                        // Put the identifier back by creating a call expression
-                        Expr* func = expr_ident(parser->arena, ident_tok.text, ident_tok.loc);
-                        advance(parser); // consume '('
-                        Expr** args = NULL;
-                        size_t arg_count = 0;
-                        size_t arg_cap = 0;
-                        if (!check(parser, TOKEN_RPAREN)) {
-                            arg_cap = 4;
-                            args = arena_alloc(parser->arena, sizeof(Expr*) * arg_cap);
-                            do {
-                                if (arg_count >= arg_cap) {
-                                    size_t new_cap = arg_cap * 2;
-                                    Expr** new_data = arena_alloc(parser->arena, sizeof(Expr*) * new_cap);
-                                    for (size_t i = 0; i < arg_count; i++) {
-                                        new_data[i] = args[i];
-                                    }
-                                    args = new_data;
-                                    arg_cap = new_cap;
-                                }
-                                args[arg_count++] = parse_expression(parser);
-                            } while (match(parser, TOKEN_COMMA));
-                        }
-                        consume(parser, TOKEN_RPAREN, "Expected ')' after pattern arguments");
-                        Expr* call = expr_call(parser->arena, func, args, arg_count, ident_tok.loc);
-                        pattern = arena_alloc(parser->arena, sizeof(Pattern));
-                        pattern->type = PATTERN_LIT;
-                        pattern->loc = ident_tok.loc;
-                        pattern->data.literal = call;
-                    } else {
-                        pattern = pattern_ident(parser->arena, ident_tok.text, ident_tok.loc);
-                    }
-                } else {
-                    Expr* pattern_expr = parse_primary_internal(parser);
-                    pattern = arena_alloc(parser->arena, sizeof(Pattern));
-                    pattern->type = PATTERN_LIT;
-                    pattern->loc = pattern_expr->loc;
-                    pattern->data.literal = pattern_expr;
-                }
+                Pattern* pattern = parse_pattern(parser);
 
                 consume(parser, TOKEN_ARROW, "Expected '->' after else pattern");
                 Expr* arm_body = parse_expression(parser);
@@ -800,9 +773,6 @@ TypeExpr* parse_type(Parser* parser) {
     return type_named(parser->arena, name_tok.text, args, loc);
 }
 
-// Forward declaration
-static Pattern* parse_pattern(Parser* parser);
-
 // Detect whether the current fn parameter list uses typed params (name: Type)
 // or pattern params (pattern-based dispatch). Call after consuming '('.
 // Returns true if params are typed (single-clause style).
@@ -818,25 +788,6 @@ static bool is_typed_params(Parser* parser) {
     }
     // Non-identifier first param (literal, underscore) → pattern params
     return false;
-}
-
-// Parse a pattern (for match arms and function clause parameters)
-static Pattern* parse_pattern(Parser* parser) {
-    if (match(parser, TOKEN_UNDERSCORE)) {
-        return pattern_wildcard(parser->arena, parser->previous.loc);
-    }
-    if (check(parser, TOKEN_IDENT)) {
-        Token ident_tok = parser->current;
-        advance(parser);
-        return pattern_ident(parser->arena, ident_tok.text, ident_tok.loc);
-    }
-    // Literal patterns: integers, strings, booleans
-    Expr* pattern_expr = parse_primary_internal(parser);
-    Pattern* pattern = arena_alloc(parser->arena, sizeof(Pattern));
-    pattern->type = PATTERN_LIT;
-    pattern->loc = pattern_expr->loc;
-    pattern->data.literal = pattern_expr;
-    return pattern;
 }
 
 // Statement parsing

@@ -1905,6 +1905,46 @@ void test_parse_method_call(void) {
     arena_destroy(arena);
 }
 
+/* Test: Parse constructor pattern in match */
+void test_parse_match_constructor(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "match x: Some(v) -> v, None -> 0");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_MATCH);
+    ASSERT_EQ(expr->data.match_expr.arms->len, 2);
+    // First arm: Some(v) — constructor pattern
+    ASSERT_EQ(expr->data.match_expr.arms->data[0].pattern->type, PATTERN_CONSTRUCTOR);
+    ASSERT_STR_EQ(string_cstr(expr->data.match_expr.arms->data[0].pattern->data.constructor.name), "Some");
+    ASSERT_EQ(expr->data.match_expr.arms->data[0].pattern->data.constructor.args->len, 1);
+    // Sub-pattern is an identifier
+    ASSERT_EQ(expr->data.match_expr.arms->data[0].pattern->data.constructor.args->data[0]->type, PATTERN_IDENT);
+    // Second arm: None — plain identifier pattern
+    ASSERT_EQ(expr->data.match_expr.arms->data[1].pattern->type, PATTERN_IDENT);
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse nested constructor pattern */
+void test_parse_match_nested_constructor(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "match x: Ok(Some(v)) -> v, _ -> 0");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_MATCH);
+    // Ok(Some(v)) — nested constructor
+    Pattern* outer = expr->data.match_expr.arms->data[0].pattern;
+    ASSERT_EQ(outer->type, PATTERN_CONSTRUCTOR);
+    ASSERT_STR_EQ(string_cstr(outer->data.constructor.name), "Ok");
+    Pattern* inner = outer->data.constructor.args->data[0];
+    ASSERT_EQ(inner->type, PATTERN_CONSTRUCTOR);
+    ASSERT_STR_EQ(string_cstr(inner->data.constructor.name), "Some");
+
+    arena_destroy(arena);
+}
+
 /* Test: Parse match with guard */
 void test_parse_match_guard(void) {
     Arena* arena = arena_create(4096);
@@ -2246,6 +2286,8 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_dot_access);
     TEST_RUN(test_parse_dot_chain);
     TEST_RUN(test_parse_method_call);
+    TEST_RUN(test_parse_match_constructor);
+    TEST_RUN(test_parse_match_nested_constructor);
     TEST_RUN(test_parse_match_guard);
     TEST_RUN(test_parse_tuple);
     TEST_RUN(test_parse_tuple_pair);

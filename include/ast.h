@@ -428,12 +428,19 @@ struct Stmt {
     } data;
 };
 
-/* Pattern types (for now, just basics) */
+/* Pattern types */
 typedef enum {
     PATTERN_IDENT,      // x
     PATTERN_WILDCARD,   // _
     PATTERN_LIT,        // 42, "hello", true
+    PATTERN_CONSTRUCTOR,// Some(x), Ok(value), Err(msg)
 } PatternType;
+
+/* Constructor pattern: Name(sub_patterns) */
+typedef struct {
+    String* name;
+    PatternVec* args;   // Sub-patterns (may be empty for nullary constructors)
+} ConstructorPattern;
 
 struct Pattern {
     PatternType type;
@@ -441,6 +448,7 @@ struct Pattern {
     union {
         String* ident;
         Expr* literal;
+        ConstructorPattern constructor;
     } data;
 };
 
@@ -516,6 +524,7 @@ Stmt* stmt_impl(Arena* arena, String* trait_name, TypeExprVec* type_args, StmtVe
 /* Create patterns */
 Pattern* pattern_ident(Arena* arena, String* name, SourceLoc loc);
 Pattern* pattern_wildcard(Arena* arena, SourceLoc loc);
+Pattern* pattern_constructor(Arena* arena, String* name, PatternVec* args, SourceLoc loc);
 
 /* Create type expressions */
 TypeExpr* type_named(Arena* arena, String* name, TypeExprVec* args, SourceLoc loc);
