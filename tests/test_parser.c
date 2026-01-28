@@ -1376,6 +1376,104 @@ void test_parse_import_alias(void) {
     arena_destroy(arena);
 }
 
+/* Test: Parse simple defer statement */
+void test_parse_defer_simple(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "defer close(file)");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_DEFER);
+    ASSERT_NOT_NULL(stmt->data.defer_stmt.expr);
+    ASSERT_EQ(stmt->data.defer_stmt.expr->type, EXPR_CALL);
+
+    // The call should be close(file)
+    ASSERT_EQ(stmt->data.defer_stmt.expr->data.call.func->type, EXPR_IDENT);
+    ASSERT_STR_EQ(string_cstr(stmt->data.defer_stmt.expr->data.call.func->data.ident.name), "close");
+    ASSERT_EQ(stmt->data.defer_stmt.expr->data.call.args->len, 1);
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse defer with function call argument */
+void test_parse_defer_with_call(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "defer cleanup_resource(handle)");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_DEFER);
+    ASSERT_NOT_NULL(stmt->data.defer_stmt.expr);
+    ASSERT_EQ(stmt->data.defer_stmt.expr->type, EXPR_CALL);
+
+    // The call should be cleanup_resource(handle)
+    ASSERT_EQ(stmt->data.defer_stmt.expr->data.call.func->type, EXPR_IDENT);
+    ASSERT_STR_EQ(string_cstr(stmt->data.defer_stmt.expr->data.call.func->data.ident.name), "cleanup_resource");
+    ASSERT_EQ(stmt->data.defer_stmt.expr->data.call.args->len, 1);
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse defer inside block expression */
+void test_parse_defer_in_block(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "{ file <- open(), defer close(file), read(file) }");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_BLOCK);
+    ASSERT_NOT_NULL(expr->data.block.stmts);
+    ASSERT_EQ(expr->data.block.stmts->len, 2);
+
+    // First statement: file <- open() (bind expression statement)
+    Stmt* bind_stmt = StmtVec_get(expr->data.block.stmts, 0);
+    ASSERT_EQ(bind_stmt->type, STMT_EXPR);
+    ASSERT_EQ(bind_stmt->data.expr.expr->type, EXPR_BIND);
+
+    // Second statement: defer close(file)
+    Stmt* defer_stmt = StmtVec_get(expr->data.block.stmts, 1);
+    ASSERT_EQ(defer_stmt->type, STMT_DEFER);
+    ASSERT_NOT_NULL(defer_stmt->data.defer_stmt.expr);
+    ASSERT_EQ(defer_stmt->data.defer_stmt.expr->type, EXPR_CALL);
+
+    // Final expression: read(file)
+    ASSERT_NOT_NULL(expr->data.block.final_expr);
+    ASSERT_EQ(expr->data.block.final_expr->type, EXPR_CALL);
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse multiple defer statements in sequence */
+void test_parse_defer_multiple(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena,
+        "{ defer release1(r1), defer release2(r2), compute() }");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_BLOCK);
+    ASSERT_NOT_NULL(expr->data.block.stmts);
+    ASSERT_EQ(expr->data.block.stmts->len, 2);
+
+    // First statement: defer release1(r1)
+    Stmt* defer1 = StmtVec_get(expr->data.block.stmts, 0);
+    ASSERT_EQ(defer1->type, STMT_DEFER);
+    ASSERT_EQ(defer1->data.defer_stmt.expr->type, EXPR_CALL);
+    ASSERT_STR_EQ(string_cstr(defer1->data.defer_stmt.expr->data.call.func->data.ident.name), "release1");
+
+    // Second statement: defer release2(r2)
+    Stmt* defer2 = StmtVec_get(expr->data.block.stmts, 1);
+    ASSERT_EQ(defer2->type, STMT_DEFER);
+    ASSERT_EQ(defer2->data.defer_stmt.expr->type, EXPR_CALL);
+    ASSERT_STR_EQ(string_cstr(defer2->data.defer_stmt.expr->data.call.func->data.ident.name), "release2");
+
+    // Final expression: compute()
+    ASSERT_NOT_NULL(expr->data.block.final_expr);
+    ASSERT_EQ(expr->data.block.final_expr->type, EXPR_CALL);
+
+    arena_destroy(arena);
+}
+
 void run_parser_tests(void) {
     printf("\n=== Parser Tests ===\n");
     TEST_RUN(test_parse_int_literal);
@@ -1442,4 +1540,8 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_import_module);
     TEST_RUN(test_parse_import_items);
     TEST_RUN(test_parse_import_alias);
+    TEST_RUN(test_parse_defer_simple);
+    TEST_RUN(test_parse_defer_with_call);
+    TEST_RUN(test_parse_defer_in_block);
+    TEST_RUN(test_parse_defer_multiple);
 }
