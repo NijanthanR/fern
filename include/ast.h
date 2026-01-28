@@ -388,6 +388,7 @@ typedef enum {
     STMT_CONTINUE,      // continue
     STMT_TRAIT,         // trait Name(params): methods
     STMT_IMPL,          // impl Trait(Type): methods
+    STMT_NEWTYPE,       // newtype Name = Constructor(InnerType)
 } StmtType;
 
 /* Let statement */
@@ -435,6 +436,14 @@ typedef struct {
     StmtVec* methods;           // List of STMT_FN
 } ImplDef;
 
+/* Newtype definition: newtype Name = Constructor(InnerType) */
+typedef struct {
+    String* name;
+    bool is_public;
+    String* constructor;     // Constructor name (e.g., UserId in newtype UserId = UserId(Int))
+    TypeExpr* inner_type;    // The wrapped type
+} NewtypeDef;
+
 /* Break statement: break [value] */
 typedef struct {
     Expr* value;        // NULL for bare break
@@ -455,6 +464,7 @@ struct Stmt {
         BreakStmt break_stmt;
         TraitDef trait_def;
         ImplDef impl_def;
+        NewtypeDef newtype_def;
     } data;
 };
 
@@ -550,6 +560,7 @@ Stmt* stmt_import(Arena* arena, StringVec* path, StringVec* items, String* alias
 Stmt* stmt_defer(Arena* arena, Expr* expr, SourceLoc loc);
 Stmt* stmt_type_def(Arena* arena, String* name, bool is_public, StringVec* type_params,
                     StringVec* derives, TypeVariantVec* variants, TypeFieldVec* record_fields, SourceLoc loc);
+Stmt* stmt_newtype(Arena* arena, String* name, bool is_public, String* constructor, TypeExpr* inner_type, SourceLoc loc);
 Stmt* stmt_break(Arena* arena, Expr* value, SourceLoc loc);
 Stmt* stmt_continue(Arena* arena, SourceLoc loc);
 Stmt* stmt_trait(Arena* arena, String* name, StringVec* type_params, StmtVec* methods, SourceLoc loc);

@@ -1044,9 +1044,22 @@ Stmt* parse_stmt(Parser* parser) {
     bool is_public = false;
     if (match(parser, TOKEN_PUB)) {
         is_public = true;
-        if (!check(parser, TOKEN_FN) && !check(parser, TOKEN_TYPE)) {
-            error_at_current(parser, "Expected 'fn' or 'type' after 'pub'");
+        if (!check(parser, TOKEN_FN) && !check(parser, TOKEN_TYPE) && !check(parser, TOKEN_NEWTYPE)) {
+            error_at_current(parser, "Expected 'fn', 'type', or 'newtype' after 'pub'");
         }
+    }
+
+    // Newtype definition: newtype Name = Constructor(InnerType)
+    if (match(parser, TOKEN_NEWTYPE)) {
+        SourceLoc loc = parser->previous.loc;
+        Token name_tok = consume(parser, TOKEN_IDENT, "Expected type name after 'newtype'");
+        consume(parser, TOKEN_ASSIGN, "Expected '=' after newtype name");
+        Token ctor_tok = consume(parser, TOKEN_IDENT, "Expected constructor name");
+        consume(parser, TOKEN_LPAREN, "Expected '(' after constructor name");
+        TypeExpr* inner_type = parse_type(parser);
+        consume(parser, TOKEN_RPAREN, "Expected ')' after inner type");
+
+        return stmt_newtype(parser->arena, name_tok.text, is_public, ctor_tok.text, inner_type, loc);
     }
 
     // Type definition: type Name[(params)]: variants/fields

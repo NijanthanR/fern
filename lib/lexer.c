@@ -159,7 +159,10 @@ static TokenType identifier_type(const char* start, size_t length) {
             if (length == 5) return check_keyword(start, length, "match", TOKEN_MATCH);
             if (length == 6) return check_keyword(start, length, "module", TOKEN_MODULE);
             break;
-        case 'n': return check_keyword(start, length, "not", TOKEN_NOT);
+        case 'n':
+            if (length == 3) return check_keyword(start, length, "not", TOKEN_NOT);
+            if (length == 7) return check_keyword(start, length, "newtype", TOKEN_NEWTYPE);
+            break;
         case 'o': return check_keyword(start, length, "or", TOKEN_OR);
         case 'p': return check_keyword(start, length, "pub", TOKEN_PUB);
         case 'r':

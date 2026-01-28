@@ -2557,6 +2557,36 @@ void test_parse_fn_no_where(void) {
     arena_destroy(arena);
 }
 
+void test_parse_newtype(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "newtype UserId = UserId(Int)");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_NEWTYPE);
+    ASSERT_STR_EQ(string_cstr(stmt->data.newtype_def.name), "UserId");
+    ASSERT_EQ(stmt->data.newtype_def.is_public, false);
+    ASSERT_STR_EQ(string_cstr(stmt->data.newtype_def.constructor), "UserId");
+    ASSERT_NOT_NULL(stmt->data.newtype_def.inner_type);
+
+    arena_destroy(arena);
+}
+
+void test_parse_pub_newtype(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "pub newtype Email = Email(String)");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_NEWTYPE);
+    ASSERT_STR_EQ(string_cstr(stmt->data.newtype_def.name), "Email");
+    ASSERT_EQ(stmt->data.newtype_def.is_public, true);
+    ASSERT_STR_EQ(string_cstr(stmt->data.newtype_def.constructor), "Email");
+    ASSERT_NOT_NULL(stmt->data.newtype_def.inner_type);
+
+    arena_destroy(arena);
+}
+
 void run_parser_tests(void) {
     printf("\n=== Parser Tests ===\n");
     TEST_RUN(test_parse_int_literal);
@@ -2690,4 +2720,6 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_fn_where_clause);
     TEST_RUN(test_parse_fn_where_multi);
     TEST_RUN(test_parse_fn_no_where);
+    TEST_RUN(test_parse_newtype);
+    TEST_RUN(test_parse_pub_newtype);
 }

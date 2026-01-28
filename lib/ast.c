@@ -463,6 +463,23 @@ Stmt* stmt_type_def(Arena* arena, String* name, bool is_public, StringVec* type_
 }
 
 /* Create break statement */
+Stmt* stmt_newtype(Arena* arena, String* name, bool is_public, String* constructor, TypeExpr* inner_type, SourceLoc loc) {
+    assert(arena != NULL);
+    assert(name != NULL);
+    assert(constructor != NULL);
+    assert(inner_type != NULL);
+
+    Stmt* stmt = arena_alloc(arena, sizeof(Stmt));
+    stmt->type = STMT_NEWTYPE;
+    stmt->loc = loc;
+    stmt->data.newtype_def.name = name;
+    stmt->data.newtype_def.is_public = is_public;
+    stmt->data.newtype_def.constructor = constructor;
+    stmt->data.newtype_def.inner_type = inner_type;
+
+    return stmt;
+}
+
 Stmt* stmt_break(Arena* arena, Expr* value, SourceLoc loc) {
     assert(arena != NULL);
 
