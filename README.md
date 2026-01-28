@@ -130,6 +130,34 @@ make debug
 make style
 ```
 
+## FAQ
+
+### Why "Fern"?
+
+Ferns are ancient, resilient plants that have survived for over 350 million years. Like the plant, Fern the language is designed to be:
+
+- **Resilient** - No crashes, no nulls, explicit error handling
+- **Elegant** - Simple fronds (syntax) that unfold into complex patterns
+- **Evergreen** - Clean fundamentals that age well
+
+Plus, it's short, memorable, and wasn't taken.
+
+### What's with the 🌿 emoji?
+
+The fern emoji (🌿) is Fern's visual identity. You can even use it as a file extension:
+
+```bash
+# Both work!
+fern build hello.fn
+fern build hello.🌿
+```
+
+Why? Because we can, and it makes your file explorer more interesting.
+
+### Is Fern production-ready?
+
+Not yet. We're in active development (Milestone 4 of 9). See [ROADMAP.md](ROADMAP.md) for current progress. The compiler is being built with extensive testing, including planned deterministic simulation testing for the actor system.
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
