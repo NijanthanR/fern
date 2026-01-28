@@ -612,6 +612,7 @@ void test_codegen_defer() {
 - [x] List functions (14 total): new, push, push_mut, get, len, map, fold, filter, find, reverse, concat, head, tail, is_empty, any, all
 - [x] Result functions (8 total): ok, err, is_ok, unwrap, map, and_then, unwrap_or, unwrap_or_else
 - [x] Option functions (6 total): some, none, is_some, unwrap, map, unwrap_or
+- [x] File I/O functions (6 total): read_file, write_file, append_file, file_exists, delete_file, file_size
 - [x] Memory functions: alloc, free
 
 **Built-in Functions** (registered in checker.c, codegen in codegen.c):
@@ -641,6 +642,13 @@ void test_codegen_defer() {
   - [x] list_head(List(a)) -> a
   - [x] list_tail(List(a)) -> List(a)
   - [x] list_is_empty(List(a)) -> Bool
+- [x] File I/O (6 functions):
+  - [x] read_file(String) -> Result(String, Int)
+  - [x] write_file(String, String) -> Result(Int, Int)
+  - [x] append_file(String, String) -> Result(Int, Int)
+  - [x] file_exists(String) -> Bool
+  - [x] delete_file(String) -> Result(Int, Int)
+  - [x] file_size(String) -> Result(Int, Int)
 
 **Codegen Improvements** (lib/codegen.c):
 - [x] Wide variable tracking for pointer types (lists, strings)
@@ -654,6 +662,7 @@ void test_codegen_defer() {
 - [x] Extracted register_io_builtins() for I/O functions
 - [x] Extracted register_string_builtins() for string functions
 - [x] Extracted register_list_builtins() for list functions
+- [x] Extracted register_file_builtins() for file I/O functions
 - [x] FERN_STYLE compliant (function length limits)
 
 **Parser Indentation Support** (lib/parser.c):
@@ -674,9 +683,9 @@ void test_codegen_defer() {
 
 - [x] ~~Register more built-in functions (str_trim, str_replace, list_filter, etc.)~~ DONE
 - [x] ~~Fix string variable type tracking in codegen~~ DONE
+- [x] ~~Add file I/O functions to runtime~~ DONE
 - [ ] Implement Fern stdlib modules (result.fn, option.fn, list.fn, string.fn)
-- [ ] Add file I/O functions to runtime
-- [ ] Write more example programs testing new built-ins
+- [ ] Write file I/O example program
 
 ### Priority Modules
 
