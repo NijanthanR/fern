@@ -1045,6 +1045,74 @@ void test_check_pipe_type_mismatch(void) {
     arena_destroy(arena);
 }
 
+/* ========== Constructor Pattern Binding Tests ========== */
+
+void test_check_match_option_some(void) {
+    Arena* arena = arena_create(4096);
+    
+    // Define: fn get_value() -> Option(Int)
+    TypeVec* params = TypeVec_new(arena);
+    Type* option_int = type_option(arena, type_int(arena));
+    Type* fn_type = type_fn(arena, params, option_int);
+    
+    // match get_value(): Some(x) -> x + 1, None -> 0
+    // The x in Some(x) should be bound to Int
+    Parser* parser = parser_new(arena, "match get_value(): Some(x) -> x + 1, None -> 0");
+    Expr* expr = parse_expr(parser);
+    Checker* checker = checker_new(arena);
+    checker_define(checker, string_new(arena, "get_value"), fn_type);
+    Type* t = checker_infer_expr(checker, expr);
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_INT);
+    
+    arena_destroy(arena);
+}
+
+void test_check_match_option_none(void) {
+    Arena* arena = arena_create(4096);
+    
+    // Define: fn get_value() -> Option(String)
+    TypeVec* params = TypeVec_new(arena);
+    Type* option_str = type_option(arena, type_string(arena));
+    Type* fn_type = type_fn(arena, params, option_str);
+    
+    // match get_value(): Some(s) -> s, None -> "default"
+    // Both branches return String
+    Parser* parser = parser_new(arena, "match get_value(): Some(s) -> s, None -> \"default\"");
+    Expr* expr = parse_expr(parser);
+    Checker* checker = checker_new(arena);
+    checker_define(checker, string_new(arena, "get_value"), fn_type);
+    Type* t = checker_infer_expr(checker, expr);
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_STRING);
+    
+    arena_destroy(arena);
+}
+
+void test_check_match_result_ok_err(void) {
+    Arena* arena = arena_create(4096);
+    
+    // Define: fn get_data() -> Result(Int, String)
+    TypeVec* params = TypeVec_new(arena);
+    Type* result_type = type_result(arena, type_int(arena), type_string(arena));
+    Type* fn_type = type_fn(arena, params, result_type);
+    
+    // match get_data(): Ok(n) -> n * 2, Err(msg) -> 0
+    // n should be Int, msg should be String, result is Int
+    Parser* parser = parser_new(arena, "match get_data(): Ok(n) -> n * 2, Err(msg) -> 0");
+    Expr* expr = parse_expr(parser);
+    Checker* checker = checker_new(arena);
+    checker_define(checker, string_new(arena, "get_data"), fn_type);
+    Type* t = checker_infer_expr(checker, expr);
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_INT);
+    
+    arena_destroy(arena);
+}
+
 /* ========== Test Runner ========== */
 
 void run_checker_tests(void) {
@@ -1154,4 +1222,9 @@ void run_checker_tests(void) {
     TEST_RUN(test_check_pipe_basic);
     TEST_RUN(test_check_pipe_chain);
     TEST_RUN(test_check_pipe_type_mismatch);
+    
+    // Constructor pattern binding
+    TEST_RUN(test_check_match_option_some);
+    TEST_RUN(test_check_match_option_none);
+    TEST_RUN(test_check_match_result_ok_err);
 }

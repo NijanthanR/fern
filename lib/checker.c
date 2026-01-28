@@ -1205,9 +1205,54 @@ static bool bind_pattern(Checker* checker, Pattern* pattern, Type* type) {
             return true;
         }
             
-        case PATTERN_CONSTRUCTOR:
+        case PATTERN_CONSTRUCTOR: {
+            /* Constructor pattern: Some(x), Ok(value), Err(msg), None, etc.
+             * We need to determine what type the sub-patterns bind to based on
+             * the constructor name and the scrutinee type.
+             */
+            ConstructorPattern* ctor = &pattern->data.constructor;
+            const char* ctor_name = string_cstr(ctor->name);
+            
+            /* Handle Option constructors */
+            if (type->kind == TYPE_CON && 
+                strcmp(string_cstr(type->data.con.name), "Option") == 0) {
+                if (strcmp(ctor_name, "Some") == 0) {
+                    /* Some(x) binds x to the inner type of Option(a) */
+                    if (ctor->args && ctor->args->len == 1) {
+                        Type* inner_type = type->data.con.args->data[0];
+                        return bind_pattern(checker, ctor->args->data[0], inner_type);
+                    }
+                } else if (strcmp(ctor_name, "None") == 0) {
+                    /* None doesn't bind anything */
+                    return true;
+                }
+            }
+            
+            /* Handle Result constructors */
+            if (type->kind == TYPE_CON &&
+                strcmp(string_cstr(type->data.con.name), "Result") == 0) {
+                if (strcmp(ctor_name, "Ok") == 0) {
+                    /* Ok(x) binds x to the first type arg of Result(ok, err) */
+                    if (ctor->args && ctor->args->len == 1) {
+                        Type* ok_type = type->data.con.args->data[0];
+                        return bind_pattern(checker, ctor->args->data[0], ok_type);
+                    }
+                } else if (strcmp(ctor_name, "Err") == 0) {
+                    /* Err(e) binds e to the second type arg of Result(ok, err) */
+                    if (ctor->args && ctor->args->len == 1) {
+                        Type* err_type = type->data.con.args->data[1];
+                        return bind_pattern(checker, ctor->args->data[0], err_type);
+                    }
+                }
+            }
+            
+            /* For other constructors, we'd need a type environment with
+             * constructor definitions. For now, just return true. */
+            return true;
+        }
+            
         case PATTERN_REST:
-            /* TODO: Implement constructor pattern binding */
+            /* TODO: Implement rest pattern binding */
             return true;
     }
     
