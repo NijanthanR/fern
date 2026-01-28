@@ -399,7 +399,28 @@ static Expr* parse_primary_internal(Parser* parser) {
     if (match(parser, TOKEN_FALSE)) {
         return expr_bool_lit(parser->arena, false, parser->previous.loc);
     }
-    
+
+    // Map literal: %{ key: value, ... }
+    if (check(parser, TOKEN_PERCENT) && lexer_peek(parser->lexer).type == TOKEN_LBRACE) {
+        advance(parser); // consume %
+        advance(parser); // consume {
+        SourceLoc loc = parser->previous.loc;
+        MapEntryVec* entries = MapEntryVec_new(parser->arena);
+
+        if (!check(parser, TOKEN_RBRACE)) {
+            do {
+                Expr* key = parse_expression(parser);
+                consume(parser, TOKEN_COLON, "Expected ':' after map key");
+                Expr* value = parse_expression(parser);
+                MapEntry entry = { .key = key, .value = value };
+                MapEntryVec_push(parser->arena, entries, entry);
+            } while (match(parser, TOKEN_COMMA));
+        }
+
+        consume(parser, TOKEN_RBRACE, "Expected '}' after map entries");
+        return expr_map(parser->arena, entries, loc);
+    }
+
     // Identifier (or bind expression: name <- expr)
     if (match(parser, TOKEN_IDENT)) {
         Token tok = parser->previous;

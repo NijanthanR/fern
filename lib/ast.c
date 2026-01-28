@@ -299,6 +299,18 @@ Expr* expr_lambda(Arena* arena, StringVec* params, Expr* body, SourceLoc loc) {
     return expr;
 }
 
+Expr* expr_map(Arena* arena, MapEntryVec* entries, SourceLoc loc) {
+    assert(arena != NULL);
+    assert(entries != NULL);
+
+    Expr* expr = arena_alloc(arena, sizeof(Expr));
+    expr->type = EXPR_MAP;
+    expr->loc = loc;
+    expr->data.map.entries = entries;
+
+    return expr;
+}
+
 Expr* expr_interp_string(Arena* arena, ExprVec* parts, SourceLoc loc) {
     assert(arena != NULL);
     assert(parts != NULL);

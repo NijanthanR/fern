@@ -1905,6 +1905,36 @@ void test_parse_method_call(void) {
     arena_destroy(arena);
 }
 
+/* Test: Parse empty map literal */
+void test_parse_map_empty(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "%{}");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_MAP);
+    ASSERT_EQ(expr->data.map.entries->len, 0);
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse map literal with entries */
+void test_parse_map_literal(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "%{\"name\": \"Alice\", \"age\": 30}");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_MAP);
+    ASSERT_EQ(expr->data.map.entries->len, 2);
+    ASSERT_EQ(expr->data.map.entries->data[0].key->type, EXPR_STRING_LIT);
+    ASSERT_EQ(expr->data.map.entries->data[0].value->type, EXPR_STRING_LIT);
+    ASSERT_EQ(expr->data.map.entries->data[1].key->type, EXPR_STRING_LIT);
+    ASSERT_EQ(expr->data.map.entries->data[1].value->type, EXPR_INT_LIT);
+
+    arena_destroy(arena);
+}
+
 /* Test: Parse interpolated string */
 void test_parse_interp_string(void) {
     Arena* arena = arena_create(4096);
@@ -2155,6 +2185,8 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_dot_access);
     TEST_RUN(test_parse_dot_chain);
     TEST_RUN(test_parse_method_call);
+    TEST_RUN(test_parse_map_empty);
+    TEST_RUN(test_parse_map_literal);
     TEST_RUN(test_parse_interp_string);
     TEST_RUN(test_parse_interp_string_expr);
     TEST_RUN(test_parse_interp_string_multi);
