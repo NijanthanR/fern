@@ -46,11 +46,22 @@ bool parser_had_error(Parser* parser) {
     return parser->had_error;
 }
 
+// Helper: Check if token is a layout token (NEWLINE/INDENT/DEDENT)
+static bool is_layout_token(TokenType type) {
+    return type == TOKEN_NEWLINE || type == TOKEN_INDENT || type == TOKEN_DEDENT;
+}
+
 // Helper functions
 static void advance(Parser* parser) {
     // FERN_STYLE: allow(assertion-density) trivial state update
     parser->previous = parser->current;
     parser->current = lexer_next(parser->lexer);
+    
+    // Skip layout tokens (NEWLINE, INDENT, DEDENT) for now
+    // TODO: Once parser supports indentation-based blocks, handle these properly
+    while (is_layout_token(parser->current.type)) {
+        parser->current = lexer_next(parser->lexer);
+    }
 }
 
 static bool check(Parser* parser, TokenType type) {

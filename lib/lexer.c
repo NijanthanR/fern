@@ -5,6 +5,8 @@
 #include <ctype.h>
 #include <string.h>
 
+#define MAX_INDENT_LEVELS 100
+
 struct Lexer {
     Arena* arena;
     const char* source;
@@ -14,6 +16,13 @@ struct Lexer {
     size_t column;
     int interp_depth;       // > 0 when inside string interpolation {expr}
     int interp_brace_depth; // tracks nested {} inside interpolation expr
+    
+    // Indentation tracking
+    int indent_stack[MAX_INDENT_LEVELS];  // Stack of indentation levels
+    int indent_top;                        // Top of indent stack (index)
+    int pending_dedents;                   // Number of DEDENT tokens to emit
+    bool at_line_start;                    // True if at the beginning of a line
+    bool emit_newline;                     // True if we need to emit a NEWLINE
 };
 
 /* Helper: Check if at end of source */
@@ -63,34 +72,65 @@ static bool match(Lexer* lex, char expected) {
     return true;
 }
 
-/* Helper: Skip whitespace (but not newlines for now) */
-static void skip_whitespace(Lexer* lex) {
+/* Helper: Skip horizontal whitespace only (spaces, tabs, carriage return) */
+static void skip_horizontal_whitespace(Lexer* lex) {
     assert(lex != NULL);
     assert(lex->current != NULL);
     while (!is_at_end(lex)) {
         char c = peek(lex);
-        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+        if (c == ' ' || c == '\t' || c == '\r') {
             advance(lex);
-        } else if (c == '#') {
-            // Skip single-line comment
-            while (!is_at_end(lex) && peek(lex) != '\n') {
-                advance(lex);
-            }
-        } else if (c == '/' && peek_next(lex) == '*') {
-            // Skip block comment /* ... */
-            advance(lex); // consume '/'
-            advance(lex); // consume '*'
-            while (!is_at_end(lex)) {
-                if (peek(lex) == '*' && peek_next(lex) == '/') {
-                    advance(lex); // consume '*'
-                    advance(lex); // consume '/'
-                    break;
-                }
-                advance(lex);
-            }
         } else {
             break;
         }
+    }
+}
+
+/* Helper: Skip a single-line comment (# ...) */
+static void skip_line_comment(Lexer* lex) {
+    assert(lex != NULL);
+    while (!is_at_end(lex) && peek(lex) != '\n') {
+        advance(lex);
+    }
+}
+
+/* Helper: Skip a block comment */
+static void skip_block_comment(Lexer* lex) {
+    assert(lex != NULL);
+    advance(lex); // consume '/'
+    advance(lex); // consume '*'
+    while (!is_at_end(lex)) {
+        if (peek(lex) == '*' && peek_next(lex) == '/') {
+            advance(lex); // consume '*'
+            advance(lex); // consume '/'
+            break;
+        }
+        advance(lex);
+    }
+}
+
+/* Helper: Count indentation (spaces/tabs) at current position */
+static int count_indentation(Lexer* lex) {
+    assert(lex != NULL);
+    int indent = 0;
+    const char* p = lex->current;
+    while (*p == ' ' || *p == '\t') {
+        if (*p == ' ') {
+            indent += 1;
+        } else {
+            // Tab = advance to next multiple of 8
+            indent = (indent + 8) & ~7;
+        }
+        p++;
+    }
+    return indent;
+}
+
+/* Helper: Advance past indentation whitespace */
+static void consume_indentation(Lexer* lex) {
+    assert(lex != NULL);
+    while (!is_at_end(lex) && (peek(lex) == ' ' || peek(lex) == '\t')) {
+        advance(lex);
     }
 }
 
@@ -400,6 +440,23 @@ static Token lex_string(Lexer* lex) {
     return make_token(lex, TOKEN_STRING, start, end);
 }
 
+/* Helper: Skip all whitespace including newlines (for backward compatibility) */
+static void skip_whitespace(Lexer* lex) {
+    assert(lex != NULL);
+    while (!is_at_end(lex)) {
+        char c = peek(lex);
+        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+            advance(lex);
+        } else if (c == '#') {
+            skip_line_comment(lex);
+        } else if (c == '/' && peek_next(lex) == '*') {
+            skip_block_comment(lex);
+        } else {
+            break;
+        }
+    }
+}
+
 Lexer* lexer_new(Arena* arena, const char* source) {
     assert(arena != NULL);
     assert(source != NULL);
@@ -411,15 +468,38 @@ Lexer* lexer_new(Arena* arena, const char* source) {
     lex->filename = string_new(arena, "<input>");
     lex->line = 1;
     lex->column = 1;
+    lex->interp_depth = 0;
+    lex->interp_brace_depth = 0;
+    
+    // Initialize indentation tracking
+    lex->indent_stack[0] = 0;  // Start with indent level 0
+    lex->indent_top = 0;
+    lex->pending_dedents = 0;
+    lex->at_line_start = true;  // Start of file is like start of line
+    lex->emit_newline = false;
     
     return lex;
 }
 
-Token lexer_next(Lexer* lex) {
+/* Helper: Lex a single token (without indentation handling) */
+static Token lex_token(Lexer* lex) {
+    // FERN_STYLE: allow(function-length) token lexing requires many cases
     assert(lex != NULL);
     assert(lex->current != NULL);
     
-    skip_whitespace(lex);
+    skip_horizontal_whitespace(lex);
+    
+    // Skip comments
+    while (!is_at_end(lex)) {
+        if (peek(lex) == '#') {
+            skip_line_comment(lex);
+        } else if (peek(lex) == '/' && peek_next(lex) == '*') {
+            skip_block_comment(lex);
+            skip_horizontal_whitespace(lex);
+        } else {
+            break;
+        }
+    }
     
     if (is_at_end(lex)) {
         return make_token(lex, TOKEN_EOF, lex->current, lex->current);
@@ -517,6 +597,120 @@ Token lexer_next(Lexer* lex) {
     
     // Unknown character
     return make_token(lex, TOKEN_ERROR, lex->current - 1, lex->current);
+}
+
+Token lexer_next(Lexer* lex) {
+    // FERN_STYLE: allow(function-length) indentation state machine is complex
+    assert(lex != NULL);
+    assert(lex->current != NULL);
+    
+    // First, emit any pending DEDENT tokens
+    if (lex->pending_dedents > 0) {
+        lex->pending_dedents--;
+        return make_token(lex, TOKEN_DEDENT, lex->current, lex->current);
+    }
+    
+    // If we need to emit a NEWLINE from previous iteration
+    if (lex->emit_newline) {
+        lex->emit_newline = false;
+        lex->at_line_start = true;
+        return make_token(lex, TOKEN_NEWLINE, lex->current, lex->current);
+    }
+    
+    // Handle start of line - process indentation
+    if (lex->at_line_start) {
+        lex->at_line_start = false;
+        
+        // Skip blank lines and comment-only lines
+        // Important: We must count indentation BEFORE consuming whitespace
+        while (!is_at_end(lex)) {
+            // Count indentation at this line (before consuming anything)
+            int line_indent = count_indentation(lex);
+            
+            // Now skip the whitespace
+            consume_indentation(lex);
+            
+            // Skip line comments
+            if (peek(lex) == '#') {
+                skip_line_comment(lex);
+            }
+            
+            // Skip block comments
+            while (peek(lex) == '/' && peek_next(lex) == '*') {
+                skip_block_comment(lex);
+                skip_horizontal_whitespace(lex);
+            }
+            
+            // If we hit a newline, this is a blank/comment-only line - skip it
+            if (peek(lex) == '\n') {
+                advance(lex);  // consume newline
+                continue;
+            }
+            
+            // If we hit EOF or actual content, process this line's indentation
+            if (is_at_end(lex)) {
+                // At EOF, emit any remaining DEDENT tokens
+                if (lex->indent_top > 0) {
+                    lex->indent_top--;
+                    lex->pending_dedents = lex->indent_top;
+                    return make_token(lex, TOKEN_DEDENT, lex->current, lex->current);
+                }
+                return make_token(lex, TOKEN_EOF, lex->current, lex->current);
+            }
+            
+            // We have actual content - compare indentation
+            int current_indent = lex->indent_stack[lex->indent_top];
+            
+            if (line_indent > current_indent) {
+                // Increased indentation - push new level and emit INDENT
+                lex->indent_top++;
+                assert(lex->indent_top < MAX_INDENT_LEVELS);
+                lex->indent_stack[lex->indent_top] = line_indent;
+                return make_token(lex, TOKEN_INDENT, lex->current, lex->current);
+            } else if (line_indent < current_indent) {
+                // Decreased indentation - pop levels and queue DEDENT tokens
+                int dedent_count = 0;
+                while (lex->indent_top > 0 && 
+                       lex->indent_stack[lex->indent_top] > line_indent) {
+                    lex->indent_top--;
+                    dedent_count++;
+                }
+                if (dedent_count > 1) {
+                    lex->pending_dedents = dedent_count - 1;
+                }
+                if (dedent_count > 0) {
+                    return make_token(lex, TOKEN_DEDENT, lex->current, lex->current);
+                }
+            }
+            // Same indentation or processed indent change - break to lex content
+            break;
+        }
+    }
+    
+    // Now lex the actual token
+    Token tok = lex_token(lex);
+    
+    // If we just lexed something and the next char is newline, mark it
+    if (tok.type != TOKEN_EOF && tok.type != TOKEN_ERROR) {
+        skip_horizontal_whitespace(lex);
+        // Skip trailing comments on the same line
+        if (peek(lex) == '#') {
+            skip_line_comment(lex);
+        }
+        if (peek(lex) == '\n') {
+            advance(lex);  // consume the newline
+            lex->emit_newline = true;
+        }
+    }
+    
+    // At EOF, emit remaining DEDENT tokens
+    if (tok.type == TOKEN_EOF && lex->indent_top > 0) {
+        lex->indent_top--;
+        lex->pending_dedents = lex->indent_top;
+        return make_token(lex, TOKEN_DEDENT, lex->current, lex->current);
+    }
+    
+    return tok;
 }
 
 Token lexer_peek(Lexer* lex) {

@@ -521,6 +521,190 @@ void test_lex_unicode_let(void) {
     arena_destroy(arena);
 }
 
+/* Test: Simple indentation - single indent level */
+void test_lex_indent_simple(void) {
+    Arena* arena = arena_create(4096);
+    // Note: Using 4 spaces for indentation
+    Lexer* lex = lexer_new(arena, "if true:\n    42");
+    
+    Token tok1 = lexer_next(lex);
+    ASSERT_EQ(tok1.type, TOKEN_IF);
+    
+    Token tok2 = lexer_next(lex);
+    ASSERT_EQ(tok2.type, TOKEN_TRUE);
+    
+    Token tok3 = lexer_next(lex);
+    ASSERT_EQ(tok3.type, TOKEN_COLON);
+    
+    Token tok4 = lexer_next(lex);
+    ASSERT_EQ(tok4.type, TOKEN_NEWLINE);
+    
+    Token tok5 = lexer_next(lex);
+    ASSERT_EQ(tok5.type, TOKEN_INDENT);
+    
+    Token tok6 = lexer_next(lex);
+    ASSERT_EQ(tok6.type, TOKEN_INT);
+    
+    Token tok7 = lexer_next(lex);
+    ASSERT_EQ(tok7.type, TOKEN_DEDENT);
+    
+    Token tok8 = lexer_next(lex);
+    ASSERT_EQ(tok8.type, TOKEN_EOF);
+    
+    arena_destroy(arena);
+}
+
+/* Test: Indentation with dedent at end */
+void test_lex_indent_dedent(void) {
+    Arena* arena = arena_create(4096);
+    Lexer* lex = lexer_new(arena, "fn foo():\n    x\ny");
+    
+    Token tok;
+    
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_FN);
+    
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_IDENT);  // foo
+    
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_LPAREN);
+    
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_RPAREN);
+    
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_COLON);
+    
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_NEWLINE);
+    
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_INDENT);
+    
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_IDENT);  // x
+    
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_NEWLINE);
+    
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_DEDENT);
+    
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_IDENT);  // y
+    
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_EOF);
+    
+    arena_destroy(arena);
+}
+
+/* Test: Multiple indent levels */
+void test_lex_indent_multiple_levels(void) {
+    Arena* arena = arena_create(4096);
+    Lexer* lex = lexer_new(arena, "if a:\n    if b:\n        x\n    y\nz");
+    
+    Token tok;
+    
+    // if a:
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_IF);
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_IDENT);  // a
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_COLON);
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_NEWLINE);
+    
+    // INDENT (level 1)
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_INDENT);
+    
+    // if b:
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_IF);
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_IDENT);  // b
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_COLON);
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_NEWLINE);
+    
+    // INDENT (level 2)
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_INDENT);
+    
+    // x
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_IDENT);  // x
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_NEWLINE);
+    
+    // DEDENT (back to level 1)
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_DEDENT);
+    
+    // y
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_IDENT);  // y
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_NEWLINE);
+    
+    // DEDENT (back to level 0)
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_DEDENT);
+    
+    // z
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_IDENT);  // z
+    
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_EOF);
+    
+    arena_destroy(arena);
+}
+
+/* Test: Blank lines don't affect indentation */
+void test_lex_indent_blank_lines(void) {
+    Arena* arena = arena_create(4096);
+    Lexer* lex = lexer_new(arena, "if a:\n    x\n\n    y");
+    
+    Token tok;
+    
+    // if a:
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_IF);
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_IDENT);
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_COLON);
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_NEWLINE);
+    
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_INDENT);
+    
+    // x
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_IDENT);
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_NEWLINE);
+    
+    // blank line - should be skipped, no dedent
+    // y (still at same indent level)
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_IDENT);  // y, not DEDENT
+    
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_DEDENT);
+    
+    tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_EOF);
+    
+    arena_destroy(arena);
+}
+
 void run_lexer_tests(void) {
     printf("\n=== Lexer Tests ===\n");
     TEST_RUN(test_lex_integer);
@@ -555,4 +739,8 @@ void run_lexer_tests(void) {
     TEST_RUN(test_lex_unicode_emoji);
     TEST_RUN(test_lex_unicode_mixed);
     TEST_RUN(test_lex_unicode_let);
+    TEST_RUN(test_lex_indent_simple);
+    TEST_RUN(test_lex_indent_dedent);
+    TEST_RUN(test_lex_indent_multiple_levels);
+    TEST_RUN(test_lex_indent_blank_lines);
 }
