@@ -242,6 +242,10 @@ tests/lexer/
     - [ ] Support emoji codepoints in identifiers
     - [ ] Add tests: `let π = 3.14159`, `let 日本語 = "Japanese"`, `let 🚀 = launch()`
     - [ ] Update DESIGN.md with identifier rules
+  - [ ] **Emoji file extension** 🌿
+    - [ ] Accept `.🌿` as alternative to `.fn` file extension
+    - [ ] `fern build hello.🌿` works
+    - [ ] File discovery finds both `*.fn` and `*.🌿` files
 
 - [ ] Lexer utilities
   - [ ] Position tracking (file, line, column)

@@ -1,4 +1,4 @@
-# Fern
+# 🌿 Fern
 
 > A statically-typed, functional language with Python aesthetics that compiles to single binaries.
 
