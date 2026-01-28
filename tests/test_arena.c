@@ -2,6 +2,7 @@
 
 #include "test.h"
 #include "arena.h"
+#include <stdint.h>
 #include <string.h>
 
 void test_arena_create(void) {
