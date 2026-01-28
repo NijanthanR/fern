@@ -25,40 +25,41 @@ This guide contains critical information for AI-assisted development of the Fern
 **Example TDD Cycle:**
 
 ```c
-// Step 1: Read DESIGN.md - "<- operator binds Result values"
+// Step 1: Read DESIGN.md - "? operator propagates Result errors"
 
 // Step 2: Write test FIRST (tests/test_lexer.c)
-void test_lex_bind_operator(void) {
+void test_lex_question_operator(void) {
     Arena* arena = arena_create(4096);
-    Lexer* lex = lexer_new(arena, "content <- read_file(\"test\")");
-    
-    Token t1 = lexer_next(lex);
-    ASSERT_STR_EQ(string_cstr(t1.text), "content");
-    ASSERT_EQ(t1.type, TOKEN_IDENT);
-    
-    Token t2 = lexer_next(lex);
-    ASSERT_EQ(t2.type, TOKEN_BIND);  // <-
-    ASSERT_STR_EQ(string_cstr(t2.text), "<-");
-    
+    Lexer* lex = lexer_new(arena, "let content = read_file(\"test\")?");
+
+    // ... skip to the ? token
+    Token t = lexer_next(lex);
+    while (t.type != TOKEN_QUESTION && t.type != TOKEN_EOF) {
+        t = lexer_next(lex);
+    }
+
+    ASSERT_EQ(t.type, TOKEN_QUESTION);  // ?
+    ASSERT_STR_EQ(string_cstr(t.text), "?");
+
     arena_destroy(arena);
 }
 
-// Step 3: Run test - FAILS (TOKEN_BIND doesn't exist yet)
+// Step 3: Run test - FAILS (TOKEN_QUESTION doesn't exist yet)
 
 // Step 4: Implement
 typedef enum {
     TOKEN_IDENT,
-    TOKEN_BIND,    // Add <- token
+    TOKEN_QUESTION,    // Add ? token
     // ...
 } TokenType;
 
 Token lexer_next(Lexer* lex) {
-    // ... implementation to recognize <-
+    // ... implementation to recognize ?
 }
 
 // Step 5: Run test - PASSES
 // Step 6: Update ROADMAP.md milestone progress
-// Step 7: Commit with message: "feat(lexer): add <- bind operator token"
+// Step 7: Commit with message: "feat(lexer): add ? operator token"
 ```
 
 ### Required Reading Before Every Task
@@ -66,7 +67,8 @@ Token lexer_next(Lexer* lex) {
 1. **DESIGN.md** - Source of truth for Fern language features
 2. **ROADMAP.md** - Current milestone and task status
 3. **DECISIONS.md** - Record of architectural decisions
-4. **CLAUDE.md** (this file) - Safety guidelines and patterns
+4. **FERN_STYLE.md** - Coding standards (assertions, function limits, fuzzing)
+5. **CLAUDE.md** (this file) - Safety guidelines and patterns
 
 **Before writing ANY code:**
 - [ ] Read relevant section of DESIGN.md
@@ -121,10 +123,10 @@ The skill will guide you through:
 
 ```markdown
 <!-- Before -->
-- [ ] Implement <- operator lexing
+- [ ] Implement ? operator lexing
 
 <!-- After -->
-- [x] Implement <- operator lexing (test_lex_bind_operator passes)
+- [x] Implement ? operator lexing (test_lex_question_operator passes)
 ```
 
 **After completing each milestone:**
@@ -144,6 +146,7 @@ Before every commit, verify:
 - [ ] No compiler warnings: `make clean && make`
 - [ ] ROADMAP.md is updated with progress
 - [ ] Code follows DESIGN.md specification
+- [ ] Code follows FERN_STYLE.md (min 2 assertions per function, <70 lines)
 - [ ] Test was written BEFORE implementation
 - [ ] Commit message follows conventional commits
 - [ ] Significant decisions are documented in DECISIONS.md
@@ -173,14 +176,14 @@ Refs: DESIGN.md section X.Y
 **Examples:**
 
 ```
-feat(lexer): add <- bind operator token
+feat(lexer): add ? operator token
 
-Implement lexing for the <- operator used in Result binding.
-This operator comes before the function call to make error
-handling visible at the call site.
+Implement lexing for the ? operator used in Result propagation.
+This postfix operator automatically unwraps Ok values or early
+returns Err values (Rust-style).
 
 Tests:
-- test_lex_bind_operator passes
+- test_lex_question_operator passes
 
 Refs: DESIGN.md section 3.2 (Error Handling)
 ```
@@ -219,6 +222,7 @@ fern/
 ├── DESIGN.md           # ← SPECIFICATION (read this FIRST)
 ├── ROADMAP.md          # ← TASKS (update after each task)
 ├── DECISIONS.md        # ← DECISIONS (document choices with /decision)
+├── FERN_STYLE.md       # ← CODING STANDARDS (assertions, limits, fuzzing)
 ├── CLAUDE.md           # ← THIS FILE (safety guidelines)
 ├── BUILD.md            # ← Build instructions
 ├── README.md           # ← Project overview
@@ -740,12 +744,21 @@ Expr **arr = malloc(size * sizeof(Expr*));
 
 Before committing code, verify:
 
+**Safety Libraries:**
 - [ ] All allocations use arena (no malloc/free)
 - [ ] All variants use Datatype99 (no manual unions)
 - [ ] All strings use SDS (no char*)
 - [ ] All arrays/maps use stb_ds (no manual management)
 - [ ] All fallible functions return Result types
 - [ ] All match() statements are exhaustive
+
+**FERN_STYLE Requirements:**
+- [ ] Minimum 2 assertions per function
+- [ ] Function under 70 lines
+- [ ] All loops have explicit bounds
+- [ ] Comments explain WHY, not just WHAT
+
+**Build Checks:**
 - [ ] Compiles with `-Wall -Wextra -Wpedantic` (no warnings)
 - [ ] Passes AddressSanitizer (no memory errors)
 - [ ] Passes UndefinedBehaviorSanitizer (no UB)
@@ -757,6 +770,7 @@ Before committing code, verify:
 - **SDS**: https://github.com/antirez/sds
 - **stb_ds.h**: https://github.com/nothings/stb
 - **QBE**: https://c9x.me/compile/
+- **TigerBeetle TIGER_STYLE**: https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md (inspiration for FERN_STYLE.md)
 
 ## Key Insight for AI
 
@@ -766,5 +780,7 @@ The entire safety strategy is:
 3. **Strings**: Never char*, use SDS
 4. **Collections**: Never manual arrays, use stb_ds
 5. **Errors**: Never NULL, use Result types
+6. **Assertions**: Minimum 2 per function (see FERN_STYLE.md)
+7. **Function size**: Maximum 70 lines (see FERN_STYLE.md)
 
-These five rules eliminate 90% of C's danger while keeping AI productivity high.
+These rules eliminate 90% of C's danger while keeping AI productivity high. The FERN_STYLE.md requirements ensure assertions document invariants and small functions fit in AI context windows.

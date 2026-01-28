@@ -63,6 +63,117 @@ Each milestone follows this pattern:
 
 ---
 
+## 🚨 CI Fix (BLOCKING)
+
+**Status:** ❌ Failing - 5 consecutive failures on main
+**Priority:** Critical - Must be fixed before any other work
+
+**Issue:** `include/ast.h` is missing `#include <stdint.h>`, causing `int64_t` to be undefined on Linux CI.
+
+**Error:**
+```
+include/ast.h:86:5: error: unknown type name 'int64_t'
+   86 |     int64_t value;
+      |     ^
+```
+
+### Tasks
+
+- [x] Add `#include <stdint.h>` to `include/ast.h`
+- [ ] Verify CI passes on both ubuntu-latest and macos runners
+- [ ] Consider adding a CI check that runs on PRs before merge
+
+**Root Cause:** macOS includes `stdint.h` transitively through other headers, but Linux (ubuntu) requires explicit includes.
+
+---
+
+## Milestone 0.5: FERN_STYLE Enforcement
+
+**Status:** 🚧 In Progress - Style checker implemented, audit needed
+**Priority:** High - Should be implemented before significant code is written
+
+**Goal:** Automated enforcement of FERN_STYLE.md coding standards
+
+### Why This Matters
+
+FERN_STYLE rules (inspired by TigerBeetle) prevent bugs and improve AI-assisted development:
+- **2+ assertions per function** catches bugs early, documents invariants
+- **70-line limit** keeps functions in AI context windows
+- **Explicit bounds** prevents infinite loops and overflows
+- **Pair assertions** catches serialization bugs
+
+### Tasks
+
+- [x] **Create `scripts/check_style.py`** - FERN_STYLE linter ✅
+  - [x] Count assertions per function (min 2)
+  - [x] Check function line count (max 70)
+  - [x] Detect unbounded loops
+  - [x] Check for `malloc`/`free` usage (should use arena)
+  - [x] Report violations with file:line references
+
+- [ ] **Create `scripts/check_assertions.sh`** - Quick assertion density check (optional)
+  ```bash
+  # Count functions vs assertions in a file
+  # Flag any function with < 2 assertions
+  ```
+
+- [x] **Add Makefile targets** ✅
+  - [x] `make style` - Check FERN_STYLE compliance
+  - [x] `make style-strict` - Treat warnings as errors
+
+- [ ] **Integrate with CI**
+  - [ ] Add style check to GitHub Actions
+  - [ ] Block PRs that violate FERN_STYLE
+  - [ ] Generate style report on each build
+
+- [ ] **Audit existing code** (many violations found)
+  - [x] Run style checker on all existing code ✅
+  - [ ] Add missing assertions to existing functions
+  - [ ] Split functions over 70 lines
+  - [ ] Add explicit bounds to all loops
+
+- [ ] **Pre-commit hook**
+  - [ ] Add style check to pre-commit hooks
+  - [ ] Fail commit if style violations found
+
+### Style Checker Output Example
+
+```
+$ make style
+Checking FERN_STYLE compliance...
+
+lib/lexer.c:
+  ✗ lexer_next() - 0 assertions (need 2+)
+  ✗ scan_string() - 85 lines (max 70)
+  ✓ lexer_new() - 3 assertions
+
+lib/parser.c:
+  ✗ parse_expr() - 1 assertion (need 2+)
+  ✗ Unbounded loop at line 234
+
+Summary: 4 violations in 2 files
+```
+
+### Success Criteria
+
+- [x] `make style` runs and reports violations ✅
+- [ ] All existing code passes style check (or has TODO comments)
+- [ ] CI blocks PRs with style violations
+- [ ] Pre-commit hook catches violations locally
+- [ ] New code automatically checked
+
+### Current Status (2026-01-28)
+
+Style checker implemented. Initial audit found violations:
+- **Assertion density**: Most functions have 0-1 assertions (need 2+)
+- **Function length**: Several functions exceed 70 lines (ast_print_expr: 430 lines, checker_infer_expr: 428 lines)
+- **malloc/free**: Only in arena.c (expected, it implements the arena)
+
+Run `make style` to see current violations.
+- [ ] New code automatically checked
+
+---
+
 ## Milestone 1: Lexer
 
 **Status:** 🚧 In Progress - Core lexer complete, 23/23 tests passing
@@ -126,6 +237,11 @@ tests/lexer/
   - [x] Comment handling (#) - Block comments /* */ TODO
   - [ ] Indentation tracking (indent/dedent tokens) - TODO
   - [x] Error reporting with line/column
+  - [ ] **Unicode/emoji identifiers** (Decision #17)
+    - [ ] Support Unicode XID_Start/XID_Continue for identifier chars
+    - [ ] Support emoji codepoints in identifiers
+    - [ ] Add tests: `let π = 3.14159`, `let 日本語 = "Japanese"`, `let 🚀 = launch()`
+    - [ ] Update DESIGN.md with identifier rules
 
 - [ ] Lexer utilities
   - [ ] Position tracking (file, line, column)
