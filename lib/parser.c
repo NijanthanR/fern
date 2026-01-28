@@ -542,9 +542,12 @@ Stmt* parse_stmt(Parser* parser) {
         Token name_tok = consume(parser, TOKEN_IDENT, "Expected variable name");
         Pattern* pattern = pattern_ident(parser->arena, name_tok.text, name_tok.loc);
         
-        // Optional type annotation (skip for now)
+        // Optional type annotation: let x: Type = expr
         TypeExpr* type_ann = NULL;
-        
+        if (match(parser, TOKEN_COLON)) {
+            type_ann = parse_type(parser);
+        }
+
         // Expect =
         consume(parser, TOKEN_ASSIGN, "Expected '=' after variable name");
         

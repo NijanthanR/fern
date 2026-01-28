@@ -1023,10 +1023,46 @@ let callback: (Int) -> Bool = is_even
 - lib/parser.c (enhance parse_stmt for let to optionally parse type annotation after colon)
 
 **Success Criteria**:
-- [ ] All 5 new tests pass
-- [ ] No regression in existing 69 tests (69 → 74 tests, all passing)
-- [ ] No compiler warnings
-- [ ] Follows TDD workflow (RED → GREEN → update ROADMAP)
+- [x] All 5 new tests pass
+- [x] No regression in existing 69 tests (69 → 74 tests, all passing)
+- [x] No compiler warnings
+- [x] Follows TDD workflow (RED → GREEN → update ROADMAP)
+
+### Implementation Notes
+
+**Written by**: IMPLEMENTER (Opus 4.5)
+**Time**: 2026-01-28
+
+Implementation completed with TDD workflow:
+1. RED phase: Added 5 tests for let type annotations; 4 failed, 1 passed (55ee1de)
+2. GREEN phase: Enhanced let statement parsing to optionally parse type annotations
+
+**Tests Written**:
+- test_parse_let_with_type_int() - Parse: `let x: Int = 42` ✓
+- test_parse_let_with_type_string() - Parse: `let name: String = "test"` ✓
+- test_parse_let_with_type_parameterized() - Parse: `let items: List(Int) = [1, 2]` ✓
+- test_parse_let_with_type_function() - Parse: `let f: (Int) -> Int = double` ✓
+- test_parse_let_without_type() - Parse: `let x = 42` (existing behavior verified) ✓
+
+**Files Modified**:
+- tests/test_parser.c (added 5 new tests)
+- lib/parser.c (enhanced let statement parsing to optionally parse `: Type` before `=`)
+
+**Parser Change**:
+The let statement parser previously skipped type annotations (always set `type_ann = NULL`).
+The fix adds a check for TOKEN_COLON after the variable name. If found, it calls
+`parse_type()` to parse the type annotation before consuming `=` and the value expression.
+This leverages the existing `parse_type()` infrastructure that already handles simple types
+(Int, String), parameterized types (List(Int), Result(String, Error)), and function types
+((Int) -> Int).
+
+Syntax: `let <name> [: <type>] = <expr>`
+
+Test Results:
+```
+Total:  74
+Passed: 74
+```
 
 ---
 
