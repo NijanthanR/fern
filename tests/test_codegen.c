@@ -486,6 +486,42 @@ void test_codegen_err_constructor(void) {
     arena_destroy(arena);
 }
 
+/* ========== For Loop Tests ========== */
+
+void test_codegen_for_loop(void) {
+    Arena* arena = arena_create(8192);
+    
+    /* For loop iterating over a list */
+    const char* qbe = generate_expr_qbe(arena, "for x in [1, 2, 3]: x");
+    
+    ASSERT_NOT_NULL(qbe);
+    /* Should have loop structure: labels for loop start, body, end */
+    ASSERT_TRUE(strstr(qbe, "@L") != NULL);  /* Should have labels */
+    ASSERT_TRUE(strstr(qbe, "jnz") != NULL); /* Conditional jump for loop condition */
+    ASSERT_TRUE(strstr(qbe, "jmp") != NULL); /* Unconditional jump back to loop start */
+    /* Should call fern_list_len to get length */
+    ASSERT_TRUE(strstr(qbe, "$fern_list_len") != NULL);
+    /* Should call fern_list_get to get elements */
+    ASSERT_TRUE(strstr(qbe, "$fern_list_get") != NULL);
+    
+    arena_destroy(arena);
+}
+
+void test_codegen_for_in_function(void) {
+    Arena* arena = arena_create(8192);
+    
+    /* For loop inside a function */
+    const char* qbe = generate_qbe(arena,
+        "fn sum_list(items: List(Int)) -> Int: for x in items: x");
+    
+    ASSERT_NOT_NULL(qbe);
+    ASSERT_TRUE(strstr(qbe, "$sum_list") != NULL);
+    /* Should have loop labels */
+    ASSERT_TRUE(strstr(qbe, "@L") != NULL);
+    
+    arena_destroy(arena);
+}
+
 /* ========== Test Runner ========== */
 
 void run_codegen_tests(void) {
@@ -556,4 +592,8 @@ void run_codegen_tests(void) {
     /* Result type constructors */
     TEST_RUN(test_codegen_ok_constructor);
     TEST_RUN(test_codegen_err_constructor);
+    
+    /* For loops */
+    TEST_RUN(test_codegen_for_loop);
+    TEST_RUN(test_codegen_for_in_function);
 }

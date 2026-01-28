@@ -486,6 +486,80 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
             
             return result;
         }
+        
+        case EXPR_FOR: {
+            /* For loop: for var_name in iterable: body
+             * 
+             * Generated code pattern:
+             *   list = <iterable>
+             *   len = fern_list_len(list)
+             *   idx = 0
+             * @loop_start
+             *   cond = idx < len
+             *   jnz cond, @loop_body, @loop_end
+             * @loop_body
+             *   var_name = fern_list_get(list, idx)
+             *   <body>
+             *   idx = idx + 1
+             *   jmp @loop_start
+             * @loop_end
+             *   result = 0  (unit value)
+             */
+            ForExpr* for_loop = &expr->data.for_loop;
+            
+            /* Generate code for the iterable (list) */
+            String* list = codegen_expr(cg, for_loop->iterable);
+            
+            /* Get list length */
+            String* len = fresh_temp(cg);
+            emit(cg, "    %s =w call $fern_list_len(l %s)\n", 
+                string_cstr(len), string_cstr(list));
+            
+            /* Initialize index to 0 */
+            String* idx = fresh_temp(cg);
+            emit(cg, "    %s =w copy 0\n", string_cstr(idx));
+            
+            /* Generate labels */
+            String* loop_start = fresh_label(cg);
+            String* loop_body = fresh_label(cg);
+            String* loop_end = fresh_label(cg);
+            
+            /* Loop start: check condition */
+            emit(cg, "%s\n", string_cstr(loop_start));
+            String* cond = fresh_temp(cg);
+            emit(cg, "    %s =w csltw %s, %s\n", 
+                string_cstr(cond), string_cstr(idx), string_cstr(len));
+            emit(cg, "    jnz %s, %s, %s\n", 
+                string_cstr(cond), string_cstr(loop_body), string_cstr(loop_end));
+            
+            /* Loop body */
+            emit(cg, "%s\n", string_cstr(loop_body));
+            
+            /* Get element at current index and bind to var_name */
+            String* elem = fresh_temp(cg);
+            emit(cg, "    %s =w call $fern_list_get(l %s, w %s)\n",
+                string_cstr(elem), string_cstr(list), string_cstr(idx));
+            emit(cg, "    %%%s =w copy %s\n", 
+                string_cstr(for_loop->var_name), string_cstr(elem));
+            
+            /* Execute body */
+            codegen_expr(cg, for_loop->body);
+            
+            /* Increment index */
+            String* new_idx = fresh_temp(cg);
+            emit(cg, "    %s =w add %s, 1\n", string_cstr(new_idx), string_cstr(idx));
+            emit(cg, "    %s =w copy %s\n", string_cstr(idx), string_cstr(new_idx));
+            
+            /* Jump back to loop start */
+            emit(cg, "    jmp %s\n", string_cstr(loop_start));
+            
+            /* Loop end: return unit value */
+            emit(cg, "%s\n", string_cstr(loop_end));
+            String* result = fresh_temp(cg);
+            emit(cg, "    %s =w copy 0\n", string_cstr(result));
+            
+            return result;
+        }
             
         default:
             emit(cg, "    # TODO: codegen for expr type %d\n", expr->type);
