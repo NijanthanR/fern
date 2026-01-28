@@ -12,6 +12,7 @@
 #include "token.h"
 #include "vec.h"
 #include <stdbool.h>
+#include <stdint.h>
 
 /* Forward declarations */
 typedef struct Expr Expr;
