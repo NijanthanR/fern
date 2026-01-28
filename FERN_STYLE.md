@@ -395,6 +395,97 @@ int count = 0;       // reset for next iteration
 Token tok = next();  // consume the opening paren
 ```
 
+### Doc Comments (API Documentation)
+
+Use `/** */` doc comments for all public functions, structs, and enums in header files.
+These will be extracted by the documentation generator.
+
+**Format:**
+```c
+/**
+ * @brief Short one-line description.
+ *
+ * Longer description with more details. Can span multiple lines.
+ * Use markdown for formatting.
+ *
+ * @param name Description of parameter
+ * @param other Another parameter
+ * @return What the function returns
+ *
+ * @example
+ *     Lexer* lex = lexer_new(arena, "let x = 42");
+ *     Token tok = lexer_next(lex);
+ *
+ * @see related_function
+ * @note Important notes or warnings
+ */
+```
+
+**Required tags:**
+- `@brief` - Always required, one line
+- `@param` - For each parameter
+- `@return` - For non-void functions
+
+**Optional tags:**
+- `@example` - Code example (will be syntax highlighted)
+- `@see` - Cross-reference to related functions
+- `@note` - Important information
+- `@warning` - Danger/caution notes
+
+**Example:**
+```c
+/**
+ * @brief Create a new lexer for tokenizing Fern source code.
+ *
+ * The lexer uses arena allocation for all internal data structures.
+ * Call lexer_next() repeatedly to get tokens until TOKEN_EOF.
+ *
+ * @param arena Memory arena for allocations (must not be NULL)
+ * @param source Source code string to tokenize (must not be NULL)
+ * @return New Lexer instance, never NULL
+ *
+ * @example
+ *     Arena* arena = arena_create(4096);
+ *     Lexer* lex = lexer_new(arena, "fn main(): print(\"hello\")");
+ *     while (!lexer_is_eof(lex)) {
+ *         Token tok = lexer_next(lex);
+ *         printf("%s\n", token_type_name(tok.type));
+ *     }
+ *
+ * @see lexer_next, lexer_peek, lexer_is_eof
+ */
+Lexer* lexer_new(Arena* arena, const char* source);
+```
+
+**For structs:**
+```c
+/**
+ * @brief Represents a source code location.
+ *
+ * Used for error messages and debugging. All AST nodes
+ * carry a SourceLoc to enable precise error reporting.
+ */
+typedef struct {
+    String* file;   /**< Source file path */
+    int line;       /**< Line number (1-indexed) */
+    int column;     /**< Column number (0-indexed) */
+} SourceLoc;
+```
+
+**For enums:**
+```c
+/**
+ * @brief Token types produced by the lexer.
+ */
+typedef enum {
+    TOKEN_INT,      /**< Integer literal: 42, 0xFF */
+    TOKEN_FLOAT,    /**< Float literal: 3.14, 1e-10 */
+    TOKEN_STRING,   /**< String literal: "hello" */
+    TOKEN_IDENT,    /**< Identifier: foo, myVar */
+    TOKEN_EOF,      /**< End of file */
+} TokenType;
+```
+
 ---
 
 ## Testing

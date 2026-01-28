@@ -960,6 +960,125 @@ make fuzz-forever
 - [ ] Add crash detection
 - [ ] Integrate with CI (run on every PR)
 
+---
+
+## FernDoc - Documentation Generation (Planned)
+
+**Status**: Planned (Decision #18)
+**Inspiration**: HexDocs (Elixir), rustdoc, godoc
+
+Two documentation systems sharing a unified HTML template:
+
+### 1. Fern Language Documentation (`fern doc`)
+
+Built-in command for generating documentation from Fern source code.
+
+**Features:**
+- Parse `@doc` comments with markdown support
+- Extract function signatures, type definitions, module structure
+- Generate searchable HTML with syntax highlighting
+- Support doc tests (examples that are automatically tested)
+- Cross-reference linking between modules
+
+**Usage (Planned):**
+```bash
+# Generate docs for current project
+fern doc
+
+# Generate and open in browser
+fern doc --open
+
+# Generate docs for specific module
+fern doc src/mymodule.fn
+```
+
+**Example Fern documentation:**
+```fern
+@doc """
+Reads the contents of a file and returns them as a String.
+
+## Examples
+
+    let content = read_file("config.txt")?
+    print(content)
+
+## Errors
+
+Returns `Err(IoError)` if the file cannot be read.
+"""
+fn read_file(path: String) -> Result[String, IoError]:
+    # implementation
+```
+
+### 2. Compiler Documentation (C code)
+
+Custom doc generator for the Fern compiler source.
+
+**Features:**
+- Parse `/** */` doc comments in C code
+- Extract function signatures, struct definitions, enums
+- Understand FERN_STYLE conventions (assertions as contracts)
+- Generate HTML matching Fern doc style
+- Document the compiler architecture
+
+**Comment format:**
+```c
+/**
+ * @brief Tokenize Fern source code into a stream of tokens.
+ *
+ * @param arena Memory arena for allocations
+ * @param source Source code string to tokenize
+ * @return Lexer instance ready for iteration
+ *
+ * @example
+ *   Lexer* lex = lexer_new(arena, "let x = 42");
+ *   Token tok = lexer_next(lex);
+ */
+Lexer* lexer_new(Arena* arena, const char* source);
+```
+
+**Usage (Planned):**
+```bash
+# Generate compiler docs
+make docs
+
+# Generate and serve locally
+make docs-serve
+```
+
+### Shared Infrastructure
+
+- **HTML Templates**: Responsive, searchable, dark-mode support
+- **Search Index**: Client-side search (lunr.js or similar)
+- **Syntax Highlighting**: Fern and C code highlighting
+- **CI Integration**: Auto-publish to GitHub Pages on release
+
+### Implementation Tasks
+
+**Phase 1: Fern Language Docs**
+- [ ] Define `@doc` comment syntax in DESIGN.md
+- [ ] Implement doc comment parsing in lexer/parser
+- [ ] Create `fern doc` CLI command
+- [ ] Build HTML template with search
+- [ ] Add syntax highlighting for Fern code
+- [ ] Implement doc test extraction and running
+
+**Phase 2: Compiler Docs**
+- [ ] Create `scripts/generate_docs.py` — C doc extractor
+- [ ] Parse `/** */` comments and function signatures
+- [ ] Reuse HTML templates from Phase 1
+- [ ] Add C syntax highlighting
+- [ ] Add `make docs` target
+
+**Phase 3: Polish**
+- [ ] Cross-reference linking
+- [ ] Version selector (multiple doc versions)
+- [ ] GitHub Pages deployment in CI
+- [ ] Dark mode toggle
+- [ ] Mobile-responsive design
+
+---
+
 ## Iteration 9: Function Definition Parsing
 
 **Agent Turn**: CONTROLLER
