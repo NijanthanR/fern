@@ -772,11 +772,11 @@ make test
 ## Ralph Loop Status
 
 **Current Milestone**: 2 - Parser
-**Current Iteration**: 2
-**Agent Turn**: CONTROLLER
-**Status**: COMPLETE
-**Started**: 2026-01-28 02:00:00
-**Last Updated**: 2026-01-28 02:45:00
+**Current Iteration**: 3
+**Agent Turn**: IMPLEMENTER
+**Status**: IN_PROGRESS
+**Started**: 2026-01-28 02:50:00
+**Last Updated**: 2026-01-28 02:50:00
 
 ### Previous Task
 
@@ -835,6 +835,80 @@ Passed: 40
 ```
 
 Ready for CONTROLLER verification.
+
+### Verification Notes from Iteration 2
+
+**Written by**: CONTROLLER (Sonnet 4.5)
+**Time**: 2026-01-28 02:50:00
+
+✅ ACCEPTED - Match expression implementation
+
+Verification Results:
+- Tests: 40/40 passing ✓
+- Code quality: Excellent ✓
+- No compiler warnings ✓
+- Uses arena allocation correctly ✓
+- Error handling appropriate ✓
+- Follows existing parser patterns ✓
+- Critical lexer bug fixed ✓
+
+Success Criteria Met:
+- [x] Both new tests pass (test_parse_match_simple, test_parse_match_with_default)
+- [x] No regression (38 → 40 tests, all passing)
+- [x] No compiler warnings
+- [x] Follows existing patterns
+
+Code Review:
+- expr_match() helper: Clean implementation ✓
+- Pattern parsing: Wildcard and literal patterns work ✓
+- Lexer fix: Excellent debugging of underscore tokenization ✓
+- Comment quality: Clear and helpful ✓
+
+Commits reviewed:
+- 4b8e368: Tests (RED phase) ✓
+- 46c4723: Implementation (GREEN phase) ✓
+- 5c32473: ROADMAP update ✓
+
+Ready for next task: Block expressions
+
+---
+
+## Iteration 3: Block Expressions
+
+**Agent Turn**: IMPLEMENTER
+**Status**: PENDING
+**Task**: Implement block expression parsing
+
+### Current Task
+
+- [ ] Implement block expression parsing
+
+**Expected Tests**:
+- test_parse_block_simple() - Parse: { let x = 5; x + 1 }
+- test_parse_block_multiple_statements() - Parse: { let a = 1; let b = 2; a + b }
+
+**Expected Files**:
+- tests/test_parser.c (add 2 new tests)
+- lib/parser.c (add block parsing)
+- lib/ast.c (add expr_block helper)
+- include/ast.h (add expr_block declaration)
+
+**Success Criteria**:
+- Both new tests pass
+- No regression in existing 40 tests (should be 42/42 total)
+- No compiler warnings
+- Follows existing parser patterns
+
+**Context**:
+Block expressions are sequences of statements with a final expression value.
+Syntax: { <stmt>; <stmt>; ...; <expr> }
+The value of the block is the value of the final expression.
+Blocks are used in function bodies, if/match arms, etc.
+
+**Implementation Notes**:
+(IMPLEMENTER will fill this after completing the task)
+
+---
 
 ### Verification Notes from Iteration 1
 
