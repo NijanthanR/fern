@@ -30,6 +30,7 @@ Parser* parser_new(Arena* arena, const char* source) {
     Parser* parser = arena_alloc(arena, sizeof(Parser));
     parser->arena = arena;
     parser->lexer = lexer_new(arena, source);
+    parser->source = source;
     parser->had_error = false;
     parser->panic_mode = false;
     
@@ -67,7 +68,35 @@ static Token consume(Parser* parser, TokenType type, const char* message) {
     }
     
     error_at_current(parser, message);
+    
+    // Advance past bad token for error recovery (unless at EOF)
+    if (parser->current.type != TOKEN_EOF) {
+        advance(parser);
+    }
+    
     return parser->current;
+}
+
+// Get the start of line N (1-indexed) in source
+static const char* get_line_start(const char* source, size_t target_line) {
+    if (target_line <= 1) return source;
+    
+    const char* p = source;
+    size_t line = 1;
+    while (*p && line < target_line) {
+        if (*p == '\n') line++;
+        p++;
+    }
+    return p;
+}
+
+// Get the length of the current line (up to newline or EOF)
+static size_t get_line_length(const char* line_start) {
+    size_t len = 0;
+    while (line_start[len] && line_start[len] != '\n') {
+        len++;
+    }
+    return len;
 }
 
 static void error_at_current(Parser* parser, const char* message) {
@@ -75,13 +104,73 @@ static void error_at_current(Parser* parser, const char* message) {
     parser->panic_mode = true;
     parser->had_error = true;
     
-    fprintf(stderr, "[line %zu] Error at '%s': %s\n",
-            parser->current.loc.line,
-            parser->current.text ? string_cstr(parser->current.text) : "EOF",
-            message);
+    SourceLoc loc = parser->current.loc;
+    const char* token_text = parser->current.text ? string_cstr(parser->current.text) : "EOF";
+    
+    // Print error header
+    fprintf(stderr, "\nerror: %s\n", message);
+    fprintf(stderr, "  --> %s:%zu:%zu\n",
+            loc.filename ? string_cstr(loc.filename) : "<input>",
+            loc.line, loc.column);
+    
+    // Print source line with context
+    if (parser->source && loc.line > 0) {
+        const char* line_start = get_line_start(parser->source, loc.line);
+        size_t line_len = get_line_length(line_start);
+        
+        // Print line number and source
+        fprintf(stderr, "   |\n");
+        fprintf(stderr, "%3zu| %.*s\n", loc.line, (int)line_len, line_start);
+        
+        // Print caret pointing to error location
+        fprintf(stderr, "   | ");
+        for (size_t i = 1; i < loc.column && i <= line_len; i++) {
+            fprintf(stderr, " ");
+        }
+        
+        // Underline the token
+        size_t token_len = strlen(token_text);
+        if (token_len == 0) token_len = 1;
+        for (size_t i = 0; i < token_len; i++) {
+            fprintf(stderr, "^");
+        }
+        fprintf(stderr, " %s\n\n", message);
+    }
 }
 
 // Expression parsing (operator precedence climbing)
+
+// Binary operator mapping for generic operator parsing
+typedef struct {
+    TokenType token;
+    BinaryOp op;
+} BinOpMapping;
+
+// Generic left-associative binary operator parser
+static Expr* parse_binary_left(
+    Parser* parser,
+    Expr* (*next_prec)(Parser*),
+    const BinOpMapping* ops,
+    size_t op_count
+) {
+    Expr* expr = next_prec(parser);
+    
+    while (true) {
+        bool matched = false;
+        for (size_t i = 0; i < op_count; i++) {
+            if (match(parser, ops[i].token)) {
+                SourceLoc loc = parser->previous.loc;
+                Expr* right = next_prec(parser);
+                expr = expr_binary(parser->arena, ops[i].op, expr, right, loc);
+                matched = true;
+                break;
+            }
+        }
+        if (!matched) break;
+    }
+    
+    return expr;
+}
 
 Expr* parse_expr(Parser* parser) {
     return parse_expression(parser);
@@ -93,15 +182,8 @@ static Expr* parse_expression(Parser* parser) {
 
 // Precedence: pipe (lowest)
 static Expr* parse_pipe(Parser* parser) {
-    Expr* expr = parse_range(parser);
-    
-    while (match(parser, TOKEN_PIPE)) {
-        SourceLoc loc = parser->previous.loc;
-        Expr* right = parse_range(parser);
-        expr = expr_binary(parser->arena, BINOP_PIPE, expr, right, loc);
-    }
-    
-    return expr;
+    static const BinOpMapping ops[] = {{TOKEN_PIPE, BINOP_PIPE}};
+    return parse_binary_left(parser, parse_range, ops, 1);
 }
 
 // Precedence: range (above logical, below pipe)
@@ -123,126 +205,55 @@ static Expr* parse_range(Parser* parser) {
 
 // Precedence: or
 static Expr* parse_logical_or(Parser* parser) {
-    Expr* expr = parse_logical_and(parser);
-    
-    while (match(parser, TOKEN_OR)) {
-        SourceLoc loc = parser->previous.loc;
-        Expr* right = parse_logical_and(parser);
-        expr = expr_binary(parser->arena, BINOP_OR, expr, right, loc);
-    }
-    
-    return expr;
+    static const BinOpMapping ops[] = {{TOKEN_OR, BINOP_OR}};
+    return parse_binary_left(parser, parse_logical_and, ops, 1);
 }
 
 // Precedence: and
 static Expr* parse_logical_and(Parser* parser) {
-    Expr* expr = parse_equality(parser);
-    
-    while (match(parser, TOKEN_AND)) {
-        SourceLoc loc = parser->previous.loc;
-        Expr* right = parse_equality(parser);
-        expr = expr_binary(parser->arena, BINOP_AND, expr, right, loc);
-    }
-    
-    return expr;
+    static const BinOpMapping ops[] = {{TOKEN_AND, BINOP_AND}};
+    return parse_binary_left(parser, parse_equality, ops, 1);
 }
 
 // Precedence: == !=
 static Expr* parse_equality(Parser* parser) {
-    Expr* expr = parse_comparison(parser);
-    
-    while (true) {
-        if (match(parser, TOKEN_EQ)) {
-            SourceLoc loc = parser->previous.loc;
-            Expr* right = parse_comparison(parser);
-            expr = expr_binary(parser->arena, BINOP_EQ, expr, right, loc);
-        } else if (match(parser, TOKEN_NE)) {
-            SourceLoc loc = parser->previous.loc;
-            Expr* right = parse_comparison(parser);
-            expr = expr_binary(parser->arena, BINOP_NE, expr, right, loc);
-        } else {
-            break;
-        }
-    }
-    
-    return expr;
+    static const BinOpMapping ops[] = {
+        {TOKEN_EQ, BINOP_EQ},
+        {TOKEN_NE, BINOP_NE},
+    };
+    return parse_binary_left(parser, parse_comparison, ops, 2);
 }
 
 // Precedence: < <= > >=
 static Expr* parse_comparison(Parser* parser) {
-    Expr* expr = parse_term(parser);
-    
-    while (true) {
-        if (match(parser, TOKEN_LT)) {
-            SourceLoc loc = parser->previous.loc;
-            Expr* right = parse_term(parser);
-            expr = expr_binary(parser->arena, BINOP_LT, expr, right, loc);
-        } else if (match(parser, TOKEN_LE)) {
-            SourceLoc loc = parser->previous.loc;
-            Expr* right = parse_term(parser);
-            expr = expr_binary(parser->arena, BINOP_LE, expr, right, loc);
-        } else if (match(parser, TOKEN_GT)) {
-            SourceLoc loc = parser->previous.loc;
-            Expr* right = parse_term(parser);
-            expr = expr_binary(parser->arena, BINOP_GT, expr, right, loc);
-        } else if (match(parser, TOKEN_GE)) {
-            SourceLoc loc = parser->previous.loc;
-            Expr* right = parse_term(parser);
-            expr = expr_binary(parser->arena, BINOP_GE, expr, right, loc);
-        } else {
-            break;
-        }
-    }
-    
-    return expr;
+    static const BinOpMapping ops[] = {
+        {TOKEN_LT, BINOP_LT},
+        {TOKEN_LE, BINOP_LE},
+        {TOKEN_GT, BINOP_GT},
+        {TOKEN_GE, BINOP_GE},
+    };
+    return parse_binary_left(parser, parse_term, ops, 4);
 }
 
 // Precedence: + -
 static Expr* parse_term(Parser* parser) {
-    Expr* expr = parse_factor(parser);
-    
-    while (true) {
-        if (match(parser, TOKEN_PLUS)) {
-            SourceLoc loc = parser->previous.loc;
-            Expr* right = parse_factor(parser);
-            expr = expr_binary(parser->arena, BINOP_ADD, expr, right, loc);
-        } else if (match(parser, TOKEN_MINUS)) {
-            SourceLoc loc = parser->previous.loc;
-            Expr* right = parse_factor(parser);
-            expr = expr_binary(parser->arena, BINOP_SUB, expr, right, loc);
-        } else {
-            break;
-        }
-    }
-    
-    return expr;
+    static const BinOpMapping ops[] = {
+        {TOKEN_PLUS, BINOP_ADD},
+        {TOKEN_MINUS, BINOP_SUB},
+    };
+    return parse_binary_left(parser, parse_factor, ops, 2);
 }
 
-// Precedence: * /
+// Precedence: * / %
 static Expr* parse_power(Parser* parser);
 
 static Expr* parse_factor(Parser* parser) {
-    Expr* expr = parse_power(parser);
-    
-    while (true) {
-        if (match(parser, TOKEN_STAR)) {
-            SourceLoc loc = parser->previous.loc;
-            Expr* right = parse_power(parser);
-            expr = expr_binary(parser->arena, BINOP_MUL, expr, right, loc);
-        } else if (match(parser, TOKEN_SLASH)) {
-            SourceLoc loc = parser->previous.loc;
-            Expr* right = parse_power(parser);
-            expr = expr_binary(parser->arena, BINOP_DIV, expr, right, loc);
-        } else if (match(parser, TOKEN_PERCENT)) {
-            SourceLoc loc = parser->previous.loc;
-            Expr* right = parse_power(parser);
-            expr = expr_binary(parser->arena, BINOP_MOD, expr, right, loc);
-        } else {
-            break;
-        }
-    }
-    
-    return expr;
+    static const BinOpMapping ops[] = {
+        {TOKEN_STAR, BINOP_MUL},
+        {TOKEN_SLASH, BINOP_DIV},
+        {TOKEN_PERCENT, BINOP_MOD},
+    };
+    return parse_binary_left(parser, parse_power, ops, 3);
 }
 
 // Precedence: ** (right-associative)
@@ -275,85 +286,101 @@ static Expr* parse_unary(Parser* parser) {
     return parse_call(parser);
 }
 
-// Precedence: function calls
+// Postfix operator: try (?)
+static Expr* parse_postfix_try(Parser* parser, Expr* expr) {
+    SourceLoc loc = parser->previous.loc;
+    return expr_try(parser->arena, expr, loc);
+}
+
+// Postfix operator: index access ([])
+static Expr* parse_postfix_index(Parser* parser, Expr* expr) {
+    SourceLoc loc = parser->previous.loc;
+    Expr* index = parse_expression(parser);
+    consume(parser, TOKEN_RBRACKET, "Expected ']' after index expression");
+    return expr_index(parser->arena, expr, index, loc);
+}
+
+// Postfix operator: dot access (.)
+static Expr* parse_postfix_dot(Parser* parser, Expr* expr) {
+    SourceLoc loc = parser->previous.loc;
+    
+    if (match(parser, TOKEN_INT)) {
+        // Tuple field access: expr.0, expr.1
+        return expr_dot(parser->arena, expr, parser->previous.text, loc);
+    }
+    
+    if (match(parser, TOKEN_FLOAT)) {
+        // Handle expr.0.1 which lexes as dot + float "0.1"
+        // Split float text "0.1" into two dot accesses
+        const char* text = string_cstr(parser->previous.text);
+        const char* dot_pos = strchr(text, '.');
+        if (dot_pos) {
+            size_t first_len = (size_t)(dot_pos - text);
+            String* first_field = string_new_len(parser->arena, text, first_len);
+            String* second_field = string_new(parser->arena, dot_pos + 1);
+            expr = expr_dot(parser->arena, expr, first_field, loc);
+            return expr_dot(parser->arena, expr, second_field, loc);
+        }
+    }
+    
+    Token field_tok = consume(parser, TOKEN_IDENT, "Expected field name after '.'");
+    return expr_dot(parser->arena, expr, field_tok.text, loc);
+}
+
+// Postfix operator: function call (())
+static Expr* parse_postfix_call(Parser* parser, Expr* expr) {
+    SourceLoc loc = parser->previous.loc;
+    CallArgVec* arg_vec = CallArgVec_new(parser->arena);
+    
+    if (!check(parser, TOKEN_RPAREN)) {
+        do {
+            CallArg arg;
+            arg.label = NULL;
+            
+            // Check for labeled argument: ident: expr
+            // Detect by checking IDENT followed by COLON via lexer_peek
+            if (check(parser, TOKEN_IDENT)) {
+                Token peek_tok = lexer_peek(parser->lexer);
+                if (peek_tok.type == TOKEN_COLON) {
+                    // Labeled argument
+                    arg.label = parser->current.text;
+                    advance(parser); // consume ident
+                    advance(parser); // consume colon
+                }
+            }
+            
+            arg.value = parse_expression(parser);
+            CallArgVec_push(parser->arena, arg_vec, arg);
+        } while (match(parser, TOKEN_COMMA));
+    }
+    
+    consume(parser, TOKEN_RPAREN, "Expected ')' after arguments");
+    
+    Expr* call = arena_alloc(parser->arena, sizeof(Expr));
+    call->type = EXPR_CALL;
+    call->loc = loc;
+    call->data.call.func = expr;
+    call->data.call.args = arg_vec;
+    return call;
+}
+
+// Precedence: postfix operators (call, dot, index, try)
 static Expr* parse_call(Parser* parser) {
     Expr* expr = parse_primary_internal(parser);
     
-    while (check(parser, TOKEN_LPAREN) || check(parser, TOKEN_DOT) || check(parser, TOKEN_LBRACKET) || check(parser, TOKEN_QUESTION)) {
-    // Try operator: expr?
-    if (match(parser, TOKEN_QUESTION)) {
-        SourceLoc loc = parser->previous.loc;
-        expr = expr_try(parser->arena, expr, loc);
-        continue;
-    }
-    if (match(parser, TOKEN_LBRACKET)) {
-        SourceLoc loc = parser->previous.loc;
-        Expr* index = parse_expression(parser);
-        consume(parser, TOKEN_RBRACKET, "Expected ']' after index expression");
-        expr = expr_index(parser->arena, expr, index, loc);
-        continue;
-    }
-    if (match(parser, TOKEN_DOT)) {
-        SourceLoc loc = parser->previous.loc;
-        if (match(parser, TOKEN_INT)) {
-            // Tuple field access: expr.0, expr.1
-            expr = expr_dot(parser->arena, expr, parser->previous.text, loc);
-        } else if (match(parser, TOKEN_FLOAT)) {
-            // Handle expr.0.1 which lexes as dot + float "0.1"
-            // Split float text "0.1" into two dot accesses
-            const char* text = string_cstr(parser->previous.text);
-            const char* dot_pos = strchr(text, '.');
-            if (dot_pos) {
-                size_t first_len = (size_t)(dot_pos - text);
-                String* first_field = string_new_len(parser->arena, text, first_len);
-                String* second_field = string_new(parser->arena, dot_pos + 1);
-                expr = expr_dot(parser->arena, expr, first_field, loc);
-                expr = expr_dot(parser->arena, expr, second_field, loc);
-            }
+    while (true) {
+        if (match(parser, TOKEN_QUESTION)) {
+            expr = parse_postfix_try(parser, expr);
+        } else if (match(parser, TOKEN_LBRACKET)) {
+            expr = parse_postfix_index(parser, expr);
+        } else if (match(parser, TOKEN_DOT)) {
+            expr = parse_postfix_dot(parser, expr);
+        } else if (match(parser, TOKEN_LPAREN)) {
+            expr = parse_postfix_call(parser, expr);
         } else {
-            Token field_tok = consume(parser, TOKEN_IDENT, "Expected field name after '.'");
-            expr = expr_dot(parser->arena, expr, field_tok.text, loc);
+            break;
         }
-        continue;
     }
-    match(parser, TOKEN_LPAREN); // consume '('
-    {
-        SourceLoc loc = parser->previous.loc;
-        
-        CallArgVec* arg_vec = CallArgVec_new(parser->arena);
-        
-        if (!check(parser, TOKEN_RPAREN)) {
-            do {
-                CallArg arg;
-                arg.label = NULL;
-                
-                // Check for labeled argument: ident: expr
-                // Detect by checking IDENT followed by COLON via lexer_peek
-                if (check(parser, TOKEN_IDENT)) {
-                    Token peek_tok = lexer_peek(parser->lexer);
-                    if (peek_tok.type == TOKEN_COLON) {
-                        // Labeled argument
-                        arg.label = parser->current.text;
-                        advance(parser); // consume ident
-                        advance(parser); // consume colon
-                    }
-                }
-                
-                arg.value = parse_expression(parser);
-                CallArgVec_push(parser->arena, arg_vec, arg);
-            } while (match(parser, TOKEN_COMMA));
-        }
-        
-        consume(parser, TOKEN_RPAREN, "Expected ')' after arguments");
-        
-        Expr* call = arena_alloc(parser->arena, sizeof(Expr));
-        call->type = EXPR_CALL;
-        call->loc = loc;
-        call->data.call.func = expr;
-        call->data.call.args = arg_vec;
-        expr = call;
-    } // end call block
-    } // end while
     
     return expr;
 }

@@ -1,0 +1,561 @@
+/* AST Pretty-Printer Implementation */
+
+#include "ast_print.h"
+#include <string.h>
+
+// Helper to print indentation
+static void print_indent(FILE* out, int indent) {
+    for (int i = 0; i < indent; i++) {
+        fprintf(out, "  ");
+    }
+}
+
+// Forward declarations
+void ast_print_expr(FILE* out, Expr* expr, int indent);
+void ast_print_stmt(FILE* out, Stmt* stmt, int indent);
+
+// Binary operator names
+static const char* binop_name(BinaryOp op) {
+    switch (op) {
+        case BINOP_ADD: return "+";
+        case BINOP_SUB: return "-";
+        case BINOP_MUL: return "*";
+        case BINOP_DIV: return "/";
+        case BINOP_MOD: return "%";
+        case BINOP_POW: return "**";
+        case BINOP_EQ:  return "==";
+        case BINOP_NE:  return "!=";
+        case BINOP_LT:  return "<";
+        case BINOP_LE:  return "<=";
+        case BINOP_GT:  return ">";
+        case BINOP_GE:  return ">=";
+        case BINOP_AND: return "and";
+        case BINOP_OR:  return "or";
+        case BINOP_PIPE: return "|>";
+        default: return "?";
+    }
+}
+
+// Unary operator names
+static const char* unop_name(UnaryOp op) {
+    switch (op) {
+        case UNOP_NEG: return "-";
+        case UNOP_NOT: return "not";
+        default: return "?";
+    }
+}
+
+void ast_print_type(FILE* out, TypeExpr* type, int indent) {
+    if (!type) {
+        print_indent(out, indent);
+        fprintf(out, "(null)\n");
+        return;
+    }
+    
+    print_indent(out, indent);
+    
+    switch (type->kind) {
+        case TYPE_NAMED:
+            fprintf(out, "Type: %s", string_cstr(type->data.named.name));
+            if (type->data.named.args && type->data.named.args->len > 0) {
+                fprintf(out, "(");
+                for (size_t i = 0; i < type->data.named.args->len; i++) {
+                    if (i > 0) fprintf(out, ", ");
+                    TypeExpr* arg = type->data.named.args->data[i];
+                    fprintf(out, "%s", string_cstr(arg->data.named.name));
+                }
+                fprintf(out, ")");
+            }
+            fprintf(out, "\n");
+            break;
+            
+        case TYPE_FUNCTION:
+            fprintf(out, "FnType: (");
+            for (size_t i = 0; i < type->data.func.params->len; i++) {
+                if (i > 0) fprintf(out, ", ");
+                TypeExpr* param = type->data.func.params->data[i];
+                fprintf(out, "%s", string_cstr(param->data.named.name));
+            }
+            fprintf(out, ") -> ");
+            fprintf(out, "%s\n", string_cstr(type->data.func.return_type->data.named.name));
+            break;
+    }
+}
+
+void ast_print_pattern(FILE* out, Pattern* pattern, int indent) {
+    if (!pattern) {
+        print_indent(out, indent);
+        fprintf(out, "(null)\n");
+        return;
+    }
+    
+    print_indent(out, indent);
+    
+    switch (pattern->type) {
+        case PATTERN_IDENT:
+            fprintf(out, "PatIdent: %s\n", string_cstr(pattern->data.ident));
+            break;
+            
+        case PATTERN_WILDCARD:
+            fprintf(out, "PatWildcard: _\n");
+            break;
+            
+        case PATTERN_LIT:
+            fprintf(out, "PatLit:\n");
+            ast_print_expr(out, pattern->data.literal, indent + 1);
+            break;
+            
+        case PATTERN_CONSTRUCTOR:
+            fprintf(out, "PatConstructor: %s\n", string_cstr(pattern->data.constructor.name));
+            for (size_t i = 0; i < pattern->data.constructor.args->len; i++) {
+                ast_print_pattern(out, pattern->data.constructor.args->data[i], indent + 1);
+            }
+            break;
+            
+        case PATTERN_TUPLE:
+            fprintf(out, "PatTuple:\n");
+            for (size_t i = 0; i < pattern->data.tuple->len; i++) {
+                ast_print_pattern(out, pattern->data.tuple->data[i], indent + 1);
+            }
+            break;
+            
+        case PATTERN_REST:
+            if (pattern->data.rest_name) {
+                fprintf(out, "PatRest: ..%s\n", string_cstr(pattern->data.rest_name));
+            } else {
+                fprintf(out, "PatRest: .._\n");
+            }
+            break;
+    }
+}
+
+void ast_print_expr(FILE* out, Expr* expr, int indent) {
+    if (!expr) {
+        print_indent(out, indent);
+        fprintf(out, "(null)\n");
+        return;
+    }
+    
+    print_indent(out, indent);
+    
+    switch (expr->type) {
+        case EXPR_INT_LIT:
+            fprintf(out, "Int: %lld\n", (long long)expr->data.int_lit.value);
+            break;
+            
+        case EXPR_FLOAT_LIT:
+            fprintf(out, "Float: %g\n", expr->data.float_lit.value);
+            break;
+            
+        case EXPR_STRING_LIT:
+            fprintf(out, "String: \"%s\"\n", string_cstr(expr->data.string_lit.value));
+            break;
+            
+        case EXPR_BOOL_LIT:
+            fprintf(out, "Bool: %s\n", expr->data.bool_lit.value ? "true" : "false");
+            break;
+            
+        case EXPR_IDENT:
+            fprintf(out, "Ident: %s\n", string_cstr(expr->data.ident.name));
+            break;
+            
+        case EXPR_BINARY:
+            fprintf(out, "Binary: %s\n", binop_name(expr->data.binary.op));
+            ast_print_expr(out, expr->data.binary.left, indent + 1);
+            ast_print_expr(out, expr->data.binary.right, indent + 1);
+            break;
+            
+        case EXPR_UNARY:
+            fprintf(out, "Unary: %s\n", unop_name(expr->data.unary.op));
+            ast_print_expr(out, expr->data.unary.operand, indent + 1);
+            break;
+            
+        case EXPR_CALL:
+            fprintf(out, "Call:\n");
+            print_indent(out, indent + 1);
+            fprintf(out, "func:\n");
+            ast_print_expr(out, expr->data.call.func, indent + 2);
+            print_indent(out, indent + 1);
+            fprintf(out, "args: (%zu)\n", expr->data.call.args->len);
+            for (size_t i = 0; i < expr->data.call.args->len; i++) {
+                CallArg* arg = &expr->data.call.args->data[i];
+                if (arg->label) {
+                    print_indent(out, indent + 2);
+                    fprintf(out, "%s:\n", string_cstr(arg->label));
+                    ast_print_expr(out, arg->value, indent + 3);
+                } else {
+                    ast_print_expr(out, arg->value, indent + 2);
+                }
+            }
+            break;
+            
+        case EXPR_IF:
+            fprintf(out, "If:\n");
+            print_indent(out, indent + 1);
+            fprintf(out, "condition:\n");
+            ast_print_expr(out, expr->data.if_expr.condition, indent + 2);
+            print_indent(out, indent + 1);
+            fprintf(out, "then:\n");
+            ast_print_expr(out, expr->data.if_expr.then_branch, indent + 2);
+            if (expr->data.if_expr.else_branch) {
+                print_indent(out, indent + 1);
+                fprintf(out, "else:\n");
+                ast_print_expr(out, expr->data.if_expr.else_branch, indent + 2);
+            }
+            break;
+            
+        case EXPR_MATCH:
+            fprintf(out, "Match:\n");
+            if (expr->data.match_expr.value) {
+                print_indent(out, indent + 1);
+                fprintf(out, "value:\n");
+                ast_print_expr(out, expr->data.match_expr.value, indent + 2);
+            }
+            print_indent(out, indent + 1);
+            fprintf(out, "arms: (%zu)\n", expr->data.match_expr.arms->len);
+            for (size_t i = 0; i < expr->data.match_expr.arms->len; i++) {
+                MatchArm* arm = &expr->data.match_expr.arms->data[i];
+                print_indent(out, indent + 2);
+                fprintf(out, "arm %zu:\n", i);
+                ast_print_pattern(out, arm->pattern, indent + 3);
+                if (arm->guard) {
+                    print_indent(out, indent + 3);
+                    fprintf(out, "guard:\n");
+                    ast_print_expr(out, arm->guard, indent + 4);
+                }
+                print_indent(out, indent + 3);
+                fprintf(out, "body:\n");
+                ast_print_expr(out, arm->body, indent + 4);
+            }
+            break;
+            
+        case EXPR_BLOCK:
+            fprintf(out, "Block:\n");
+            for (size_t i = 0; i < expr->data.block.stmts->len; i++) {
+                ast_print_stmt(out, expr->data.block.stmts->data[i], indent + 1);
+            }
+            if (expr->data.block.final_expr) {
+                print_indent(out, indent + 1);
+                fprintf(out, "result:\n");
+                ast_print_expr(out, expr->data.block.final_expr, indent + 2);
+            }
+            break;
+            
+        case EXPR_LIST:
+            fprintf(out, "List: (%zu elements)\n", expr->data.list.elements->len);
+            for (size_t i = 0; i < expr->data.list.elements->len; i++) {
+                ast_print_expr(out, expr->data.list.elements->data[i], indent + 1);
+            }
+            break;
+            
+        case EXPR_BIND:
+            fprintf(out, "Bind: %s <-\n", string_cstr(expr->data.bind.name));
+            ast_print_expr(out, expr->data.bind.value, indent + 1);
+            break;
+            
+        case EXPR_WITH:
+            fprintf(out, "With:\n");
+            print_indent(out, indent + 1);
+            fprintf(out, "bindings:\n");
+            for (size_t i = 0; i < expr->data.with_expr.bindings->len; i++) {
+                WithBinding* b = &expr->data.with_expr.bindings->data[i];
+                print_indent(out, indent + 2);
+                fprintf(out, "%s <-\n", string_cstr(b->name));
+                ast_print_expr(out, b->value, indent + 3);
+            }
+            print_indent(out, indent + 1);
+            fprintf(out, "body:\n");
+            ast_print_expr(out, expr->data.with_expr.body, indent + 2);
+            break;
+            
+        case EXPR_DOT:
+            fprintf(out, "Dot: .%s\n", string_cstr(expr->data.dot.field));
+            ast_print_expr(out, expr->data.dot.object, indent + 1);
+            break;
+            
+        case EXPR_RANGE:
+            fprintf(out, "Range: %s\n", expr->data.range.inclusive ? "..=" : "..");
+            ast_print_expr(out, expr->data.range.start, indent + 1);
+            ast_print_expr(out, expr->data.range.end, indent + 1);
+            break;
+            
+        case EXPR_FOR:
+            fprintf(out, "For: %s in\n", string_cstr(expr->data.for_loop.var_name));
+            ast_print_expr(out, expr->data.for_loop.iterable, indent + 1);
+            print_indent(out, indent + 1);
+            fprintf(out, "body:\n");
+            ast_print_expr(out, expr->data.for_loop.body, indent + 2);
+            break;
+            
+        case EXPR_LAMBDA:
+            fprintf(out, "Lambda: (");
+            for (size_t i = 0; i < expr->data.lambda.params->len; i++) {
+                if (i > 0) fprintf(out, ", ");
+                fprintf(out, "%s", string_cstr(expr->data.lambda.params->data[i]));
+            }
+            fprintf(out, ") ->\n");
+            ast_print_expr(out, expr->data.lambda.body, indent + 1);
+            break;
+            
+        case EXPR_INTERP_STRING:
+            fprintf(out, "InterpString: (%zu parts)\n", expr->data.interp_string.parts->len);
+            for (size_t i = 0; i < expr->data.interp_string.parts->len; i++) {
+                ast_print_expr(out, expr->data.interp_string.parts->data[i], indent + 1);
+            }
+            break;
+            
+        case EXPR_MAP:
+            fprintf(out, "Map: %%{ (%zu entries)\n", expr->data.map.entries->len);
+            for (size_t i = 0; i < expr->data.map.entries->len; i++) {
+                MapEntry* e = &expr->data.map.entries->data[i];
+                print_indent(out, indent + 1);
+                fprintf(out, "key:\n");
+                ast_print_expr(out, e->key, indent + 2);
+                print_indent(out, indent + 1);
+                fprintf(out, "value:\n");
+                ast_print_expr(out, e->value, indent + 2);
+            }
+            break;
+            
+        case EXPR_TUPLE:
+            fprintf(out, "Tuple: (%zu elements)\n", expr->data.tuple.elements->len);
+            for (size_t i = 0; i < expr->data.tuple.elements->len; i++) {
+                ast_print_expr(out, expr->data.tuple.elements->data[i], indent + 1);
+            }
+            break;
+            
+        case EXPR_RECORD_UPDATE:
+            fprintf(out, "RecordUpdate:\n");
+            print_indent(out, indent + 1);
+            fprintf(out, "base:\n");
+            ast_print_expr(out, expr->data.record_update.base, indent + 2);
+            print_indent(out, indent + 1);
+            fprintf(out, "fields:\n");
+            for (size_t i = 0; i < expr->data.record_update.fields->len; i++) {
+                RecordField* f = &expr->data.record_update.fields->data[i];
+                print_indent(out, indent + 2);
+                fprintf(out, "%s:\n", string_cstr(f->name));
+                ast_print_expr(out, f->value, indent + 3);
+            }
+            break;
+            
+        case EXPR_LIST_COMP:
+            fprintf(out, "ListComp: [... for %s in ...]\n", string_cstr(expr->data.list_comp.var_name));
+            print_indent(out, indent + 1);
+            fprintf(out, "body:\n");
+            ast_print_expr(out, expr->data.list_comp.body, indent + 2);
+            print_indent(out, indent + 1);
+            fprintf(out, "iterable:\n");
+            ast_print_expr(out, expr->data.list_comp.iterable, indent + 2);
+            if (expr->data.list_comp.condition) {
+                print_indent(out, indent + 1);
+                fprintf(out, "condition:\n");
+                ast_print_expr(out, expr->data.list_comp.condition, indent + 2);
+            }
+            break;
+            
+        case EXPR_INDEX:
+            fprintf(out, "Index:\n");
+            ast_print_expr(out, expr->data.index_expr.object, indent + 1);
+            print_indent(out, indent + 1);
+            fprintf(out, "index:\n");
+            ast_print_expr(out, expr->data.index_expr.index, indent + 2);
+            break;
+            
+        case EXPR_SPAWN:
+            fprintf(out, "Spawn:\n");
+            ast_print_expr(out, expr->data.spawn_expr.func, indent + 1);
+            break;
+            
+        case EXPR_SEND:
+            fprintf(out, "Send:\n");
+            print_indent(out, indent + 1);
+            fprintf(out, "pid:\n");
+            ast_print_expr(out, expr->data.send_expr.pid, indent + 2);
+            print_indent(out, indent + 1);
+            fprintf(out, "message:\n");
+            ast_print_expr(out, expr->data.send_expr.message, indent + 2);
+            break;
+            
+        case EXPR_RECEIVE:
+            fprintf(out, "Receive:\n");
+            for (size_t i = 0; i < expr->data.receive_expr.arms->len; i++) {
+                MatchArm* arm = &expr->data.receive_expr.arms->data[i];
+                print_indent(out, indent + 1);
+                fprintf(out, "arm:\n");
+                ast_print_pattern(out, arm->pattern, indent + 2);
+                ast_print_expr(out, arm->body, indent + 2);
+            }
+            if (expr->data.receive_expr.after_timeout) {
+                print_indent(out, indent + 1);
+                fprintf(out, "after:\n");
+                ast_print_expr(out, expr->data.receive_expr.after_timeout, indent + 2);
+                ast_print_expr(out, expr->data.receive_expr.after_body, indent + 2);
+            }
+            break;
+            
+        case EXPR_TRY:
+            fprintf(out, "Try (?):\n");
+            ast_print_expr(out, expr->data.try_expr.operand, indent + 1);
+            break;
+    }
+}
+
+void ast_print_stmt(FILE* out, Stmt* stmt, int indent) {
+    if (!stmt) {
+        print_indent(out, indent);
+        fprintf(out, "(null)\n");
+        return;
+    }
+    
+    print_indent(out, indent);
+    
+    switch (stmt->type) {
+        case STMT_LET:
+            fprintf(out, "Let:\n");
+            print_indent(out, indent + 1);
+            fprintf(out, "pattern:\n");
+            ast_print_pattern(out, stmt->data.let.pattern, indent + 2);
+            if (stmt->data.let.type_ann) {
+                print_indent(out, indent + 1);
+                fprintf(out, "type:\n");
+                ast_print_type(out, stmt->data.let.type_ann, indent + 2);
+            }
+            print_indent(out, indent + 1);
+            fprintf(out, "value:\n");
+            ast_print_expr(out, stmt->data.let.value, indent + 2);
+            if (stmt->data.let.else_expr) {
+                print_indent(out, indent + 1);
+                fprintf(out, "else:\n");
+                ast_print_expr(out, stmt->data.let.else_expr, indent + 2);
+            }
+            break;
+            
+        case STMT_RETURN:
+            fprintf(out, "Return:\n");
+            if (stmt->data.return_stmt.value) {
+                ast_print_expr(out, stmt->data.return_stmt.value, indent + 1);
+            }
+            if (stmt->data.return_stmt.condition) {
+                print_indent(out, indent + 1);
+                fprintf(out, "if:\n");
+                ast_print_expr(out, stmt->data.return_stmt.condition, indent + 2);
+            }
+            break;
+            
+        case STMT_EXPR:
+            fprintf(out, "ExprStmt:\n");
+            ast_print_expr(out, stmt->data.expr.expr, indent + 1);
+            break;
+            
+        case STMT_FN:
+            fprintf(out, "Fn: %s%s\n", 
+                stmt->data.fn.is_public ? "pub " : "",
+                string_cstr(stmt->data.fn.name));
+            if (stmt->data.fn.params) {
+                print_indent(out, indent + 1);
+                fprintf(out, "params: (%zu)\n", stmt->data.fn.params->len);
+                for (size_t i = 0; i < stmt->data.fn.params->len; i++) {
+                    Parameter* p = &stmt->data.fn.params->data[i];
+                    print_indent(out, indent + 2);
+                    fprintf(out, "%s", string_cstr(p->name));
+                    if (p->type_ann) {
+                        fprintf(out, ": %s", string_cstr(p->type_ann->data.named.name));
+                    }
+                    fprintf(out, "\n");
+                }
+            }
+            if (stmt->data.fn.return_type) {
+                print_indent(out, indent + 1);
+                fprintf(out, "returns:\n");
+                ast_print_type(out, stmt->data.fn.return_type, indent + 2);
+            }
+            if (stmt->data.fn.body) {
+                print_indent(out, indent + 1);
+                fprintf(out, "body:\n");
+                ast_print_expr(out, stmt->data.fn.body, indent + 2);
+            }
+            if (stmt->data.fn.clauses) {
+                print_indent(out, indent + 1);
+                fprintf(out, "clauses: (%zu)\n", stmt->data.fn.clauses->len);
+            }
+            break;
+            
+        case STMT_IMPORT:
+            fprintf(out, "Import: ");
+            for (size_t i = 0; i < stmt->data.import.path->len; i++) {
+                if (i > 0) fprintf(out, ".");
+                fprintf(out, "%s", string_cstr(stmt->data.import.path->data[i]));
+            }
+            if (stmt->data.import.items) {
+                fprintf(out, ".{");
+                for (size_t i = 0; i < stmt->data.import.items->len; i++) {
+                    if (i > 0) fprintf(out, ", ");
+                    fprintf(out, "%s", string_cstr(stmt->data.import.items->data[i]));
+                }
+                fprintf(out, "}");
+            }
+            if (stmt->data.import.alias) {
+                fprintf(out, " as %s", string_cstr(stmt->data.import.alias));
+            }
+            fprintf(out, "\n");
+            break;
+            
+        case STMT_DEFER:
+            fprintf(out, "Defer:\n");
+            ast_print_expr(out, stmt->data.defer_stmt.expr, indent + 1);
+            break;
+            
+        case STMT_TYPE_DEF:
+            fprintf(out, "TypeDef: %s%s\n",
+                stmt->data.type_def.is_public ? "pub " : "",
+                string_cstr(stmt->data.type_def.name));
+            break;
+            
+        case STMT_BREAK:
+            fprintf(out, "Break");
+            if (stmt->data.break_stmt.value) {
+                fprintf(out, ":\n");
+                ast_print_expr(out, stmt->data.break_stmt.value, indent + 1);
+            } else {
+                fprintf(out, "\n");
+            }
+            break;
+            
+        case STMT_CONTINUE:
+            fprintf(out, "Continue\n");
+            break;
+            
+        case STMT_TRAIT:
+            fprintf(out, "Trait: %s\n", string_cstr(stmt->data.trait_def.name));
+            break;
+            
+        case STMT_IMPL:
+            fprintf(out, "Impl: %s\n", string_cstr(stmt->data.impl_def.trait_name));
+            break;
+            
+        case STMT_NEWTYPE:
+            fprintf(out, "Newtype: %s = %s(...)\n",
+                string_cstr(stmt->data.newtype_def.name),
+                string_cstr(stmt->data.newtype_def.constructor));
+            break;
+            
+        case STMT_MODULE:
+            fprintf(out, "Module: ");
+            for (size_t i = 0; i < stmt->data.module_decl.path->len; i++) {
+                if (i > 0) fprintf(out, ".");
+                fprintf(out, "%s", string_cstr(stmt->data.module_decl.path->data[i]));
+            }
+            fprintf(out, "\n");
+            break;
+    }
+}
+
+// Convenience functions
+void ast_dump_expr(Expr* expr) {
+    ast_print_expr(stdout, expr, 0);
+}
+
+void ast_dump_stmt(Stmt* stmt) {
+    ast_print_stmt(stdout, stmt, 0);
+}

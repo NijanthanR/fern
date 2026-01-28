@@ -9,6 +9,7 @@
 typedef struct Parser {
     Arena* arena;
     Lexer* lexer;
+    const char* source;     // Source code for error context
     Token current;
     Token previous;
     bool had_error;
