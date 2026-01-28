@@ -339,6 +339,20 @@ static Pattern* parse_pattern(Parser* parser) {
         return pattern_wildcard(parser->arena, parser->previous.loc);
     }
 
+    // Tuple pattern: (x, y, z)
+    if (match(parser, TOKEN_LPAREN)) {
+        SourceLoc loc = parser->previous.loc;
+        PatternVec* elements = PatternVec_new(parser->arena);
+        if (!check(parser, TOKEN_RPAREN)) {
+            do {
+                Pattern* sub = parse_pattern(parser);
+                PatternVec_push(parser->arena, elements, sub);
+            } while (match(parser, TOKEN_COMMA));
+        }
+        consume(parser, TOKEN_RPAREN, "Expected ')' after tuple pattern");
+        return pattern_tuple(parser->arena, elements, loc);
+    }
+
     if (check(parser, TOKEN_IDENT)) {
         Token ident_tok = parser->current;
         advance(parser);
@@ -1112,18 +1126,17 @@ Stmt* parse_stmt(Parser* parser) {
     if (match(parser, TOKEN_LET)) {
         SourceLoc loc = parser->previous.loc;
         
-        // Parse pattern (for now, just identifier)
-        Token name_tok = consume(parser, TOKEN_IDENT, "Expected variable name");
-        Pattern* pattern = pattern_ident(parser->arena, name_tok.text, name_tok.loc);
+        // Parse pattern: identifier, (x, y), Some(v), _, etc.
+        Pattern* pattern = parse_pattern(parser);
         
-        // Optional type annotation: let x: Type = expr
+        // Optional type annotation (only for identifier patterns): let x: Type = expr
         TypeExpr* type_ann = NULL;
-        if (match(parser, TOKEN_COLON)) {
+        if (pattern->type == PATTERN_IDENT && match(parser, TOKEN_COLON)) {
             type_ann = parse_type(parser);
         }
 
         // Expect =
-        consume(parser, TOKEN_ASSIGN, "Expected '=' after variable name");
+        consume(parser, TOKEN_ASSIGN, "Expected '=' after pattern");
         
         // Parse value
         Expr* value = parse_expression(parser);

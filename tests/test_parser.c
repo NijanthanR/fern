@@ -2222,6 +2222,69 @@ void test_parse_lambda_in_pipe(void) {
     arena_destroy(arena);
 }
 
+/* Test: let (x, y) = point — tuple destructuring */
+void test_parse_let_destructure_tuple(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "let (x, y) = point");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_LET);
+    ASSERT_NOT_NULL(stmt->data.let.pattern);
+    ASSERT_EQ(stmt->data.let.pattern->type, PATTERN_TUPLE);
+
+    PatternVec* elems = stmt->data.let.pattern->data.tuple;
+    ASSERT_EQ(elems->len, 2);
+    ASSERT_EQ(PatternVec_get(elems, 0)->type, PATTERN_IDENT);
+    ASSERT_STR_EQ(string_cstr(PatternVec_get(elems, 0)->data.ident), "x");
+    ASSERT_EQ(PatternVec_get(elems, 1)->type, PATTERN_IDENT);
+    ASSERT_STR_EQ(string_cstr(PatternVec_get(elems, 1)->data.ident), "y");
+
+    ASSERT_NOT_NULL(stmt->data.let.value);
+    ASSERT_EQ(stmt->data.let.value->type, EXPR_IDENT);
+
+    arena_destroy(arena);
+}
+
+/* Test: let Some(v) = option — constructor destructuring */
+void test_parse_let_destructure_constructor(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "let Some(v) = option");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_LET);
+    ASSERT_NOT_NULL(stmt->data.let.pattern);
+    ASSERT_EQ(stmt->data.let.pattern->type, PATTERN_CONSTRUCTOR);
+    ASSERT_STR_EQ(string_cstr(stmt->data.let.pattern->data.constructor.name), "Some");
+
+    PatternVec* args = stmt->data.let.pattern->data.constructor.args;
+    ASSERT_EQ(args->len, 1);
+    ASSERT_EQ(PatternVec_get(args, 0)->type, PATTERN_IDENT);
+    ASSERT_STR_EQ(string_cstr(PatternVec_get(args, 0)->data.ident), "v");
+
+    arena_destroy(arena);
+}
+
+/* Test: let (a, b, c) = triple — triple destructuring */
+void test_parse_let_destructure_triple(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "let (a, b, c) = triple");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_LET);
+    ASSERT_EQ(stmt->data.let.pattern->type, PATTERN_TUPLE);
+
+    PatternVec* elems = stmt->data.let.pattern->data.tuple;
+    ASSERT_EQ(elems->len, 3);
+    ASSERT_STR_EQ(string_cstr(PatternVec_get(elems, 0)->data.ident), "a");
+    ASSERT_STR_EQ(string_cstr(PatternVec_get(elems, 1)->data.ident), "b");
+    ASSERT_STR_EQ(string_cstr(PatternVec_get(elems, 2)->data.ident), "c");
+
+    arena_destroy(arena);
+}
+
 void run_parser_tests(void) {
     printf("\n=== Parser Tests ===\n");
     TEST_RUN(test_parse_int_literal);
@@ -2336,4 +2399,7 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_lambda);
     TEST_RUN(test_parse_lambda_multi_params);
     TEST_RUN(test_parse_lambda_in_pipe);
+    TEST_RUN(test_parse_let_destructure_tuple);
+    TEST_RUN(test_parse_let_destructure_constructor);
+    TEST_RUN(test_parse_let_destructure_triple);
 }

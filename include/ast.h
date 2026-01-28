@@ -435,6 +435,7 @@ typedef enum {
     PATTERN_WILDCARD,   // _
     PATTERN_LIT,        // 42, "hello", true
     PATTERN_CONSTRUCTOR,// Some(x), Ok(value), Err(msg)
+    PATTERN_TUPLE,      // (x, y, z)
 } PatternType;
 
 /* Constructor pattern: Name(sub_patterns) */
@@ -450,6 +451,7 @@ struct Pattern {
         String* ident;
         Expr* literal;
         ConstructorPattern constructor;
+        PatternVec* tuple;  // Sub-patterns for tuple destructuring
     } data;
 };
 
@@ -526,6 +528,7 @@ Stmt* stmt_impl(Arena* arena, String* trait_name, TypeExprVec* type_args, StmtVe
 Pattern* pattern_ident(Arena* arena, String* name, SourceLoc loc);
 Pattern* pattern_wildcard(Arena* arena, SourceLoc loc);
 Pattern* pattern_constructor(Arena* arena, String* name, PatternVec* args, SourceLoc loc);
+Pattern* pattern_tuple(Arena* arena, PatternVec* elements, SourceLoc loc);
 
 /* Create type expressions */
 TypeExpr* type_named(Arena* arena, String* name, TypeExprVec* args, SourceLoc loc);

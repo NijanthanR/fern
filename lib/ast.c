@@ -551,6 +551,18 @@ Pattern* pattern_wildcard(Arena* arena, SourceLoc loc) {
     return pat;
 }
 
+Pattern* pattern_tuple(Arena* arena, PatternVec* elements, SourceLoc loc) {
+    assert(arena != NULL);
+    assert(elements != NULL);
+
+    Pattern* pat = arena_alloc(arena, sizeof(Pattern));
+    pat->type = PATTERN_TUPLE;
+    pat->loc = loc;
+    pat->data.tuple = elements;
+
+    return pat;
+}
+
 Pattern* pattern_constructor(Arena* arena, String* name, PatternVec* args, SourceLoc loc) {
     assert(arena != NULL);
     assert(name != NULL);
