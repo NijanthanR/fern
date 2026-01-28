@@ -401,51 +401,56 @@ void test_infer_generic_list() {
 
 ## Milestone 4: QBE Code Generation
 
+**Status:** 🚧 In Progress - Core codegen complete, 32 tests passing
+**Tests:** 331 total (32 codegen tests)
+
 **Goal:** Generate QBE IR from AST
 
 ### Test Files
 
 ```
-tests/codegen/
-├── test_expressions.fn    # Arithmetic, calls
-├── test_functions.fn      # Function codegen
-├── test_result.fn         # <- operator codegen
-├── test_strings.fn        # String operations
-├── test_actors.fn         # spawn, send, receive
-└── test_integration.fn    # End-to-end tests
+tests/test_codegen.c       # All codegen tests in single file
 ```
 
 ### Tasks
 
-- [ ] **Write codegen tests first**
-  ```c
-  void test_codegen_add() {
-      char* source = "fn add(a: Int, b: Int) -> Int:\n    a + b";
-      char* qbe = generate_qbe(source);
-      assert_contains(qbe, "function $add(w %a, w %b) {");
-      assert_contains(qbe, "add w %a, w %b");
-  }
-  ```
+- [x] **Write codegen tests first** (TDD approach followed)
 
-- [ ] Implement QBE generation
-  - [ ] Basic expressions
-  - [ ] Function definitions
-  - [ ] Result handling (<- operator)
-  - [ ] String operations
-  - [ ] Pattern matching
+- [x] Implement QBE generation
+  - [x] Basic expressions (int, float, bool, string literals)
+  - [x] Binary operations (+, -, *, /, %, ==, !=, <, <=, >, >=)
+  - [x] Unary operations (-, not)
+  - [x] Function definitions with parameters
+  - [x] Function calls
+  - [x] If/else expressions with branches
+  - [x] Let statements with pattern binding
+  - [x] Match expressions (literal, wildcard, identifier patterns)
+  - [x] Lambda expressions (compiled as anonymous functions)
+  - [x] Tuple expressions (element generation)
+  - [x] List expressions (runtime integration)
+  - [x] Index expressions (list[i] via fern_list_get)
+  - [x] ? operator (Result unwrapping with early return)
+  - [x] Ok/Err constructors (via runtime functions)
+  - [ ] for loops
+  - [ ] with expressions
+  - [ ] defer statements
   - [ ] Actor primitives (spawn, send, receive)
 
-- [ ] Runtime library
-  - [ ] Result type implementation
-  - [ ] String functions
+- [x] Runtime library
+  - [x] Result type implementation (FernResult with tag/value)
+  - [x] Result functions (fern_result_ok, fern_result_err, fern_result_is_ok, fern_result_unwrap)
+  - [x] String type (FernString with length-prefixed data)
+  - [x] String functions (fern_string_new, fern_string_concat, fern_string_eq)
+  - [x] List type (FernList with dynamic capacity)
+  - [x] List functions (fern_list_new, fern_list_push, fern_list_get)
   - [ ] Actor runtime (if spawn used)
   - [ ] libSQL bindings (if sql.open used)
 
 **Success Criteria:**
-- All codegen tests pass
-- `fern build file.fn` creates executable
-- Generated code runs correctly
-- Binary sizes match targets (CLI <1MB, server <4MB)
+- [x] Core codegen tests pass (32/32)
+- [ ] `fern build file.fn` creates executable
+- [ ] Generated code runs correctly
+- [ ] Binary sizes match targets (CLI <1MB, server <4MB)
 
 **Test Examples:**
 
