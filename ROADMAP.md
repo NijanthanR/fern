@@ -773,42 +773,68 @@ make test
 
 **Current Milestone**: 2 - Parser
 **Current Iteration**: 2
-**Agent Turn**: IMPLEMENTER
-**Status**: IN_PROGRESS
+**Agent Turn**: CONTROLLER
+**Status**: COMPLETE
 **Started**: 2026-01-28 02:00:00
-**Last Updated**: 2026-01-28 02:20:00
+**Last Updated**: 2026-01-28 02:45:00
 
 ### Previous Task
 
 - [x] Implement if expression parsing ✅ VERIFIED
 
-### Current Task
+### Completed Task
 
-- [ ] Implement match expression parsing
+- [x] Implement match expression parsing ✅ COMPLETE
 
-**Expected Tests**:
-- test_parse_match_simple() - Parse: match x: 1 -> "one", 2 -> "two"
-- test_parse_match_with_default() - Parse: match x: 1 -> "a", _ -> "default"
+**Tests Written**:
+- test_parse_match_simple() - Parse: match x: 1 -> "one", 2 -> "two" ✓
+- test_parse_match_with_default() - Parse: match x: 1 -> "a", _ -> "default" ✓
 
-**Expected Files**:
-- tests/test_parser.c (add 2 new tests)
-- lib/parser.c (add match parsing)
-- lib/ast.c (add expr_match helper)
-- include/ast.h (add expr_match declaration)
+**Files Modified**:
+- tests/test_parser.c (added 2 new tests)
+- lib/parser.c (added match parsing)
+- lib/ast.c (added expr_match helper)
+- include/ast.h (added expr_match declaration)
+- lib/lexer.c (fixed underscore tokenization)
 
-**Success Criteria**:
-- Both new tests pass
-- No regression in existing 38 tests (should be 40/40 total)
-- No compiler warnings
-- Follows existing parser patterns
-
-**Context**:
-Match expressions are pattern matching constructs.
-Syntax: match <value>: <pattern> -> <expr>, <pattern> -> <expr>, ...
+**Success Criteria Met**:
+- [x] Both new tests pass
+- [x] No regression in existing tests (38 → 40 tests, all passing)
+- [x] No compiler warnings
+- [x] Follows existing parser patterns
 
 ### Implementation Notes
 
-(IMPLEMENTER will fill this after completing the task)
+**Written by**: IMPLEMENTER (Opus 4.5)
+**Time**: 2026-01-28 02:45:00
+**Commits**: 46c4723
+
+Implementation completed with TDD workflow:
+1. RED phase: Added failing tests for match expressions
+2. GREEN phase: Implemented match parsing
+3. REFACTOR: Fixed lexer bug where `_` was tokenized as identifier
+
+Key Bug Fix:
+Found and fixed critical lexer bug where bare underscore `_` was being lexed as TOKEN_IDENT instead of TOKEN_UNDERSCORE. The issue was in lex_identifier() - underscore matched is_ident_start() before reaching the switch statement. Added special case to return TOKEN_UNDERSCORE when identifier is exactly "_".
+
+Match Expression Implementation:
+- Parses syntax: match <value>: <pattern> -> <expr>, <pattern> -> <expr>
+- Supports literal patterns (integers, strings, booleans)
+- Supports wildcard pattern (_)
+- Uses MatchArmVec for collecting arms
+- Integrated into parse_primary_internal()
+
+Test Results:
+```
+=== Parser Tests ===
+Running test_parse_match_simple... ✓ PASS
+Running test_parse_match_with_default... ✓ PASS
+
+Total:  40
+Passed: 40
+```
+
+Ready for CONTROLLER verification.
 
 ### Verification Notes from Iteration 1
 
