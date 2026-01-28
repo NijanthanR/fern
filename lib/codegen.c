@@ -422,6 +422,49 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                     emit(cg, "    %s =w copy 0\n", string_cstr(result));
                     return result;
                 }
+
+                /* Handle str_len(s) -> Int */
+                if (strcmp(fn_name, "str_len") == 0 && call->args->len == 1) {
+                    String* s = codegen_expr(cg, call->args->data[0].value);
+                    emit(cg, "    %s =w call $fern_str_len(l %s)\n",
+                        string_cstr(result), string_cstr(s));
+                    return result;
+                }
+
+                /* Handle str_concat(a, b) -> String */
+                if (strcmp(fn_name, "str_concat") == 0 && call->args->len == 2) {
+                    String* a = codegen_expr(cg, call->args->data[0].value);
+                    String* b = codegen_expr(cg, call->args->data[1].value);
+                    emit(cg, "    %s =l call $fern_str_concat(l %s, l %s)\n",
+                        string_cstr(result), string_cstr(a), string_cstr(b));
+                    return result;
+                }
+
+                /* Handle str_eq(a, b) -> Bool */
+                if (strcmp(fn_name, "str_eq") == 0 && call->args->len == 2) {
+                    String* a = codegen_expr(cg, call->args->data[0].value);
+                    String* b = codegen_expr(cg, call->args->data[1].value);
+                    emit(cg, "    %s =w call $fern_str_eq(l %s, l %s)\n",
+                        string_cstr(result), string_cstr(a), string_cstr(b));
+                    return result;
+                }
+
+                /* Handle list_len(list) -> Int */
+                if (strcmp(fn_name, "list_len") == 0 && call->args->len == 1) {
+                    String* list = codegen_expr(cg, call->args->data[0].value);
+                    emit(cg, "    %s =w call $fern_list_len(l %s)\n",
+                        string_cstr(result), string_cstr(list));
+                    return result;
+                }
+
+                /* Handle list_get(list, index) -> elem */
+                if (strcmp(fn_name, "list_get") == 0 && call->args->len == 2) {
+                    String* list = codegen_expr(cg, call->args->data[0].value);
+                    String* index = codegen_expr(cg, call->args->data[1].value);
+                    emit(cg, "    %s =w call $fern_list_get(l %s, w %s)\n",
+                        string_cstr(result), string_cstr(list), string_cstr(index));
+                    return result;
+                }
             }
 
             /* Generate code for arguments */
@@ -873,7 +916,9 @@ bool codegen_write(Codegen* cg, const char* filename) {
     FILE* f = fopen(filename, "w");
     if (!f) return false;
     
-    fprintf(f, "%s", string_cstr(cg->output));
+    /* Write combined output (functions + data section) */
+    String* full_output = codegen_output(cg);
+    fprintf(f, "%s", string_cstr(full_output));
     fclose(f);
     return true;
 }
@@ -887,5 +932,7 @@ void codegen_emit(Codegen* cg, FILE* out) {
     assert(cg != NULL);
     assert(out != NULL);
     
-    fprintf(out, "%s", string_cstr(cg->output));
+    /* Write combined output (functions + data section) */
+    String* full_output = codegen_output(cg);
+    fprintf(out, "%s", string_cstr(full_output));
 }

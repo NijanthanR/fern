@@ -160,6 +160,47 @@ Checker* checker_new(Arena* arena) {
     Type* println_type = type_fn(arena, println_params, type_int(arena));
     type_env_define(checker->env, string_new(arena, "println"), println_type);
 
+    /* str_len(String) -> Int - get string length */
+    TypeVec* str_len_params = TypeVec_new(arena);
+    TypeVec_push(arena, str_len_params, type_string(arena));
+    Type* str_len_type = type_fn(arena, str_len_params, type_int(arena));
+    type_env_define(checker->env, string_new(arena, "str_len"), str_len_type);
+
+    /* str_concat(String, String) -> String - concatenate strings */
+    TypeVec* str_concat_params = TypeVec_new(arena);
+    TypeVec_push(arena, str_concat_params, type_string(arena));
+    TypeVec_push(arena, str_concat_params, type_string(arena));
+    Type* str_concat_type = type_fn(arena, str_concat_params, type_string(arena));
+    type_env_define(checker->env, string_new(arena, "str_concat"), str_concat_type);
+
+    /* str_eq(String, String) -> Bool - compare strings */
+    TypeVec* str_eq_params = TypeVec_new(arena);
+    TypeVec_push(arena, str_eq_params, type_string(arena));
+    TypeVec_push(arena, str_eq_params, type_string(arena));
+    Type* str_eq_type = type_fn(arena, str_eq_params, type_bool(arena));
+    type_env_define(checker->env, string_new(arena, "str_eq"), str_eq_type);
+
+    /* list_len(List(a)) -> Int - get list length */
+    TypeVec* list_len_params = TypeVec_new(arena);
+    Type* list_elem_var = type_var(arena, string_new(arena, "a"), 1);
+    TypeVec* list_type_args = TypeVec_new(arena);
+    TypeVec_push(arena, list_type_args, list_elem_var);
+    Type* list_type = type_con(arena, string_new(arena, "List"), list_type_args);
+    TypeVec_push(arena, list_len_params, list_type);
+    Type* list_len_type = type_fn(arena, list_len_params, type_int(arena));
+    type_env_define(checker->env, string_new(arena, "list_len"), list_len_type);
+
+    /* list_get(List(a), Int) -> a - get element at index */
+    TypeVec* list_get_params = TypeVec_new(arena);
+    Type* list_elem_var2 = type_var(arena, string_new(arena, "b"), 2);
+    TypeVec* list_type_args2 = TypeVec_new(arena);
+    TypeVec_push(arena, list_type_args2, list_elem_var2);
+    Type* list_type2 = type_con(arena, string_new(arena, "List"), list_type_args2);
+    TypeVec_push(arena, list_get_params, list_type2);
+    TypeVec_push(arena, list_get_params, type_int(arena));
+    Type* list_get_type = type_fn(arena, list_get_params, list_elem_var2);
+    type_env_define(checker->env, string_new(arena, "list_get"), list_get_type);
+
     return checker;
 }
 
