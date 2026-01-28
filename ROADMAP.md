@@ -615,18 +615,46 @@ void test_codegen_defer() {
 - [x] Memory functions: alloc, free
 
 **Built-in Functions** (registered in checker.c, codegen in codegen.c):
-- [x] print(Int) -> Int, println(Int) -> Int
-- [x] str_len(String) -> Int
-- [x] str_concat(String, String) -> String
-- [x] str_eq(String, String) -> Bool
-- [x] list_len(List(a)) -> Int
-- [x] list_get(List(a), Int) -> a
+- [x] I/O: print(Int) -> Int, println(Int) -> Int
+- [x] String (15 functions):
+  - [x] str_len(String) -> Int
+  - [x] str_concat(String, String) -> String
+  - [x] str_eq(String, String) -> Bool
+  - [x] str_starts_with(String, String) -> Bool
+  - [x] str_ends_with(String, String) -> Bool
+  - [x] str_contains(String, String) -> Bool
+  - [x] str_slice(String, Int, Int) -> String
+  - [x] str_trim(String) -> String
+  - [x] str_trim_start(String) -> String
+  - [x] str_trim_end(String) -> String
+  - [x] str_to_upper(String) -> String
+  - [x] str_to_lower(String) -> String
+  - [x] str_replace(String, String, String) -> String
+  - [x] str_repeat(String, Int) -> String
+  - [x] str_is_empty(String) -> Bool
+- [x] List (8 functions):
+  - [x] list_len(List(a)) -> Int
+  - [x] list_get(List(a), Int) -> a
+  - [x] list_push(List(a), a) -> List(a)
+  - [x] list_reverse(List(a)) -> List(a)
+  - [x] list_concat(List(a), List(a)) -> List(a)
+  - [x] list_head(List(a)) -> a
+  - [x] list_tail(List(a)) -> List(a)
+  - [x] list_is_empty(List(a)) -> Bool
 
 **Codegen Improvements** (lib/codegen.c):
 - [x] Wide variable tracking for pointer types (lists, strings)
 - [x] qbe_type_for_expr() returns correct QBE type specifier
 - [x] Data section properly emitted with code section
 - [x] fern_list_push_mut for list literal construction
+- [x] fn_returns_pointer() identifies functions returning pointer types
+- [x] Proper QBE type widths for all built-in function calls
+
+**Type Checker Refactoring** (lib/checker.c):
+- [x] Extracted register_io_builtins() for I/O functions
+- [x] Extracted register_string_builtins() for string functions
+- [x] Extracted register_list_builtins() for list functions
+- [x] FERN_STYLE compliant (function length limits)
 
 **Parser Indentation Support** (lib/parser.c):
 - [x] parse_indented_block() for multi-statement function bodies
@@ -636,12 +664,19 @@ void test_codegen_defer() {
 - [x] with expression bodies use indented blocks
 - [x] Fixed advance() to preserve token values when skipping layout tokens
 
+**Example Programs** (examples/):
+- [x] list_ops.fn - List creation and access
+- [x] string_ops.fn - String operations with helper functions
+- [x] factorial.fn - Recursive factorial calculation
+- [x] conditionals.fn - abs, max, min, clamp functions
+
 ### Remaining Work
 
-- [ ] Register more built-in functions (str_trim, str_replace, list_filter, etc.)
-- [ ] Fix string variable type tracking in codegen (currently only lists tracked as wide)
+- [x] ~~Register more built-in functions (str_trim, str_replace, list_filter, etc.)~~ DONE
+- [x] ~~Fix string variable type tracking in codegen~~ DONE
 - [ ] Implement Fern stdlib modules (result.fn, option.fn, list.fn, string.fn)
 - [ ] Add file I/O functions to runtime
+- [ ] Write more example programs testing new built-ins
 
 ### Priority Modules
 
@@ -693,6 +728,67 @@ stdlib/
 ## Milestone 6: CLI Tool
 
 **Goal:** Complete `fern` command-line interface
+
+### CLI Library (cli.h)
+
+Single-header CLI utilities created in `include/cli.h`. Needs polish before production use.
+
+- [x] Basic implementation complete
+  - [x] Colored logging (trace, debug, info, warn, error, fatal)
+  - [x] Rust/Clang-style compiler diagnostics with source context
+  - [x] Progress bar with ETA
+  - [x] Spinner for indeterminate progress
+  - [x] Terminal width detection
+  - [x] Color auto-detection (isatty + NO_COLOR + FORCE_COLOR)
+  - [x] Windows VT mode support
+
+- [ ] Polish cli.h for production
+  - [ ] Add FERN_STYLE compliance (assertions, doc comments)
+  - [ ] Add unit tests for cli.h functions
+  - [ ] Test on Windows (verify VT mode works)
+  - [ ] Add `--color=auto|always|never` flag support
+  - [ ] Add `--quiet` and `--verbose` flag helpers
+  - [ ] Improve progress bar (handle narrow terminals, custom width)
+  - [ ] Add multi-line diagnostic support (multiple source lines)
+  - [ ] Add fix suggestions (like Rust's "help: try X")
+  - [ ] Consider adding table formatting for `fern --help`
+
+### Argument Parsing (argtable3)
+
+Using [argtable3](https://github.com/argtable/argtable3) (BSD-3 license) for argument parsing.
+
+- [x] Add argtable3 to lib/ (`lib/argtable3.c`, `lib/argtable3.h`)
+
+- [ ] Implement CLI argument structure
+  - [ ] Define subcommands: build, run, check, test, fmt, repl, lsp
+  - [ ] Global flags: `--help`, `--version`, `--color=auto|always|never`
+  - [ ] Build flags: `-o <output>`, `--mode=cli|full`, `--no-actors`, `--no-db`
+  - [ ] Check flags: `--explain <code>`, `--format=json`, `--errors-only`
+  - [ ] Test flags: `--doc`, `--coverage`, `--bench`, `--watch`
+  - [ ] Auto-generate help text for each subcommand
+
+- [ ] Wire up CLI to compiler
+  - [ ] `fern build <file>` → lexer → parser → checker → codegen → QBE → binary
+  - [ ] `fern run <file>` → build + execute
+  - [ ] `fern check <file>` → lexer → parser → checker (no codegen)
+  - [ ] `fern lex <file>` → lexer (debug output)
+  - [ ] `fern parse <file>` → parser (debug AST output)
+
+### REPL (linenoise)
+
+Using [linenoise](https://github.com/antirez/linenoise) (BSD-2 license) for interactive line editing.
+Used by Redis and MongoDB. Provides readline-like editing in ~1800 lines.
+
+- [x] Add linenoise to lib/ (`lib/linenoise.c`, `lib/linenoise.h`)
+
+- [ ] Implement `fern repl`
+  - [ ] Basic read-eval-print loop
+  - [ ] Line editing (arrow keys, backspace, delete)
+  - [ ] History (up/down arrows, persistent across sessions)
+  - [ ] Tab completion for keywords and identifiers
+  - [ ] Hints (show type info while typing)
+  - [ ] Multi-line input for blocks
+  - [ ] `:help`, `:quit`, `:type <expr>` commands
 
 ### Tasks
 
