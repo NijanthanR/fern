@@ -169,7 +169,7 @@ Run `make style` to see current violations.
 
 ## Milestone 1: Lexer
 
-**Status:** ✅ Complete - All lexer features implemented, 40 tests passing
+**Status:** ✅ Complete - All lexer features implemented, 36 tests passing
 
 **Goal:** Tokenize Fern source code
 
@@ -293,7 +293,7 @@ void test_lex_string_interpolation() {
 
 ## Milestone 2: Parser
 
-**Status:** 🚧 In Progress - Core parser complete, 36/36 tests passing
+**Status:** ✅ Complete - Core parser complete, 147 tests passing
 
 **Goal:** Build AST from tokens
 
@@ -350,7 +350,7 @@ tests/parser/
   - [x] Error messages with context (basic implementation)
 
 **Success Criteria:**
-- ✅ Core parser tests pass (36/36)
+- ✅ Core parser tests pass (147/147)
 - [ ] `fern parse file.fn` prints AST
 - ✅ Error messages show parse issues (basic)
 - [ ] Handles all syntax from DESIGN.md (partial - core expressions done)
@@ -464,7 +464,7 @@ void test_parse_function_clauses_adjacent() {
   - [x] ? operator requires Result type errors
 
 **Success Criteria:** ✅ All Met
-- ✅ All type checker tests pass (66 tests)
+- ✅ All type checker tests pass (97 tests)
 - ✅ Type inference works for literals and expressions
 - ✅ Generic functions instantiate correctly
 - ✅ Error messages are clear and helpful
@@ -542,7 +542,7 @@ tests/test_codegen.c       # All codegen tests in single file
   - [x] Index expressions (list[i] via fern_list_get)
   - [x] ? operator (Result unwrapping with early return)
   - [x] Ok/Err constructors (via runtime functions)
-  - [ ] for loops
+  - [x] for loops (iteration over lists)
   - [ ] with expressions
   - [ ] defer statements
   - [ ] Actor primitives (spawn, send, receive)
@@ -558,7 +558,7 @@ tests/test_codegen.c       # All codegen tests in single file
   - [ ] libSQL bindings (if sql.open used)
 
 **Success Criteria:**
-- [x] Core codegen tests pass (32/32)
+- [x] Core codegen tests pass (34/34)
 - [ ] `fern build file.fn` creates executable
 - [ ] Generated code runs correctly
 - [ ] Binary sizes match targets (CLI <1MB, server <4MB)
