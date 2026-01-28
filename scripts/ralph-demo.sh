@@ -22,8 +22,8 @@ echo "║              Ralph Loop - Live Demo                      ║"
 echo "╚═══════════════════════════════════════════════════════════╝"
 echo ""
 
-cat << EOF
-${CYAN}This demo shows how the Ralph Loop works with a simple task.${NC}
+echo -e "${CYAN}This demo shows how the Ralph Loop works with a simple task.${NC}"
+cat << 'EOF'
 
 Task: Implement if expression parsing
 Goal: Add 2 tests, implement feature, verify
