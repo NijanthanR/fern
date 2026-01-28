@@ -127,6 +127,38 @@ static void clear_wide_vars(Codegen* cg) {
 }
 
 /**
+ * Check if a function name returns a pointer type (string or list).
+ * @param name The function name.
+ * @return True if the function returns a pointer type.
+ */
+static bool fn_returns_pointer(const char* name) {
+    /* FERN_STYLE: allow(assertion-density) - simple lookup */
+    if (name == NULL) return false;
+    
+    /* String functions that return String */
+    if (strcmp(name, "str_concat") == 0) return true;
+    if (strcmp(name, "str_slice") == 0) return true;
+    if (strcmp(name, "str_trim") == 0) return true;
+    if (strcmp(name, "str_trim_start") == 0) return true;
+    if (strcmp(name, "str_trim_end") == 0) return true;
+    if (strcmp(name, "str_to_upper") == 0) return true;
+    if (strcmp(name, "str_to_lower") == 0) return true;
+    if (strcmp(name, "str_replace") == 0) return true;
+    if (strcmp(name, "str_repeat") == 0) return true;
+    if (strcmp(name, "str_join") == 0) return true;
+    
+    /* List functions that return List */
+    if (strcmp(name, "list_push") == 0) return true;
+    if (strcmp(name, "list_filter") == 0) return true;
+    if (strcmp(name, "list_map") == 0) return true;
+    if (strcmp(name, "list_reverse") == 0) return true;
+    if (strcmp(name, "list_concat") == 0) return true;
+    if (strcmp(name, "list_tail") == 0) return true;
+    
+    return false;
+}
+
+/**
  * Get QBE type specifier for an expression.
  * Returns 'l' for pointer types (lists, strings), 'w' for word types (int, bool).
  * @param expr The expression to check.
@@ -147,10 +179,21 @@ static char qbe_type_for_expr(Expr* expr) {
         case EXPR_BOOL_LIT:
             return 'w';
         
-        /* For identifiers and calls, we'd need type info - default to word */
+        /* Check if function call returns pointer type */
+        case EXPR_CALL: {
+            CallExpr* call = &expr->data.call;
+            if (call->func->type == EXPR_IDENT) {
+                const char* fn_name = string_cstr(call->func->data.ident.name);
+                if (fn_returns_pointer(fn_name)) {
+                    return 'l';
+                }
+            }
+            return 'w';
+        }
+        
+        /* For identifiers and other exprs, we'd need type info - default to word */
         /* TODO: track types through codegen for proper handling */
         case EXPR_IDENT:
-        case EXPR_CALL:
         case EXPR_BINARY:
         case EXPR_UNARY:
         case EXPR_IF:
