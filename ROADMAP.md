@@ -1265,34 +1265,66 @@ This completes the core expression parsing tasks outlined in Milestone 2. The pa
 ## Iteration 7: Pipe Operator Parsing
 
 **Agent Turn**: IMPLEMENTER
-**Status**: NOT_STARTED
+**Status**: COMPLETE ✅
 **Task**: Implement |> (pipe) operator parsing
 
-### Task Description
+### Completed Task
 
-Implement parsing for the `|>` pipe operator, which is used for data transformation pipelines in Fern.
+- [x] Implement |> (pipe) operator parsing ✅ COMPLETE
 
-**Syntax**: `value |> function`
+**Tests Written**:
+- test_parse_pipe_simple() - Parse: `x |> double()` ✓
+- test_parse_pipe_chain() - Parse: `data |> parse() |> validate()` (left-associative chaining) ✓
+- test_parse_pipe_in_block() - Parse: `{ let result = x |> double(), result }` ✓
 
-**Examples**:
-```fern
-data |> parse() |> validate() |> process()
-x |> double() |> add(5)
-[1, 2, 3] |> map(square) |> filter(is_even)
+**Files Modified**:
+- tests/test_parser.c (added 3 new tests)
+- No implementation changes needed (pipe parsing was already implemented!)
+
+**Success Criteria Met**:
+- [x] All three new tests pass
+- [x] No regression in existing tests (51 → 54 tests, all passing)
+- [x] No compiler warnings
+- [x] Verifies pipe operator parsing works correctly
+
+### Implementation Notes
+
+**Written by**: IMPLEMENTER (Opus 4.5)
+**Time**: 2026-01-28
+
+The pipe operator (`|>`) was already fully implemented in `parse_pipe()` in `lib/parser.c`.
+The implementation parses `|>` as a left-associative binary operator (`BINOP_PIPE`) with
+the lowest expression precedence (below logical operators), which is correct per DESIGN.md.
+
+Test Details:
+- **Simple pipe** (`x |> double()`): Verifies basic pipe creates EXPR_BINARY with BINOP_PIPE, left side is identifier, right side is function call.
+- **Chained pipe** (`data |> parse() |> validate()`): Verifies left-associative chaining produces nested binary expressions `(data |> parse()) |> validate()`.
+- **Pipe in block** (`{ let result = x |> double(), result }`): Verifies pipe works correctly inside block expressions as a let binding value.
+
+Precedence hierarchy (lowest to highest):
+1. pipe (`|>`) — `parse_pipe()`
+2. or — `parse_logical_or()`
+3. and — `parse_logical_and()`
+4. equality (`==`, `!=`) — `parse_equality()`
+5. comparison (`<`, `<=`, `>`, `>=`) — `parse_comparison()`
+6. term (`+`, `-`) — `parse_term()`
+7. factor (`*`, `/`) — `parse_factor()`
+8. unary (`-`, `not`) — `parse_unary()`
+9. call — `parse_call()`
+10. primary — `parse_primary_internal()`
+
+Test Results:
+```
+=== Parser Tests ===
+Running test_parse_pipe_simple... ✓ PASS
+Running test_parse_pipe_chain... ✓ PASS
+Running test_parse_pipe_in_block... ✓ PASS
+
+Total:  54
+Passed: 54
 ```
 
-The pipe operator should be parsed as a binary operator with lower precedence than most operators but higher than bind (<-).
-
-### Success Criteria
-- [ ] Write 3 tests for pipe operator parsing (simple, chain, in block)
-- [ ] Implement pipe parsing in binary operator precedence table
-- [ ] All tests pass
-- [ ] No regression in existing tests
-- [ ] No compiler warnings
-
-### References
-- DESIGN.md: Data transformation pipelines section
-- Existing binary operator precedence in lib/parser.c
+Ready for CONTROLLER verification.
 
 ---
 
