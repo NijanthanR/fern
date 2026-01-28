@@ -229,6 +229,181 @@ void fern_list_free(FernList* list) {
     }
 }
 
+/**
+ * Filter a list with a predicate.
+ * @param list The list.
+ * @param pred Predicate function (int64_t -> bool as int64_t).
+ * @return New list with elements where pred returns non-zero.
+ */
+FernList* fern_list_filter(FernList* list, int64_t (*pred)(int64_t)) {
+    assert(list != NULL);
+    assert(pred != NULL);
+
+    FernList* new_list = fern_list_with_capacity(list->len > 0 ? list->len : 1);
+    assert(new_list != NULL);
+
+    for (int64_t i = 0; i < list->len; i++) {
+        if (pred(list->data[i])) {
+            /* Grow if needed */
+            if (new_list->len >= new_list->cap) {
+                new_list->cap *= 2;
+                new_list->data = realloc(new_list->data, 
+                    (size_t)new_list->cap * sizeof(int64_t));
+                assert(new_list->data != NULL);
+            }
+            new_list->data[new_list->len++] = list->data[i];
+        }
+    }
+
+    return new_list;
+}
+
+/**
+ * Find first element matching predicate.
+ * @param list The list.
+ * @param pred Predicate function.
+ * @return Option: Some(element) if found, None otherwise.
+ */
+int64_t fern_list_find(FernList* list, int64_t (*pred)(int64_t)) {
+    assert(list != NULL);
+    assert(pred != NULL);
+
+    for (int64_t i = 0; i < list->len; i++) {
+        if (pred(list->data[i])) {
+            return fern_option_some(list->data[i]);
+        }
+    }
+
+    return fern_option_none();
+}
+
+/**
+ * Reverse a list.
+ * @param list The list.
+ * @return New list with elements in reverse order.
+ */
+FernList* fern_list_reverse(FernList* list) {
+    assert(list != NULL);
+
+    FernList* new_list = fern_list_with_capacity(list->len > 0 ? list->len : 1);
+    assert(new_list != NULL);
+
+    for (int64_t i = list->len - 1; i >= 0; i--) {
+        new_list->data[list->len - 1 - i] = list->data[i];
+    }
+    new_list->len = list->len;
+
+    return new_list;
+}
+
+/**
+ * Concatenate two lists.
+ * @param a First list.
+ * @param b Second list.
+ * @return New list with all elements from a followed by b.
+ */
+FernList* fern_list_concat(FernList* a, FernList* b) {
+    assert(a != NULL);
+    assert(b != NULL);
+
+    int64_t total = a->len + b->len;
+    FernList* new_list = fern_list_with_capacity(total > 0 ? total : 1);
+    assert(new_list != NULL);
+
+    for (int64_t i = 0; i < a->len; i++) {
+        new_list->data[i] = a->data[i];
+    }
+    for (int64_t i = 0; i < b->len; i++) {
+        new_list->data[a->len + i] = b->data[i];
+    }
+    new_list->len = total;
+
+    return new_list;
+}
+
+/**
+ * Get first element of a list.
+ * @param list The list.
+ * @return Option: Some(first) if non-empty, None otherwise.
+ */
+int64_t fern_list_head(FernList* list) {
+    assert(list != NULL);
+
+    if (list->len == 0) {
+        return fern_option_none();
+    }
+    return fern_option_some(list->data[0]);
+}
+
+/**
+ * Get list without first element.
+ * @param list The list.
+ * @return New list without first element (empty if list was empty/single).
+ */
+FernList* fern_list_tail(FernList* list) {
+    assert(list != NULL);
+
+    if (list->len <= 1) {
+        return fern_list_new();
+    }
+
+    FernList* new_list = fern_list_with_capacity(list->len - 1);
+    assert(new_list != NULL);
+
+    for (int64_t i = 1; i < list->len; i++) {
+        new_list->data[i - 1] = list->data[i];
+    }
+    new_list->len = list->len - 1;
+
+    return new_list;
+}
+
+/**
+ * Check if list is empty.
+ * @param list The list.
+ * @return 1 if empty, 0 otherwise.
+ */
+int64_t fern_list_is_empty(FernList* list) {
+    assert(list != NULL);
+    return list->len == 0 ? 1 : 0;
+}
+
+/**
+ * Check if any element matches predicate.
+ * @param list The list.
+ * @param pred Predicate function.
+ * @return 1 if any element matches, 0 otherwise.
+ */
+int64_t fern_list_any(FernList* list, int64_t (*pred)(int64_t)) {
+    assert(list != NULL);
+    assert(pred != NULL);
+
+    for (int64_t i = 0; i < list->len; i++) {
+        if (pred(list->data[i])) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/**
+ * Check if all elements match predicate.
+ * @param list The list.
+ * @param pred Predicate function.
+ * @return 1 if all elements match, 0 otherwise.
+ */
+int64_t fern_list_all(FernList* list, int64_t (*pred)(int64_t)) {
+    assert(list != NULL);
+    assert(pred != NULL);
+
+    for (int64_t i = 0; i < list->len; i++) {
+        if (!pred(list->data[i])) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 /* ========== Memory Functions ========== */
 
 /**

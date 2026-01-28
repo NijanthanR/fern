@@ -145,6 +145,74 @@ int64_t fern_list_fold(FernList* list, int64_t init, int64_t (*fn)(int64_t, int6
  */
 void fern_list_free(FernList* list);
 
+/**
+ * Filter a list with a predicate.
+ * @param list The list.
+ * @param pred Predicate function (int64_t -> bool as int64_t).
+ * @return New list with elements where pred returns non-zero.
+ */
+FernList* fern_list_filter(FernList* list, int64_t (*pred)(int64_t));
+
+/**
+ * Find first element matching predicate.
+ * @param list The list.
+ * @param pred Predicate function.
+ * @return Option: Some(element) if found, None otherwise.
+ */
+int64_t fern_list_find(FernList* list, int64_t (*pred)(int64_t));
+
+/**
+ * Reverse a list.
+ * @param list The list.
+ * @return New list with elements in reverse order.
+ */
+FernList* fern_list_reverse(FernList* list);
+
+/**
+ * Concatenate two lists.
+ * @param a First list.
+ * @param b Second list.
+ * @return New list with all elements from a followed by b.
+ */
+FernList* fern_list_concat(FernList* a, FernList* b);
+
+/**
+ * Get first element of a list.
+ * @param list The list.
+ * @return Option: Some(first) if non-empty, None otherwise.
+ */
+int64_t fern_list_head(FernList* list);
+
+/**
+ * Get list without first element.
+ * @param list The list.
+ * @return New list without first element (empty if list was empty/single).
+ */
+FernList* fern_list_tail(FernList* list);
+
+/**
+ * Check if list is empty.
+ * @param list The list.
+ * @return 1 if empty, 0 otherwise.
+ */
+int64_t fern_list_is_empty(FernList* list);
+
+/**
+ * Check if any element matches predicate.
+ * @param list The list.
+ * @param pred Predicate function.
+ * @return 1 if any element matches, 0 otherwise.
+ */
+int64_t fern_list_any(FernList* list, int64_t (*pred)(int64_t));
+
+/**
+ * Check if all elements match predicate.
+ * @param list The list.
+ * @param pred Predicate function.
+ * @return 1 if all elements match, 0 otherwise.
+ */
+int64_t fern_list_all(FernList* list, int64_t (*pred)(int64_t));
+
 /* ========== Result Type ========== */
 
 /**
