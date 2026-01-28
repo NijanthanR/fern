@@ -56,6 +56,8 @@ Each milestone follows this pattern:
 
 ## Milestone 1: Lexer
 
+**Status:** 🚧 In Progress - Core lexer complete, 23/23 tests passing
+
 **Goal:** Tokenize Fern source code
 
 ### Test Files
@@ -76,7 +78,7 @@ tests/lexer/
 
 ### Tasks
 
-- [ ] **Write lexer tests first**
+- [x] **Write lexer tests first** (11 tests in tests/test_lexer.c)
   ```c
   // tests/lexer/test_keywords.c
   void test_lex_fn_keyword() {
@@ -90,7 +92,7 @@ tests/lexer/
   }
   ```
 
-- [ ] Implement token types (datatype99)
+- [x] Implement token types (include/token.h, lib/token.c)
   ```c
   datatype(Token,
       (TokKeyword, sds keyword),
@@ -106,14 +108,14 @@ tests/lexer/
   );
   ```
 
-- [ ] Implement lexer.c
-  - [ ] Keyword recognition
-  - [ ] Operator recognition (<-, ->, |>, etc.)
-  - [ ] Numeric literals (Int, Float)
-  - [ ] String literals with interpolation
-  - [ ] Comment handling (#, /* */, @doc)
-  - [ ] Indentation tracking (indent/dedent tokens)
-  - [ ] Error reporting with line/column
+- [x] Implement lexer.c (lib/lexer.c)
+  - [x] Keyword recognition (let, fn, if, match, true, false, etc.)
+  - [x] Operator recognition (<-, ->, ==, !=, <, <=, >, >=, etc.)
+  - [x] Numeric literals (Int) - Float TODO
+  - [x] String literals (basic) - Interpolation TODO
+  - [x] Comment handling (#) - Block comments /* */ TODO
+  - [ ] Indentation tracking (indent/dedent tokens) - TODO
+  - [x] Error reporting with line/column
 
 - [ ] Lexer utilities
   - [ ] Position tracking (file, line, column)
