@@ -714,6 +714,337 @@ void test_check_generic_list_head(void) {
     arena_destroy(arena);
 }
 
+/* ========== Bind Expression Tests ========== */
+
+void test_check_bind_unwraps_result(void) {
+    Arena* arena = arena_create(4096);
+    
+    // Define: fn get_value() -> Result(Int, String)
+    TypeVec* params = TypeVec_new(arena);
+    Type* result_type = type_result(arena, type_int(arena), type_string(arena));
+    Type* fn_type = type_fn(arena, params, result_type);
+    
+    // x <- get_value() should bind x to Int (the Ok type)
+    // We test this by using the bind inside a block where we use x
+    Parser* parser = parser_new(arena, "{ x <- get_value(), x + 1 }");
+    Expr* expr = parse_expr(parser);
+    Checker* checker = checker_new(arena);
+    checker_define(checker, string_new(arena, "get_value"), fn_type);
+    Type* t = checker_infer_expr(checker, expr);
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_INT);
+    
+    arena_destroy(arena);
+}
+
+void test_check_bind_requires_result(void) {
+    Arena* arena = arena_create(4096);
+    
+    // x <- 42 should error - can't bind from non-Result
+    const char* err = check_expr_error(arena, "{ x <- 42, x }");
+    
+    ASSERT_NOT_NULL(err);
+    // Should report that <- requires Result type
+    
+    arena_destroy(arena);
+}
+
+void test_check_bind_propagates_error_type(void) {
+    Arena* arena = arena_create(4096);
+    
+    // Define: fn read_file() -> Result(String, Error)
+    TypeVec* params = TypeVec_new(arena);
+    Type* error_type_t = type_con(arena, string_new(arena, "Error"), NULL);
+    Type* result_type = type_result(arena, type_string(arena), error_type_t);
+    Type* fn_type = type_fn(arena, params, result_type);
+    
+    // content <- read_file() should bind content to String
+    Parser* parser = parser_new(arena, "{ content <- read_file(), content }");
+    Expr* expr = parse_expr(parser);
+    Checker* checker = checker_new(arena);
+    checker_define(checker, string_new(arena, "read_file"), fn_type);
+    Type* t = checker_infer_expr(checker, expr);
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_STRING);
+    
+    arena_destroy(arena);
+}
+
+/* ========== With Expression Tests ========== */
+
+void test_check_with_simple(void) {
+    Arena* arena = arena_create(4096);
+    
+    // Define: fn get_value() -> Result(Int, String)
+    TypeVec* params = TypeVec_new(arena);
+    Type* result_type = type_result(arena, type_int(arena), type_string(arena));
+    Type* fn_type = type_fn(arena, params, result_type);
+    
+    // with x <- get_value() do x + 1
+    Parser* parser = parser_new(arena, "with x <- get_value() do x + 1");
+    Expr* expr = parse_expr(parser);
+    Checker* checker = checker_new(arena);
+    checker_define(checker, string_new(arena, "get_value"), fn_type);
+    Type* t = checker_infer_expr(checker, expr);
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_INT);
+    
+    arena_destroy(arena);
+}
+
+void test_check_with_multiple_bindings(void) {
+    Arena* arena = arena_create(4096);
+    
+    // Define: fn f() -> Result(Int, String)
+    TypeVec* params_f = TypeVec_new(arena);
+    Type* result_int = type_result(arena, type_int(arena), type_string(arena));
+    Type* fn_f = type_fn(arena, params_f, result_int);
+    
+    // Define: fn g(Int) -> Result(Int, String)
+    TypeVec* params_g = TypeVec_new(arena);
+    TypeVec_push(arena, params_g, type_int(arena));
+    Type* fn_g = type_fn(arena, params_g, result_int);
+    
+    // with x <- f(), y <- g(x) do x + y
+    Parser* parser = parser_new(arena, "with x <- f(), y <- g(x) do x + y");
+    Expr* expr = parse_expr(parser);
+    Checker* checker = checker_new(arena);
+    checker_define(checker, string_new(arena, "f"), fn_f);
+    checker_define(checker, string_new(arena, "g"), fn_g);
+    Type* t = checker_infer_expr(checker, expr);
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_INT);
+    
+    arena_destroy(arena);
+}
+
+void test_check_with_requires_result(void) {
+    Arena* arena = arena_create(4096);
+    
+    // with x <- 42 do x should error - can't bind from non-Result
+    const char* err = check_expr_error(arena, "with x <- 42 do x");
+    
+    ASSERT_NOT_NULL(err);
+    // Should report that with binding requires Result type
+    
+    arena_destroy(arena);
+}
+
+/* ========== Lambda Expression Tests ========== */
+
+void test_check_lambda_simple(void) {
+    Arena* arena = arena_create(4096);
+    
+    // (x) -> x + 1 applied to 5 should return Int
+    // We need to call it since we can't know param types without application
+    // For now, test that lambda creates a function type
+    
+    Parser* parser = parser_new(arena, "((x) -> x)");
+    Expr* expr = parse_expr(parser);
+    Checker* checker = checker_new(arena);
+    Type* t = checker_infer_expr(checker, expr);
+    
+    ASSERT_NOT_NULL(t);
+    // Lambda should return a function type
+    ASSERT_EQ(t->kind, TYPE_FN);
+    
+    arena_destroy(arena);
+}
+
+void test_check_lambda_applied(void) {
+    Arena* arena = arena_create(4096);
+    
+    // Define a map function: fn map(List(a), (a) -> b) -> List(b)
+    int var_a = type_fresh_var_id();
+    int var_b = type_fresh_var_id();
+    Type* type_a = type_var(arena, string_new(arena, "a"), var_a);
+    Type* type_b = type_var(arena, string_new(arena, "b"), var_b);
+    
+    TypeVec* lambda_params = TypeVec_new(arena);
+    TypeVec_push(arena, lambda_params, type_a);
+    Type* lambda_type = type_fn(arena, lambda_params, type_b);
+    
+    TypeVec* map_params = TypeVec_new(arena);
+    TypeVec_push(arena, map_params, type_list(arena, type_a));
+    TypeVec_push(arena, map_params, lambda_type);
+    Type* map_fn = type_fn(arena, map_params, type_list(arena, type_b));
+    
+    // map([1, 2, 3], (x) -> x + 1) should return List(Int)
+    Parser* parser = parser_new(arena, "map([1, 2, 3], (x) -> x + 1)");
+    Expr* expr = parse_expr(parser);
+    Checker* checker = checker_new(arena);
+    checker_define(checker, string_new(arena, "map"), map_fn);
+    Type* t = checker_infer_expr(checker, expr);
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_CON);
+    ASSERT_STR_EQ(string_cstr(t->data.con.name), "List");
+    
+    arena_destroy(arena);
+}
+
+/* ========== For Loop Tests ========== */
+
+void test_check_for_loop_basic(void) {
+    Arena* arena = arena_create(4096);
+    
+    // for x in [1, 2, 3]: x + 1
+    // For loop returns Unit (it's a statement-like expression)
+    Type* t = check_expr(arena, "for x in [1, 2, 3]: x + 1");
+    
+    ASSERT_NOT_NULL(t);
+    // For loop has type Unit (side-effect only)
+    ASSERT_EQ(t->kind, TYPE_UNIT);
+    
+    arena_destroy(arena);
+}
+
+void test_check_for_binds_loop_var(void) {
+    Arena* arena = arena_create(4096);
+    
+    // Define a print function to use the loop variable
+    TypeVec* params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_int(arena));
+    Type* fn_type = type_fn(arena, params, type_unit(arena));
+    
+    // for x in [1, 2]: print(x)
+    Parser* parser = parser_new(arena, "for x in [1, 2]: print(x)");
+    Expr* expr = parse_expr(parser);
+    Checker* checker = checker_new(arena);
+    checker_define(checker, string_new(arena, "print"), fn_type);
+    Type* t = checker_infer_expr(checker, expr);
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_UNIT);
+    
+    arena_destroy(arena);
+}
+
+void test_check_for_requires_iterable(void) {
+    Arena* arena = arena_create(4096);
+    
+    // for x in 42: x  -- can't iterate over Int
+    const char* err = check_expr_error(arena, "for x in 42: x");
+    
+    ASSERT_NOT_NULL(err);
+    // Should report that Int is not iterable
+    
+    arena_destroy(arena);
+}
+
+/* ========== Index Expression Tests ========== */
+
+void test_check_index_list(void) {
+    Arena* arena = arena_create(4096);
+    
+    // Define a list variable
+    Parser* parser = parser_new(arena, "{ let items = [1, 2, 3], items[0] }");
+    Expr* expr = parse_expr(parser);
+    Checker* checker = checker_new(arena);
+    Type* t = checker_infer_expr(checker, expr);
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_INT);
+    
+    arena_destroy(arena);
+}
+
+void test_check_index_requires_int(void) {
+    Arena* arena = arena_create(4096);
+    
+    // items["key"] should error for a list (needs Int index)
+    Parser* parser = parser_new(arena, "{ let items = [1, 2, 3], items[\"key\"] }");
+    Expr* expr = parse_expr(parser);
+    Checker* checker = checker_new(arena);
+    Type* t = checker_infer_expr(checker, expr);
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_ERROR);
+    
+    arena_destroy(arena);
+}
+
+void test_check_index_non_indexable(void) {
+    Arena* arena = arena_create(4096);
+    
+    // 42[0] should error - Int is not indexable
+    const char* err = check_expr_error(arena, "42[0]");
+    
+    ASSERT_NOT_NULL(err);
+    // Should report that Int is not indexable
+    
+    arena_destroy(arena);
+}
+
+/* ========== Pipe Operator Tests ========== */
+
+void test_check_pipe_basic(void) {
+    Arena* arena = arena_create(4096);
+    
+    // Define: fn double(Int) -> Int
+    TypeVec* params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_int(arena));
+    Type* fn_type = type_fn(arena, params, type_int(arena));
+    
+    // 5 |> double() should have type Int
+    Parser* parser = parser_new(arena, "5 |> double()");
+    Expr* expr = parse_expr(parser);
+    Checker* checker = checker_new(arena);
+    checker_define(checker, string_new(arena, "double"), fn_type);
+    Type* t = checker_infer_expr(checker, expr);
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_INT);
+    
+    arena_destroy(arena);
+}
+
+void test_check_pipe_chain(void) {
+    Arena* arena = arena_create(4096);
+    
+    // Define: fn double(Int) -> Int
+    TypeVec* params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_int(arena));
+    Type* fn_type = type_fn(arena, params, type_int(arena));
+    
+    // 5 |> double() |> double() should have type Int
+    Parser* parser = parser_new(arena, "5 |> double() |> double()");
+    Expr* expr = parse_expr(parser);
+    Checker* checker = checker_new(arena);
+    checker_define(checker, string_new(arena, "double"), fn_type);
+    Type* t = checker_infer_expr(checker, expr);
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_INT);
+    
+    arena_destroy(arena);
+}
+
+void test_check_pipe_type_mismatch(void) {
+    Arena* arena = arena_create(4096);
+    
+    // Define: fn greet(String) -> String
+    TypeVec* params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_string(arena));
+    Type* fn_type = type_fn(arena, params, type_string(arena));
+    
+    // 42 |> greet() should error - Int is not String
+    Parser* parser = parser_new(arena, "42 |> greet()");
+    Expr* expr = parse_expr(parser);
+    Checker* checker = checker_new(arena);
+    checker_define(checker, string_new(arena, "greet"), fn_type);
+    Type* t = checker_infer_expr(checker, expr);
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_ERROR);
+    
+    arena_destroy(arena);
+}
+
 /* ========== Test Runner ========== */
 
 void run_checker_tests(void) {
@@ -794,4 +1125,33 @@ void run_checker_tests(void) {
     // Generic type instantiation
     TEST_RUN(test_check_generic_identity);
     TEST_RUN(test_check_generic_list_head);
+    
+    // Bind expressions (<-)
+    TEST_RUN(test_check_bind_unwraps_result);
+    TEST_RUN(test_check_bind_requires_result);
+    TEST_RUN(test_check_bind_propagates_error_type);
+    
+    // With expressions
+    TEST_RUN(test_check_with_simple);
+    TEST_RUN(test_check_with_multiple_bindings);
+    TEST_RUN(test_check_with_requires_result);
+    
+    // Lambda expressions
+    TEST_RUN(test_check_lambda_simple);
+    TEST_RUN(test_check_lambda_applied);
+    
+    // For loops
+    TEST_RUN(test_check_for_loop_basic);
+    TEST_RUN(test_check_for_binds_loop_var);
+    TEST_RUN(test_check_for_requires_iterable);
+    
+    // Index expressions
+    TEST_RUN(test_check_index_list);
+    TEST_RUN(test_check_index_requires_int);
+    TEST_RUN(test_check_index_non_indexable);
+    
+    // Pipe operator
+    TEST_RUN(test_check_pipe_basic);
+    TEST_RUN(test_check_pipe_chain);
+    TEST_RUN(test_check_pipe_type_mismatch);
 }

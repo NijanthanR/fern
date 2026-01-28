@@ -22,6 +22,18 @@ struct Checker {
 /* ========== Forward Declarations ========== */
 
 static bool bind_pattern(Checker* checker, Pattern* pattern, Type* type);
+static bool unify(Type* a, Type* b);
+static Type* substitute(Arena* arena, Type* type);
+static Type* check_pipe_expr(Checker* checker, BinaryExpr* expr);
+
+/* Map from old var id to new type variable */
+typedef struct VarMapping {
+    int old_id;
+    Type* new_var;
+    struct VarMapping* next;
+} VarMapping;
+
+static Type* instantiate_type(Arena* arena, Type* type, VarMapping** map);
 
 /* ========== Helper Functions ========== */
 
@@ -74,6 +86,29 @@ Checker* checker_new(Arena* arena) {
 
 static Type* check_arithmetic_op(Checker* checker, Type* left, Type* right, 
                                   const char* op_name) {
+    /* Handle type variables through unification */
+    /* Follow bound type variables */
+    while (left->kind == TYPE_VAR && left->data.var.bound) {
+        left = left->data.var.bound;
+    }
+    while (right->kind == TYPE_VAR && right->data.var.bound) {
+        right = right->data.var.bound;
+    }
+    
+    /* If one side is a type variable, try to unify with the other */
+    if (left->kind == TYPE_VAR && !left->data.var.bound) {
+        if (right->kind == TYPE_INT || right->kind == TYPE_FLOAT) {
+            left->data.var.bound = right;
+            return right;
+        }
+    }
+    if (right->kind == TYPE_VAR && !right->data.var.bound) {
+        if (left->kind == TYPE_INT || left->kind == TYPE_FLOAT) {
+            right->data.var.bound = left;
+            return left;
+        }
+    }
+    
     /* Both operands must be the same numeric type */
     if (left->kind == TYPE_INT && right->kind == TYPE_INT) {
         return type_int(checker->arena);
@@ -141,7 +176,89 @@ static Type* check_logical_op(Checker* checker, Type* left, Type* right,
     return type_bool(checker->arena);
 }
 
+/* ========== Pipe Operator Type Checking ========== */
+
+static Type* check_pipe_expr(Checker* checker, BinaryExpr* expr) {
+    /* Pipe: left |> right
+     * 
+     * The pipe operator passes the left value as the first argument to
+     * the function call on the right. For example:
+     *   x |> f(a, b)  is equivalent to  f(x, a, b)
+     *   x |> f()      is equivalent to  f(x)
+     *
+     * The right side must be a call expression. We type-check it specially
+     * by injecting the left value as an additional first argument.
+     */
+    
+    /* Type check the left side first */
+    Type* left_type = checker_infer_expr(checker, expr->left);
+    if (left_type->kind == TYPE_ERROR) return left_type;
+    
+    /* Right side must be a call expression */
+    Expr* right = expr->right;
+    if (right->type != EXPR_CALL) {
+        return error_type(checker, "Pipe target must be a function call");
+    }
+    
+    CallExpr* call = &right->data.call;
+    
+    /* Get the function being called */
+    Type* callee_type = checker_infer_expr(checker, call->func);
+    if (callee_type->kind == TYPE_ERROR) return callee_type;
+    
+    /* Must be a function type */
+    if (callee_type->kind != TYPE_FN) {
+        return error_type(checker, "Cannot call non-function type %s",
+            string_cstr(type_to_string(checker->arena, callee_type)));
+    }
+    
+    /* Instantiate the function type with fresh type variables */
+    VarMapping* var_map = NULL;
+    Type* fn_type_inst = instantiate_type(checker->arena, callee_type, &var_map);
+    TypeFn* fn = &fn_type_inst->data.fn;
+    
+    /* The total number of arguments is: 1 (piped) + explicit args */
+    size_t total_args = 1 + call->args->len;
+    size_t expected_count = fn->params->len;
+    
+    if (total_args != expected_count) {
+        return error_type(checker, "Expected %zu arguments, got %zu (including piped value)",
+            expected_count, total_args);
+    }
+    
+    /* Unify the piped value (left) with the first parameter */
+    Type* first_param = fn->params->data[0];
+    if (!unify(first_param, left_type)) {
+        return error_type(checker, "Pipe: cannot pass %s to function expecting %s",
+            string_cstr(type_to_string(checker->arena, left_type)),
+            string_cstr(type_to_string(checker->arena, first_param)));
+    }
+    
+    /* Unify the explicit arguments with the remaining parameters */
+    for (size_t i = 0; i < call->args->len; i++) {
+        Type* expected = fn->params->data[i + 1]; /* +1 because first param is piped */
+        Type* actual = checker_infer_expr(checker, call->args->data[i].value);
+        
+        if (actual->kind == TYPE_ERROR) return actual;
+        
+        if (!unify(expected, actual)) {
+            return error_type(checker, "Argument %zu: expected %s, got %s",
+                i + 2, /* +2 because arg 1 is piped, user sees 2-based */
+                string_cstr(type_to_string(checker->arena, expected)),
+                string_cstr(type_to_string(checker->arena, actual)));
+        }
+    }
+    
+    /* Return the result type with substitutions applied */
+    return substitute(checker->arena, fn->result);
+}
+
 static Type* check_binary_expr(Checker* checker, BinaryExpr* expr) {
+    /* Pipe operator needs special handling - don't type check right side yet */
+    if (expr->op == BINOP_PIPE) {
+        return check_pipe_expr(checker, expr);
+    }
+    
     Type* left = checker_infer_expr(checker, expr->left);
     Type* right = checker_infer_expr(checker, expr->right);
     
@@ -183,10 +300,8 @@ static Type* check_binary_expr(Checker* checker, BinaryExpr* expr) {
             return check_logical_op(checker, left, right, "or");
             
         case BINOP_PIPE:
-            /* Pipe is special - right must be a function taking left as first arg */
-            /* For now, just return the type of the result */
-            /* TODO: Proper pipe type checking */
-            return right;
+            /* Handled above by check_pipe_expr */
+            return right; /* Should not reach here */
     }
     
     return error_type(checker, "Unknown binary operator");
@@ -449,13 +564,6 @@ static Type* substitute(Arena* arena, Type* type) {
 }
 
 /* ========== Type Instantiation ========== */
-
-/* Map from old var id to new type variable */
-typedef struct VarMapping {
-    int old_id;
-    Type* new_var;
-    struct VarMapping* next;
-} VarMapping;
 
 /* Find a mapping for a type variable ID */
 static Type* find_var_mapping(VarMapping* map, int var_id) {
@@ -765,18 +873,188 @@ Type* checker_infer_expr(Checker* checker, Expr* expr) {
         case EXPR_MATCH:
             return check_match_expr(checker, &expr->data.match_expr);
             
+        case EXPR_BIND: {
+            /* Bind expression: name <- value
+             * Value must be Result(ok, err), binds name to ok type.
+             * The expression itself returns the ok type (for use in blocks).
+             */
+            BindExpr* bind = &expr->data.bind;
+            Type* value_type = checker_infer_expr(checker, bind->value);
+            if (value_type->kind == TYPE_ERROR) return value_type;
+            
+            /* Value must be a Result type */
+            if (!type_is_result(value_type)) {
+                return error_type(checker, "The <- operator requires a Result type, got %s",
+                    string_cstr(type_to_string(checker->arena, value_type)));
+            }
+            
+            /* Extract the Ok type (first type argument of Result) */
+            Type* ok_type = value_type->data.con.args->data[0];
+            
+            /* Bind the name to the Ok type in the environment */
+            checker_define(checker, bind->name, ok_type);
+            
+            return ok_type;
+        }
+            
+        case EXPR_WITH: {
+            /* With expression: with bindings do body [else arms]
+             * Each binding must be Result type, binds name to ok type.
+             * Body is evaluated with all bindings in scope.
+             */
+            WithExpr* with = &expr->data.with_expr;
+            
+            /* Push a new scope for the bindings */
+            checker_push_scope(checker);
+            
+            /* Process each binding */
+            for (size_t i = 0; i < with->bindings->len; i++) {
+                WithBinding* binding = &with->bindings->data[i];
+                Type* value_type = checker_infer_expr(checker, binding->value);
+                
+                if (value_type->kind == TYPE_ERROR) {
+                    checker_pop_scope(checker);
+                    return value_type;
+                }
+                
+                /* Value must be a Result type */
+                if (!type_is_result(value_type)) {
+                    checker_pop_scope(checker);
+                    return error_type(checker, "with binding requires Result type, got %s",
+                        string_cstr(type_to_string(checker->arena, value_type)));
+                }
+                
+                /* Extract Ok type and bind the name */
+                Type* ok_type = value_type->data.con.args->data[0];
+                checker_define(checker, binding->name, ok_type);
+            }
+            
+            /* Type check the body with bindings in scope */
+            Type* body_type = checker_infer_expr(checker, with->body);
+            
+            checker_pop_scope(checker);
+            
+            if (body_type->kind == TYPE_ERROR) return body_type;
+            
+            /* TODO: Type check else arms if present */
+            
+            return body_type;
+        }
+            
+        case EXPR_LAMBDA: {
+            /* Lambda expression: (params) -> body
+             * Creates a function type with fresh type variables for params.
+             */
+            LambdaExpr* lambda = &expr->data.lambda;
+            
+            /* Push a new scope for lambda parameters */
+            checker_push_scope(checker);
+            
+            /* Create fresh type variables for each parameter */
+            TypeVec* param_types = TypeVec_new(checker->arena);
+            for (size_t i = 0; i < lambda->params->len; i++) {
+                int var_id = type_fresh_var_id();
+                Type* param_type = type_var(checker->arena, lambda->params->data[i], var_id);
+                TypeVec_push(checker->arena, param_types, param_type);
+                checker_define(checker, lambda->params->data[i], param_type);
+            }
+            
+            /* Infer the body type with parameters in scope */
+            Type* body_type = checker_infer_expr(checker, lambda->body);
+            
+            checker_pop_scope(checker);
+            
+            if (body_type->kind == TYPE_ERROR) return body_type;
+            
+            /* Create and return function type */
+            return type_fn(checker->arena, param_types, body_type);
+        }
+            
+        case EXPR_FOR: {
+            /* For loop: for var in iterable: body
+             * Iterable must be a List, var is bound to element type.
+             * For loop returns Unit (side-effect only).
+             */
+            ForExpr* for_loop = &expr->data.for_loop;
+            
+            /* Infer type of iterable */
+            Type* iter_type = checker_infer_expr(checker, for_loop->iterable);
+            if (iter_type->kind == TYPE_ERROR) return iter_type;
+            
+            /* Iterable must be a List (for now) */
+            if (iter_type->kind != TYPE_CON || 
+                strcmp(string_cstr(iter_type->data.con.name), "List") != 0) {
+                return error_type(checker, "for loop requires List, got %s",
+                    string_cstr(type_to_string(checker->arena, iter_type)));
+            }
+            
+            /* Extract element type from List(elem) */
+            Type* elem_type = iter_type->data.con.args->data[0];
+            
+            /* Push scope and bind loop variable */
+            checker_push_scope(checker);
+            checker_define(checker, for_loop->var_name, elem_type);
+            
+            /* Type check body (result is discarded) */
+            Type* body_type = checker_infer_expr(checker, for_loop->body);
+            (void)body_type; /* Body type is not used */
+            
+            checker_pop_scope(checker);
+            
+            /* For loop returns Unit */
+            return type_unit(checker->arena);
+        }
+            
+        case EXPR_INDEX: {
+            /* Index expression: object[index]
+             * For List, index must be Int, returns element type.
+             * For Map, index must be key type, returns value type.
+             */
+            IndexExpr* index = &expr->data.index_expr;
+            
+            Type* obj_type = checker_infer_expr(checker, index->object);
+            if (obj_type->kind == TYPE_ERROR) return obj_type;
+            
+            Type* idx_type = checker_infer_expr(checker, index->index);
+            if (idx_type->kind == TYPE_ERROR) return idx_type;
+            
+            /* Check if indexing a List */
+            if (obj_type->kind == TYPE_CON && 
+                strcmp(string_cstr(obj_type->data.con.name), "List") == 0) {
+                /* Index must be Int */
+                if (idx_type->kind != TYPE_INT) {
+                    return error_type(checker, "List index must be Int, got %s",
+                        string_cstr(type_to_string(checker->arena, idx_type)));
+                }
+                /* Return element type */
+                return obj_type->data.con.args->data[0];
+            }
+            
+            /* Check if indexing a Map */
+            if (obj_type->kind == TYPE_CON &&
+                strcmp(string_cstr(obj_type->data.con.name), "Map") == 0) {
+                /* Index must match key type */
+                Type* key_type = obj_type->data.con.args->data[0];
+                if (!type_equals(idx_type, key_type)) {
+                    return error_type(checker, "Map key must be %s, got %s",
+                        string_cstr(type_to_string(checker->arena, key_type)),
+                        string_cstr(type_to_string(checker->arena, idx_type)));
+                }
+                /* Return value type */
+                return obj_type->data.con.args->data[1];
+            }
+            
+            return error_type(checker, "Cannot index type %s",
+                string_cstr(type_to_string(checker->arena, obj_type)));
+        }
+            
         /* TODO: Implement remaining expression types */
-        case EXPR_BIND:
-        case EXPR_WITH:
         case EXPR_DOT:
         case EXPR_RANGE:
-        case EXPR_FOR:
-        case EXPR_LAMBDA:
         case EXPR_INTERP_STRING:
         case EXPR_MAP:
         case EXPR_RECORD_UPDATE:
         case EXPR_LIST_COMP:
-        case EXPR_INDEX:
         case EXPR_TRY: {
             /* The ? operator unwraps Result types */
             Type* operand_type = checker_infer_expr(checker, expr->data.try_expr.operand);
