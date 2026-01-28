@@ -74,6 +74,145 @@ char* fern_str_concat(const char* a, const char* b);
  */
 int64_t fern_str_eq(const char* a, const char* b);
 
+/**
+ * Check if string starts with prefix.
+ * @param s The string.
+ * @param prefix The prefix to check.
+ * @return 1 if s starts with prefix, 0 otherwise.
+ */
+int64_t fern_str_starts_with(const char* s, const char* prefix);
+
+/**
+ * Check if string ends with suffix.
+ * @param s The string.
+ * @param suffix The suffix to check.
+ * @return 1 if s ends with suffix, 0 otherwise.
+ */
+int64_t fern_str_ends_with(const char* s, const char* suffix);
+
+/**
+ * Check if string contains substring.
+ * @param s The string.
+ * @param substr The substring to find.
+ * @return 1 if s contains substr, 0 otherwise.
+ */
+int64_t fern_str_contains(const char* s, const char* substr);
+
+/**
+ * Find index of substring.
+ * @param s The string.
+ * @param substr The substring to find.
+ * @return Option: Some(index) if found, None otherwise.
+ */
+int64_t fern_str_index_of(const char* s, const char* substr);
+
+/**
+ * Get substring from start to end (exclusive).
+ * @param s The string.
+ * @param start Start index.
+ * @param end End index (exclusive).
+ * @return New string containing the substring.
+ */
+char* fern_str_slice(const char* s, int64_t start, int64_t end);
+
+/**
+ * Trim whitespace from both ends.
+ * @param s The string.
+ * @return New string with whitespace trimmed.
+ */
+char* fern_str_trim(const char* s);
+
+/**
+ * Trim whitespace from start.
+ * @param s The string.
+ * @return New string with leading whitespace trimmed.
+ */
+char* fern_str_trim_start(const char* s);
+
+/**
+ * Trim whitespace from end.
+ * @param s The string.
+ * @return New string with trailing whitespace trimmed.
+ */
+char* fern_str_trim_end(const char* s);
+
+/**
+ * Convert string to uppercase.
+ * @param s The string.
+ * @return New string in uppercase.
+ */
+char* fern_str_to_upper(const char* s);
+
+/**
+ * Convert string to lowercase.
+ * @param s The string.
+ * @return New string in lowercase.
+ */
+char* fern_str_to_lower(const char* s);
+
+/**
+ * Replace all occurrences of old with new.
+ * @param s The string.
+ * @param old_str Substring to replace.
+ * @param new_str Replacement string.
+ * @return New string with replacements.
+ */
+char* fern_str_replace(const char* s, const char* old_str, const char* new_str);
+
+/**
+ * Split string by delimiter.
+ * @param s The string.
+ * @param delim The delimiter.
+ * @return List of strings (as FernStringList).
+ */
+struct FernStringList* fern_str_split(const char* s, const char* delim);
+
+/**
+ * Join list of strings with separator.
+ * @param list The string list.
+ * @param sep The separator.
+ * @return New joined string.
+ */
+char* fern_str_join(struct FernStringList* list, const char* sep);
+
+/**
+ * Repeat string n times.
+ * @param s The string.
+ * @param n Number of repetitions.
+ * @return New string with s repeated n times.
+ */
+char* fern_str_repeat(const char* s, int64_t n);
+
+/**
+ * Get character at index.
+ * @param s The string.
+ * @param index The index.
+ * @return Option: Some(char as int) if valid index, None otherwise.
+ */
+int64_t fern_str_char_at(const char* s, int64_t index);
+
+/**
+ * Check if string is empty.
+ * @param s The string.
+ * @return 1 if empty, 0 otherwise.
+ */
+int64_t fern_str_is_empty(const char* s);
+
+/**
+ * String list type for split/join operations.
+ */
+typedef struct FernStringList {
+    char** data;
+    int64_t len;
+    int64_t cap;
+} FernStringList;
+
+/**
+ * Free a string list.
+ * @param list The list to free.
+ */
+void fern_str_list_free(FernStringList* list);
+
 /* ========== List Functions ========== */
 
 /**

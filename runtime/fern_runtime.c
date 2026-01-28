@@ -104,6 +104,436 @@ int64_t fern_str_eq(const char* a, const char* b) {
     return strcmp(a, b) == 0 ? 1 : 0;
 }
 
+/**
+ * Check if string starts with prefix.
+ * @param s The string.
+ * @param prefix The prefix to check.
+ * @return 1 if s starts with prefix, 0 otherwise.
+ */
+int64_t fern_str_starts_with(const char* s, const char* prefix) {
+    assert(s != NULL);
+    assert(prefix != NULL);
+    size_t prefix_len = strlen(prefix);
+    return strncmp(s, prefix, prefix_len) == 0 ? 1 : 0;
+}
+
+/**
+ * Check if string ends with suffix.
+ * @param s The string.
+ * @param suffix The suffix to check.
+ * @return 1 if s ends with suffix, 0 otherwise.
+ */
+int64_t fern_str_ends_with(const char* s, const char* suffix) {
+    assert(s != NULL);
+    assert(suffix != NULL);
+    size_t s_len = strlen(s);
+    size_t suffix_len = strlen(suffix);
+    if (suffix_len > s_len) return 0;
+    return strcmp(s + s_len - suffix_len, suffix) == 0 ? 1 : 0;
+}
+
+/**
+ * Check if string contains substring.
+ * @param s The string.
+ * @param substr The substring to find.
+ * @return 1 if s contains substr, 0 otherwise.
+ */
+int64_t fern_str_contains(const char* s, const char* substr) {
+    assert(s != NULL);
+    assert(substr != NULL);
+    return strstr(s, substr) != NULL ? 1 : 0;
+}
+
+/**
+ * Find index of substring.
+ * @param s The string.
+ * @param substr The substring to find.
+ * @return Option: Some(index) if found, None otherwise.
+ */
+int64_t fern_str_index_of(const char* s, const char* substr) {
+    assert(s != NULL);
+    assert(substr != NULL);
+    const char* found = strstr(s, substr);
+    if (found == NULL) {
+        return fern_option_none();
+    }
+    return fern_option_some((int64_t)(found - s));
+}
+
+/**
+ * Get substring from start to end (exclusive).
+ * @param s The string.
+ * @param start Start index.
+ * @param end End index (exclusive).
+ * @return New string containing the substring.
+ */
+char* fern_str_slice(const char* s, int64_t start, int64_t end) {
+    assert(s != NULL);
+    size_t len = strlen(s);
+    
+    /* Clamp indices */
+    if (start < 0) start = 0;
+    if (end < start) end = start;
+    if ((size_t)start > len) start = (int64_t)len;
+    if ((size_t)end > len) end = (int64_t)len;
+    
+    size_t slice_len = (size_t)(end - start);
+    char* result = malloc(slice_len + 1);
+    assert(result != NULL);
+    memcpy(result, s + start, slice_len);
+    result[slice_len] = '\0';
+    return result;
+}
+
+/* Helper: check if character is whitespace */
+static int is_whitespace(char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+}
+
+/**
+ * Trim whitespace from both ends.
+ * @param s The string.
+ * @return New string with whitespace trimmed.
+ */
+char* fern_str_trim(const char* s) {
+    assert(s != NULL);
+    size_t len = strlen(s);
+    
+    /* Find start (skip leading whitespace) */
+    size_t start = 0;
+    while (start < len && is_whitespace(s[start])) start++;
+    
+    /* Find end (skip trailing whitespace) */
+    size_t end = len;
+    while (end > start && is_whitespace(s[end - 1])) end--;
+    
+    size_t new_len = end - start;
+    char* result = malloc(new_len + 1);
+    assert(result != NULL);
+    memcpy(result, s + start, new_len);
+    result[new_len] = '\0';
+    return result;
+}
+
+/**
+ * Trim whitespace from start.
+ * @param s The string.
+ * @return New string with leading whitespace trimmed.
+ */
+char* fern_str_trim_start(const char* s) {
+    assert(s != NULL);
+    size_t len = strlen(s);
+    
+    size_t start = 0;
+    while (start < len && is_whitespace(s[start])) start++;
+    
+    size_t new_len = len - start;
+    char* result = malloc(new_len + 1);
+    assert(result != NULL);
+    memcpy(result, s + start, new_len + 1);
+    return result;
+}
+
+/**
+ * Trim whitespace from end.
+ * @param s The string.
+ * @return New string with trailing whitespace trimmed.
+ */
+char* fern_str_trim_end(const char* s) {
+    assert(s != NULL);
+    size_t len = strlen(s);
+    
+    while (len > 0 && is_whitespace(s[len - 1])) len--;
+    
+    char* result = malloc(len + 1);
+    assert(result != NULL);
+    memcpy(result, s, len);
+    result[len] = '\0';
+    return result;
+}
+
+/**
+ * Convert string to uppercase.
+ * @param s The string.
+ * @return New string in uppercase.
+ */
+char* fern_str_to_upper(const char* s) {
+    assert(s != NULL);
+    size_t len = strlen(s);
+    char* result = malloc(len + 1);
+    assert(result != NULL);
+    
+    for (size_t i = 0; i <= len; i++) {
+        char c = s[i];
+        if (c >= 'a' && c <= 'z') {
+            result[i] = c - 'a' + 'A';
+        } else {
+            result[i] = c;
+        }
+    }
+    return result;
+}
+
+/**
+ * Convert string to lowercase.
+ * @param s The string.
+ * @return New string in lowercase.
+ */
+char* fern_str_to_lower(const char* s) {
+    assert(s != NULL);
+    size_t len = strlen(s);
+    char* result = malloc(len + 1);
+    assert(result != NULL);
+    
+    for (size_t i = 0; i <= len; i++) {
+        char c = s[i];
+        if (c >= 'A' && c <= 'Z') {
+            result[i] = c - 'A' + 'a';
+        } else {
+            result[i] = c;
+        }
+    }
+    return result;
+}
+
+/**
+ * Replace all occurrences of old with new.
+ * @param s The string.
+ * @param old_str Substring to replace.
+ * @param new_str Replacement string.
+ * @return New string with replacements.
+ */
+char* fern_str_replace(const char* s, const char* old_str, const char* new_str) {
+    assert(s != NULL);
+    assert(old_str != NULL);
+    assert(new_str != NULL);
+    
+    size_t old_len = strlen(old_str);
+    size_t new_len = strlen(new_str);
+    
+    /* Empty old_str: return copy of s */
+    if (old_len == 0) {
+        char* result = malloc(strlen(s) + 1);
+        assert(result != NULL);
+        strcpy(result, s);
+        return result;
+    }
+    
+    /* Count occurrences */
+    size_t count = 0;
+    const char* p = s;
+    while ((p = strstr(p, old_str)) != NULL) {
+        count++;
+        p += old_len;
+    }
+    
+    /* Calculate new length */
+    size_t s_len = strlen(s);
+    size_t result_len = s_len + count * (new_len - old_len);
+    char* result = malloc(result_len + 1);
+    assert(result != NULL);
+    
+    /* Build result */
+    char* dst = result;
+    p = s;
+    const char* found;
+    while ((found = strstr(p, old_str)) != NULL) {
+        size_t prefix_len = (size_t)(found - p);
+        memcpy(dst, p, prefix_len);
+        dst += prefix_len;
+        memcpy(dst, new_str, new_len);
+        dst += new_len;
+        p = found + old_len;
+    }
+    strcpy(dst, p);
+    
+    return result;
+}
+
+/**
+ * Split string by delimiter.
+ * @param s The string.
+ * @param delim The delimiter.
+ * @return List of strings (as FernStringList).
+ */
+FernStringList* fern_str_split(const char* s, const char* delim) {
+    assert(s != NULL);
+    assert(delim != NULL);
+    
+    FernStringList* list = malloc(sizeof(FernStringList));
+    assert(list != NULL);
+    list->cap = 8;
+    list->len = 0;
+    list->data = malloc((size_t)list->cap * sizeof(char*));
+    assert(list->data != NULL);
+    
+    size_t delim_len = strlen(delim);
+    
+    /* Empty delimiter: split into characters */
+    if (delim_len == 0) {
+        size_t s_len = strlen(s);
+        for (size_t i = 0; i < s_len; i++) {
+            if (list->len >= list->cap) {
+                list->cap *= 2;
+                list->data = realloc(list->data, (size_t)list->cap * sizeof(char*));
+                assert(list->data != NULL);
+            }
+            char* ch = malloc(2);
+            assert(ch != NULL);
+            ch[0] = s[i];
+            ch[1] = '\0';
+            list->data[list->len++] = ch;
+        }
+        return list;
+    }
+    
+    /* Split by delimiter */
+    const char* p = s;
+    const char* found;
+    while ((found = strstr(p, delim)) != NULL) {
+        if (list->len >= list->cap) {
+            list->cap *= 2;
+            list->data = realloc(list->data, (size_t)list->cap * sizeof(char*));
+            assert(list->data != NULL);
+        }
+        size_t part_len = (size_t)(found - p);
+        char* part = malloc(part_len + 1);
+        assert(part != NULL);
+        memcpy(part, p, part_len);
+        part[part_len] = '\0';
+        list->data[list->len++] = part;
+        p = found + delim_len;
+    }
+    
+    /* Add remaining part */
+    if (list->len >= list->cap) {
+        list->cap *= 2;
+        list->data = realloc(list->data, (size_t)list->cap * sizeof(char*));
+        assert(list->data != NULL);
+    }
+    char* last = malloc(strlen(p) + 1);
+    assert(last != NULL);
+    strcpy(last, p);
+    list->data[list->len++] = last;
+    
+    return list;
+}
+
+/**
+ * Join list of strings with separator.
+ * @param list The string list.
+ * @param sep The separator.
+ * @return New joined string.
+ */
+char* fern_str_join(FernStringList* list, const char* sep) {
+    assert(list != NULL);
+    assert(sep != NULL);
+    
+    if (list->len == 0) {
+        char* result = malloc(1);
+        assert(result != NULL);
+        result[0] = '\0';
+        return result;
+    }
+    
+    /* Calculate total length */
+    size_t sep_len = strlen(sep);
+    size_t total = 0;
+    for (int64_t i = 0; i < list->len; i++) {
+        total += strlen(list->data[i]);
+        if (i < list->len - 1) total += sep_len;
+    }
+    
+    char* result = malloc(total + 1);
+    assert(result != NULL);
+    
+    char* dst = result;
+    for (int64_t i = 0; i < list->len; i++) {
+        size_t part_len = strlen(list->data[i]);
+        memcpy(dst, list->data[i], part_len);
+        dst += part_len;
+        if (i < list->len - 1) {
+            memcpy(dst, sep, sep_len);
+            dst += sep_len;
+        }
+    }
+    *dst = '\0';
+    
+    return result;
+}
+
+/**
+ * Repeat string n times.
+ * @param s The string.
+ * @param n Number of repetitions.
+ * @return New string with s repeated n times.
+ */
+char* fern_str_repeat(const char* s, int64_t n) {
+    assert(s != NULL);
+    
+    if (n <= 0) {
+        char* result = malloc(1);
+        assert(result != NULL);
+        result[0] = '\0';
+        return result;
+    }
+    
+    size_t s_len = strlen(s);
+    size_t total = s_len * (size_t)n;
+    char* result = malloc(total + 1);
+    assert(result != NULL);
+    
+    char* dst = result;
+    for (int64_t i = 0; i < n; i++) {
+        memcpy(dst, s, s_len);
+        dst += s_len;
+    }
+    *dst = '\0';
+    
+    return result;
+}
+
+/**
+ * Get character at index.
+ * @param s The string.
+ * @param index The index.
+ * @return Option: Some(char as int) if valid index, None otherwise.
+ */
+int64_t fern_str_char_at(const char* s, int64_t index) {
+    assert(s != NULL);
+    
+    if (index < 0) return fern_option_none();
+    
+    size_t len = strlen(s);
+    if ((size_t)index >= len) return fern_option_none();
+    
+    return fern_option_some((int64_t)(unsigned char)s[index]);
+}
+
+/**
+ * Check if string is empty.
+ * @param s The string.
+ * @return 1 if empty, 0 otherwise.
+ */
+int64_t fern_str_is_empty(const char* s) {
+    assert(s != NULL);
+    return s[0] == '\0' ? 1 : 0;
+}
+
+/**
+ * Free a string list.
+ * @param list The list to free.
+ */
+void fern_str_list_free(FernStringList* list) {
+    if (list != NULL) {
+        for (int64_t i = 0; i < list->len; i++) {
+            free(list->data[i]);
+        }
+        free(list->data);
+        free(list);
+    }
+}
+
 /* ========== List Functions ========== */
 
 /**
