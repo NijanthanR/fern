@@ -233,6 +233,45 @@ void test_lex_lt_bind_le(void) {
     arena_destroy(arena);
 }
 
+/* Test: Lex simple float literal */
+void test_lex_float_simple(void) {
+    Arena* arena = arena_create(4096);
+    Lexer* lex = lexer_new(arena, "3.14");
+
+    Token tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_FLOAT);
+    ASSERT_STR_EQ(string_cstr(tok.text), "3.14");
+
+    Token eof = lexer_next(lex);
+    ASSERT_EQ(eof.type, TOKEN_EOF);
+
+    arena_destroy(arena);
+}
+
+/* Test: Lex float with leading zero */
+void test_lex_float_leading_zero(void) {
+    Arena* arena = arena_create(4096);
+    Lexer* lex = lexer_new(arena, "0.5");
+
+    Token tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_FLOAT);
+    ASSERT_STR_EQ(string_cstr(tok.text), "0.5");
+
+    arena_destroy(arena);
+}
+
+/* Test: Lex float with trailing zero */
+void test_lex_float_trailing_zero(void) {
+    Arena* arena = arena_create(4096);
+    Lexer* lex = lexer_new(arena, "1.0");
+
+    Token tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_FLOAT);
+    ASSERT_STR_EQ(string_cstr(tok.text), "1.0");
+
+    arena_destroy(arena);
+}
+
 void run_lexer_tests(void) {
     printf("\n=== Lexer Tests ===\n");
     TEST_RUN(test_lex_integer);
@@ -246,4 +285,7 @@ void run_lexer_tests(void) {
     TEST_RUN(test_lex_comment);
     TEST_RUN(test_lex_function);
     TEST_RUN(test_lex_lt_bind_le);
+    TEST_RUN(test_lex_float_simple);
+    TEST_RUN(test_lex_float_leading_zero);
+    TEST_RUN(test_lex_float_trailing_zero);
 }

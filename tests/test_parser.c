@@ -1474,6 +1474,35 @@ void test_parse_defer_multiple(void) {
     arena_destroy(arena);
 }
 
+/* Test: Parse float literal */
+void test_parse_float_literal(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "3.14");
+
+    Expr* expr = parse_primary(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_FLOAT_LIT);
+    ASSERT_TRUE(expr->data.float_lit.value == 3.14);
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse float in binary expression */
+void test_parse_float_in_expr(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "x + 3.14");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_BINARY);
+    ASSERT_EQ(expr->data.binary.op, BINOP_ADD);
+    ASSERT_EQ(expr->data.binary.left->type, EXPR_IDENT);
+    ASSERT_EQ(expr->data.binary.right->type, EXPR_FLOAT_LIT);
+    ASSERT_TRUE(expr->data.binary.right->data.float_lit.value == 3.14);
+
+    arena_destroy(arena);
+}
+
 void run_parser_tests(void) {
     printf("\n=== Parser Tests ===\n");
     TEST_RUN(test_parse_int_literal);
@@ -1544,4 +1573,6 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_defer_with_call);
     TEST_RUN(test_parse_defer_in_block);
     TEST_RUN(test_parse_defer_multiple);
+    TEST_RUN(test_parse_float_literal);
+    TEST_RUN(test_parse_float_in_expr);
 }
