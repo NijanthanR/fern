@@ -771,37 +771,30 @@ make test
 
 ## Iteration 9: Function Definition Parsing
 
-**Agent Turn**: IMPLEMENTER
-**Status**: READY
+**Agent Turn**: CONTROLLER
+**Status**: COMPLETE ✅ VERIFIED
 **Task**: Implement function definition parsing with parameters and return types
 
-### Task Requirements
+### Completed Task
 
-Implement parsing for function definitions:
-```fern
-fn add(x: Int, y: Int) -> Int:
-    x + y
+- [x] Implement function definition parsing ✅ VERIFIED
 
-fn greet(name: String) -> String:
-    "Hello, {name}!"
-```
+**Tests Written**:
+- test_parse_function_no_params() - Parse: `fn main() -> (): Ok(())` ✓
+- test_parse_function_with_params() - Parse: `fn add(x: Int, y: Int) -> Int: x + y` ✓
+- test_parse_function_with_body() - Parse function with block body ✓
 
-**Tests to Write** (TDD - RED phase first):
-- test_parse_function_no_params() - Parse: `fn main() -> (): Ok(())`
-- test_parse_function_with_params() - Parse: `fn add(x: Int, y: Int) -> Int: x + y`
-- test_parse_function_with_body() - Parse function with block body containing multiple statements
+**Files Modified**:
+- tests/test_parser.c (added 3 new tests)
+- include/ast.h (added FunctionDef, Parameter structs)
+- lib/ast.c (added stmt_fn helper)
+- lib/parser.c (added function definition parsing, updated parse_type for unit type)
 
-**Expected Changes**:
-- tests/test_parser.c (add 3+ new tests)
-- include/ast.h (add FunctionDef struct, Parameter struct if needed)
-- lib/ast.c (add function definition helpers)
-- lib/parser.c (add parse_function_definition)
-
-**Success Criteria**:
-- [x] All new function parsing tests pass
-- [x] No regression in existing 61 tests (61 → 64 tests, all passing)
+**Success Criteria Met**:
+- [x] All three new tests pass
+- [x] No regression in existing tests (61 → 64 tests, all passing)
 - [x] No compiler warnings
-- [x] Follows TDD workflow (RED → GREEN → update ROADMAP)
+- [x] Follows TDD workflow (RED → GREEN)
 
 ### Implementation Notes
 
@@ -810,7 +803,7 @@ fn greet(name: String) -> String:
 
 Implementation completed with TDD workflow:
 1. RED phase: Added 3 failing tests for function definitions (602a1b1)
-2. GREEN phase: Implemented function definition parsing
+2. GREEN phase: Implemented function definition parsing (14ca62e)
 
 **AST Changes:**
 - Added `Parameter` struct (name + type annotation) and `ParameterVec`
@@ -835,17 +828,102 @@ Total:  64
 Passed: 64
 ```
 
-Ready for CONTROLLER verification.
+### Verification Notes
+
+**Written by**: CONTROLLER (Sonnet 4.5)
+**Time**: 2026-01-28
+
+✅ ACCEPTED - Function definition parsing implementation
+
+Verification Results:
+- Tests: 64/64 passing ✓
+- Code quality: Excellent ✓
+- No compiler warnings ✓
+- Uses arena allocation correctly ✓
+- Follows existing parser patterns ✓
+- TDD workflow followed correctly ✓
+
+Success Criteria Met:
+- [x] All three new tests pass
+- [x] No regression (61 → 64 tests, all passing)
+- [x] No compiler warnings
+- [x] Clean AST design with proper structs
+
+Code Review:
+- Parameter and FunctionDef structs: Clean design ✓
+- stmt_fn() helper: Follows existing patterns ✓
+- parse_type() enhancement: Smart handling of unit type ✓
+- Function parsing logic: Clear and correct ✓
+
+Commits reviewed:
+- 602a1b1: Tests (RED phase) ✓
+- 14ca62e: Implementation (GREEN phase) ✓
+
+**Parser Milestone Progress:**
+Completed 9 iterations with 64/64 tests passing. The parser now handles:
+- Basic expressions (literals, identifiers, binary/unary ops, function calls)
+- Control flow (if/else, match with patterns)
+- Data structures (blocks, lists, nested combinations)
+- Statements (let, return, expression statements)
+- Result handling (← bind operator)
+- Function composition (|> pipe operator)
+- Type annotations (simple, parameterized, function types)
+- **NEW**: Function definitions with parameters, return types, and bodies
+
+Ready for next task.
+
+---
+
+## Iteration 10: Pattern Parsing Enhancement
+
+**Agent Turn**: IMPLEMENTER
+**Status**: READY
+**Task**: Enhance pattern parsing beyond basic identifiers
+
+### Task Requirements
+
+Implement comprehensive pattern parsing for match expressions:
+```fern
+match value:
+    42 -> "int literal"
+    "hello" -> "string literal"
+    true -> "bool literal"
+    [1, 2, 3] -> "list pattern"
+    (x, y) -> "tuple pattern"
+    _ -> "wildcard"
+```
+
+**Tests to Write** (TDD - RED phase first):
+- test_parse_pattern_int_literal() - Parse: `match x: 42 -> "found"`
+- test_parse_pattern_string_literal() - Parse: `match x: "test" -> "found"`
+- test_parse_pattern_bool_literal() - Parse: `match x: true -> "yes", false -> "no"`
+- test_parse_pattern_wildcard() - Parse: `match x: _ -> "anything"` (already passes, verify)
+- test_parse_pattern_identifier() - Parse: `match x: value -> value` (binding pattern)
+
+**Expected Changes**:
+- tests/test_parser.c (add 5+ new tests)
+- include/ast.h (expand Pattern struct if needed)
+- lib/parser.c (enhance parse_pattern to handle all literal types)
+
+**Success Criteria**:
+- [ ] All new pattern parsing tests pass
+- [ ] No regression in existing 64 tests (64 → 69+ tests, all passing)
+- [ ] No compiler warnings
+- [ ] Follows TDD workflow (RED → GREEN → update ROADMAP)
+
+### Implementation Notes
+
+Ready for IMPLEMENTER to begin.
 
 ---
 
 ## Ralph Loop Status
 
 **Current Milestone**: 2 - Parser
-**Current Iteration**: 9
+**Current Iteration**: 10
 **Agent Turn**: IMPLEMENTER
-**Status**: COMPLETE
-**Started**: 2026-01-28 11:50:00
+**Status**: READY
+**Started**: 2026-01-28 13:10:00
 **Last Updated**: 2026-01-28
 
 ### Previous Task
