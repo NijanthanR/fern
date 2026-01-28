@@ -203,8 +203,8 @@ def parse_doc_comment(lines: list[str], func_line_idx: int) -> DocComment:
                             result.has_description = True
                             break
 
-                    # Check for @param tags
-                    for match in re.finditer(r"@param\s+(\w+)", comment_text):
+                    # Check for @param tags (including variadic ...)
+                    for match in re.finditer(r"@param\s+(\w+|\.\.\.)", comment_text):
                         result.documented_params.add(match.group(1))
 
                     # Check for @return or @returns
@@ -234,7 +234,7 @@ def parse_doc_comment(lines: list[str], func_line_idx: int) -> DocComment:
             if len(content.strip()) > 5:
                 result.has_description = True
 
-            for match in re.finditer(r"@param\s+(\w+)", comment_text):
+            for match in re.finditer(r"@param\s+(\w+|\.\.\.)", comment_text):
                 result.documented_params.add(match.group(1))
 
             if re.search(r"@returns?\b", comment_text):
@@ -279,6 +279,10 @@ def extract_function_params(line: str) -> list[str]:
     # Extract parameter names (last word before optional array brackets)
     names = []
     for param in params:
+        # Handle variadic parameters
+        if param.strip() == "...":
+            names.append("...")
+            continue
         # Remove array brackets
         param = re.sub(r"\[[^\]]*\]", "", param)
         # Get last word (the parameter name)
@@ -622,9 +626,10 @@ def check_file(filepath: Path) -> list[Violation]:
                 )
 
             # Check for missing @return (only for non-void functions)
+            # Note: return_type may include modifiers like "static void" so check if it ends with void
             if (
                 func.return_type
-                and func.return_type != "void"
+                and not func.return_type.endswith("void")
                 and "doc-return" not in func.allowed_rules
             ):
                 if not doc.has_return:
