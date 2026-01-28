@@ -906,7 +906,53 @@ stdlib/
 
 ---
 
-## Milestone 9: Polish & Optimization
+## Milestone 9: Bootstrapping - Fern Tooling in Fern
+
+**Goal:** Replace Python tooling with Fern implementations (dogfooding)
+
+**Why:** Proves the language works for real tasks, removes Python dependency, exercises core features.
+
+### fern-style.fn - Style Checker
+
+Rewrite `scripts/check_style.py` in Fern. This exercises:
+- File I/O (reading source files)
+- String processing (parsing C code)
+- Pattern matching (detecting violations)
+- CLI argument parsing
+- Colored terminal output
+- Directory traversal
+
+**Required stdlib features:**
+- [ ] `file.read_text(path)` → `Result(String, IoError)`
+- [ ] `file.glob(pattern)` → `List(String)`
+- [ ] `string.lines()`, `string.contains()`, `string.matches(regex)`
+- [ ] CLI argument parsing (or use argtable3 via FFI)
+- [ ] ANSI color output
+
+**Implementation tasks:**
+- [ ] Port function extraction logic
+- [ ] Port assertion counting
+- [ ] Port doc comment validation
+- [ ] Port violation reporting with colors
+- [ ] Match feature parity with Python version
+- [ ] Add to `make style` (detect if Fern binary exists, prefer it)
+
+**Success criteria:**
+- [ ] `fern run tools/fern-style.fn src/` produces identical output to Python version
+- [ ] No Python/uv dependency needed for style checks
+- [ ] Faster execution (native binary vs Python interpreter)
+
+### Future bootstrapping targets
+
+After fern-style, consider rewriting in Fern:
+- [ ] `fern fmt` - Code formatter (needs parser, pretty printer)
+- [ ] `fern doc` - Documentation generator
+- [ ] `fern test` - Test runner
+- [ ] Eventually: the compiler itself (long-term, after language is stable)
+
+---
+
+## Milestone 10: Polish & Optimization
 
 **Goal:** Production-ready compiler
 
