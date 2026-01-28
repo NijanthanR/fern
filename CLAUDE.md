@@ -117,7 +117,14 @@ The skill will guide you through:
 2. Document the decision with `/decision`
 3. Continue implementation following the decision
 
-### Updating ROADMAP.md
+### CRITICAL: Updating ROADMAP.md
+
+**ALWAYS update ROADMAP.md immediately after completing ANY task. This is non-negotiable.**
+
+The ROADMAP.md is the single source of truth for project progress. Failing to update it:
+- Causes duplicate work
+- Loses track of what's done
+- Confuses future sessions
 
 **After completing each task:**
 
@@ -138,18 +145,89 @@ The skill will guide you through:
 **Completed**: 2024-01-28
 ```
 
+**When to update:**
+- Immediately after tests pass for a feature
+- Before starting the next task
+- Before committing
+
+### CRITICAL: Mandatory Verification Steps
+
+**ALWAYS run these commands after ANY code changes. This is non-negotiable.**
+
+```bash
+# 1. Clean build (catches stale object files)
+make clean && make
+
+# 2. Run all tests
+make test
+
+# 3. Run style checker
+make style
+
+# Or run all at once:
+make clean && make && make test && make style
+```
+
+**Why this matters:**
+- `make clean` removes stale `.o` files that can mask errors
+- `make test` verifies no regressions
+- Style checker enforces assertions and function size limits
+
+**DO NOT commit if any of these fail.**
+
 ### Pre-Commit Checklist
 
 Before every commit, verify:
 
+- [ ] Clean build passes: `make clean && make`
 - [ ] All tests pass: `make test`
-- [ ] No compiler warnings: `make clean && make`
+- [ ] Style check passes: `make style`
 - [ ] ROADMAP.md is updated with progress
 - [ ] Code follows DESIGN.md specification
 - [ ] Code follows FERN_STYLE.md (min 2 assertions per function, <70 lines)
+- [ ] All functions are properly documented (see Documentation section)
 - [ ] Test was written BEFORE implementation
 - [ ] Commit message follows conventional commits
 - [ ] Significant decisions are documented in DECISIONS.md
+
+### Function Documentation Requirements
+
+**ALWAYS document functions properly. This is non-negotiable.**
+
+Every function must have a documentation comment that includes:
+1. **Brief description** - What the function does (one line)
+2. **Parameters** - Each parameter and its purpose
+3. **Return value** - What is returned and when
+4. **Preconditions** - What must be true before calling (if any)
+
+**Example:**
+
+```c
+/**
+ * Parse an expression from the token stream.
+ *
+ * @param parser  The parser context (must not be NULL)
+ * @param arena   Arena for allocating AST nodes
+ * @return        ParseResult with OkExpr on success, ParseErr on failure
+ *
+ * Precondition: parser->current_token is valid
+ */
+ParseResult parse_expr(Parser *parser, Arena *arena) {
+    assert(parser != NULL);
+    assert(arena != NULL);
+    // ...
+}
+```
+
+**Why documentation matters:**
+- Future sessions need to understand the code
+- AI assistants work better with documented code
+- Catches design issues early (if hard to document, reconsider design)
+
+**DO NOT:**
+- Write empty or trivial comments ("This function parses")
+- Skip documenting parameters
+- Omit return value descriptions
 
 ### Commit Message Format
 
@@ -744,6 +822,12 @@ Expr **arr = malloc(size * sizeof(Expr*));
 
 Before committing code, verify:
 
+**Mandatory Verification (run these commands):**
+- [ ] `make clean && make` - Clean build with no warnings
+- [ ] `make test` - All tests pass
+- [ ] `make style` - Style check passes
+- [ ] ROADMAP.md updated with completed tasks
+
 **Safety Libraries:**
 - [ ] All allocations use arena (no malloc/free)
 - [ ] All variants use Datatype99 (no manual unions)
@@ -757,6 +841,11 @@ Before committing code, verify:
 - [ ] Function under 70 lines
 - [ ] All loops have explicit bounds
 - [ ] Comments explain WHY, not just WHAT
+
+**Documentation:**
+- [ ] All functions have doc comments (description, params, return)
+- [ ] Complex logic has inline comments explaining WHY
+- [ ] Public APIs are fully documented
 
 **Build Checks:**
 - [ ] Compiles with `-Wall -Wextra -Wpedantic` (no warnings)
@@ -782,5 +871,11 @@ The entire safety strategy is:
 5. **Errors**: Never NULL, use Result types
 6. **Assertions**: Minimum 2 per function (see FERN_STYLE.md)
 7. **Function size**: Maximum 70 lines (see FERN_STYLE.md)
+8. **Documentation**: All functions must have doc comments
 
 These rules eliminate 90% of C's danger while keeping AI productivity high. The FERN_STYLE.md requirements ensure assertions document invariants and small functions fit in AI context windows.
+
+**After EVERY task:**
+1. Run `make clean && make && make test && make style`
+2. Update ROADMAP.md
+3. Then commit
