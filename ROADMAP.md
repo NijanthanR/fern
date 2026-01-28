@@ -173,6 +173,8 @@ void test_lex_string_interpolation() {
 
 ## Milestone 2: Parser
 
+**Status:** 🚧 In Progress - Core parser complete, 36/36 tests passing
+
 **Goal:** Build AST from tokens
 
 ### Test Files
@@ -190,45 +192,33 @@ tests/parser/
 
 ### Tasks
 
-- [ ] **Write parser tests first**
-  ```c
-  void test_parse_function() {
-      char* source = "fn add(a: Int, b: Int) -> Int:\n    a + b";
-      Expr* ast = parse(source);
-      assert_expr_type(ast, EXPR_FUNCTION);
-      assert_string_eq(ast->fn.name, "add");
-      assert_int_eq(ast->fn.params.len, 2);
-      // ...
-  }
-  ```
+- [x] **Write parser tests first** (13 tests in tests/test_parser.c)
+  - [x] Integer, string, boolean literals
+  - [x] Identifiers
+  - [x] Binary operators with precedence
+  - [x] Unary operators (-, not)
+  - [x] Function calls (with/without arguments)
+  - [x] Comparison operators
+  - [x] Let statements
+  - [x] Return statements
 
-- [ ] Define AST types (Datatype99)
-  ```c
-  datatype(Expr,
-      (ExprInt, int64_t value),
-      (ExprString, sds value),
-      (ExprIdent, sds name),
-      (ExprBinOp, Expr* left, BinOp op, Expr* right),
-      (ExprCall, Expr* func, List(Expr*) args),
-      (ExprPipe, Expr* value, Expr* func),
-      (ExprMatch, Expr* value, List(MatchArm) arms),
-      (ExprBind, sds name, Expr* value),  // <-
-      (ExprWith, List(Binding) bindings, Expr* do_block, List(MatchArm) else_block),
-      (ExprDefer, Expr* expr),
-      (ExprFunction, sds name, List(Param) params, Type* return_type, Expr* body)
-  );
-  
-  datatype(Type,
-      (TypeIdent, sds name),
-      (TypeGeneric, sds name, List(Type*) params),
-      (TypeArrow, List(Type*) params, Type* return_type),
-      (TypeResult, Type* ok, Type* err)
-  );
-  ```
+- [x] Define AST types (include/ast.h, lib/ast.c)
+  - [x] Expression types (literals, identifiers, binary, unary, call, if, match, block, list, bind)
+  - [x] Statement types (let, return, expression)
+  - [x] Pattern types (identifier, wildcard, literal)
+  - [x] Binary operators (arithmetic, comparison, logical, pipe)
+  - [x] Unary operators (negation, not)
+  - [x] Helper functions for creating AST nodes
 
-- [ ] Implement parser.c
-  - [ ] Expression parsing (precedence climbing)
-  - [ ] Pattern parsing
+- [x] Implement parser.c (lib/parser.c)
+  - [x] Expression parsing (precedence climbing)
+  - [x] Primary expressions (literals, identifiers, grouping)
+  - [x] Binary operators with proper precedence
+  - [x] Unary operators
+  - [x] Function calls
+  - [x] Let statements
+  - [x] Return statements
+  - [ ] Pattern parsing (basic identifier patterns done)
   - [ ] Type parsing
   - [ ] Function definitions (including clauses)
   - [ ] Module declarations
@@ -237,13 +227,13 @@ tests/parser/
 - [ ] Parser utilities
   - [ ] Pretty-print AST
   - [ ] AST validation
-  - [ ] Error messages with context
+  - [x] Error messages with context (basic implementation)
 
 **Success Criteria:**
-- All parser tests pass
-- `fern parse file.fn` prints AST
-- Error messages show parse issues
-- Handles all syntax from DESIGN.md
+- ✅ Core parser tests pass (36/36)
+- [ ] `fern parse file.fn` prints AST
+- ✅ Error messages show parse issues (basic)
+- [ ] Handles all syntax from DESIGN.md (partial - core expressions done)
 
 **Test Examples:**
 
