@@ -134,7 +134,7 @@ launch_controller() {
     echo ""
 
     # Extract controller prompt
-    CONTROLLER_PROMPT=$(sed -n '/## CONTROLLER Agent Prompt/,/^```$/p' "$PROMPTS_FILE" | tail -n +2 | head -n -1)
+    CONTROLLER_PROMPT=$(sed -n '/## CONTROLLER Agent Prompt/,/^```$/p' "$PROMPTS_FILE" | tail -n +2 | sed '$d')
 
     # Create a temporary file with the prompt + context
     TEMP_PROMPT=$(mktemp)
