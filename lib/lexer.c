@@ -188,6 +188,7 @@ static TokenType identifier_type(const char* start, size_t length) {
                 }
             }
             break;
+        case 'u': return check_keyword(start, length, "unless", TOKEN_UNLESS);
         case 'w':
             if (length == 4) return check_keyword(start, length, "with", TOKEN_WITH);
             if (length == 5) return check_keyword(start, length, "while", TOKEN_WHILE);

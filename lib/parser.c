@@ -1227,6 +1227,9 @@ Stmt* parse_stmt(Parser* parser) {
         Stmt* ret = stmt_return(parser->arena, value, loc);
         if (match(parser, TOKEN_IF)) {
             ret->data.return_stmt.condition = parse_expression(parser);
+        } else if (match(parser, TOKEN_UNLESS)) {
+            Expr* cond = parse_expression(parser);
+            ret->data.return_stmt.condition = expr_unary(parser->arena, UNOP_NOT, cond, cond->loc);
         }
         return ret;
     }

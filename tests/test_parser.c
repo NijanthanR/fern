@@ -2372,6 +2372,25 @@ void test_parse_record_update_multi(void) {
     arena_destroy(arena);
 }
 
+/* Test: return x unless cond — postfix unless on return */
+void test_parse_return_postfix_unless(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "return None unless valid");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_RETURN);
+    ASSERT_NOT_NULL(stmt->data.return_stmt.value);
+
+    // unless wraps the condition in a NOT
+    ASSERT_NOT_NULL(stmt->data.return_stmt.condition);
+    ASSERT_EQ(stmt->data.return_stmt.condition->type, EXPR_UNARY);
+    ASSERT_EQ(stmt->data.return_stmt.condition->data.unary.op, UNOP_NOT);
+    ASSERT_EQ(stmt->data.return_stmt.condition->data.unary.operand->type, EXPR_IDENT);
+
+    arena_destroy(arena);
+}
+
 void run_parser_tests(void) {
     printf("\n=== Parser Tests ===\n");
     TEST_RUN(test_parse_int_literal);
@@ -2493,4 +2512,5 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_match_condition_complex);
     TEST_RUN(test_parse_record_update);
     TEST_RUN(test_parse_record_update_multi);
+    TEST_RUN(test_parse_return_postfix_unless);
 }
