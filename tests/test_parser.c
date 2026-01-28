@@ -932,6 +932,125 @@ void test_parse_pattern_identifier(void) {
     arena_destroy(arena);
 }
 
+/* Test: Parse let with Int type annotation */
+void test_parse_let_with_type_int(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "let x: Int = 42");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_LET);
+    ASSERT_EQ(stmt->data.let.pattern->type, PATTERN_IDENT);
+    ASSERT_STR_EQ(string_cstr(stmt->data.let.pattern->data.ident), "x");
+
+    // Type annotation should be Int
+    ASSERT_NOT_NULL(stmt->data.let.type_ann);
+    ASSERT_EQ(stmt->data.let.type_ann->kind, TYPE_NAMED);
+    ASSERT_STR_EQ(string_cstr(stmt->data.let.type_ann->data.named.name), "Int");
+
+    // Value should be 42
+    ASSERT_EQ(stmt->data.let.value->type, EXPR_INT_LIT);
+    ASSERT_EQ(stmt->data.let.value->data.int_lit.value, 42);
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse let with String type annotation */
+void test_parse_let_with_type_string(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "let name: String = \"test\"");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_LET);
+    ASSERT_STR_EQ(string_cstr(stmt->data.let.pattern->data.ident), "name");
+
+    // Type annotation should be String
+    ASSERT_NOT_NULL(stmt->data.let.type_ann);
+    ASSERT_EQ(stmt->data.let.type_ann->kind, TYPE_NAMED);
+    ASSERT_STR_EQ(string_cstr(stmt->data.let.type_ann->data.named.name), "String");
+
+    // Value should be "test"
+    ASSERT_EQ(stmt->data.let.value->type, EXPR_STRING_LIT);
+    ASSERT_STR_EQ(string_cstr(stmt->data.let.value->data.string_lit.value), "test");
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse let with parameterized type annotation */
+void test_parse_let_with_type_parameterized(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "let items: List(Int) = [1, 2]");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_LET);
+    ASSERT_STR_EQ(string_cstr(stmt->data.let.pattern->data.ident), "items");
+
+    // Type annotation should be List(Int)
+    ASSERT_NOT_NULL(stmt->data.let.type_ann);
+    ASSERT_EQ(stmt->data.let.type_ann->kind, TYPE_NAMED);
+    ASSERT_STR_EQ(string_cstr(stmt->data.let.type_ann->data.named.name), "List");
+    ASSERT_NOT_NULL(stmt->data.let.type_ann->data.named.args);
+    ASSERT_EQ(stmt->data.let.type_ann->data.named.args->len, 1);
+
+    TypeExpr* arg = TypeExprVec_get(stmt->data.let.type_ann->data.named.args, 0);
+    ASSERT_EQ(arg->kind, TYPE_NAMED);
+    ASSERT_STR_EQ(string_cstr(arg->data.named.name), "Int");
+
+    // Value should be a list
+    ASSERT_EQ(stmt->data.let.value->type, EXPR_LIST);
+    ASSERT_EQ(stmt->data.let.value->data.list.elements->len, 2);
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse let with function type annotation */
+void test_parse_let_with_type_function(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "let f: (Int) -> Int = double");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_LET);
+    ASSERT_STR_EQ(string_cstr(stmt->data.let.pattern->data.ident), "f");
+
+    // Type annotation should be (Int) -> Int
+    ASSERT_NOT_NULL(stmt->data.let.type_ann);
+    ASSERT_EQ(stmt->data.let.type_ann->kind, TYPE_FUNCTION);
+    ASSERT_NOT_NULL(stmt->data.let.type_ann->data.func.params);
+    ASSERT_EQ(stmt->data.let.type_ann->data.func.params->len, 1);
+    ASSERT_NOT_NULL(stmt->data.let.type_ann->data.func.return_type);
+    ASSERT_EQ(stmt->data.let.type_ann->data.func.return_type->kind, TYPE_NAMED);
+    ASSERT_STR_EQ(string_cstr(stmt->data.let.type_ann->data.func.return_type->data.named.name), "Int");
+
+    // Value should be identifier "double"
+    ASSERT_EQ(stmt->data.let.value->type, EXPR_IDENT);
+    ASSERT_STR_EQ(string_cstr(stmt->data.let.value->data.ident.name), "double");
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse let without type annotation (verify existing behavior) */
+void test_parse_let_without_type(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "let x = 42");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_LET);
+    ASSERT_STR_EQ(string_cstr(stmt->data.let.pattern->data.ident), "x");
+
+    // Type annotation should be NULL (no annotation)
+    ASSERT_NULL(stmt->data.let.type_ann);
+
+    // Value should be 42
+    ASSERT_EQ(stmt->data.let.value->type, EXPR_INT_LIT);
+    ASSERT_EQ(stmt->data.let.value->data.int_lit.value, 42);
+
+    arena_destroy(arena);
+}
+
 void run_parser_tests(void) {
     printf("\n=== Parser Tests ===\n");
     TEST_RUN(test_parse_int_literal);
@@ -980,4 +1099,9 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_pattern_bool_literal);
     TEST_RUN(test_parse_pattern_wildcard);
     TEST_RUN(test_parse_pattern_identifier);
+    TEST_RUN(test_parse_let_with_type_int);
+    TEST_RUN(test_parse_let_with_type_string);
+    TEST_RUN(test_parse_let_with_type_parameterized);
+    TEST_RUN(test_parse_let_with_type_function);
+    TEST_RUN(test_parse_let_without_type);
 }
