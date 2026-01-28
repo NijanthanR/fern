@@ -1902,6 +1902,7 @@ bool checker_check_stmt(Checker* checker, Stmt* stmt) {
 
 /**
  * Check types for a list of statements.
+ * Uses two passes: first registers all function signatures, then type checks bodies.
  * @param checker The type checker context.
  * @param stmts The statements to check.
  * @return True if type checking succeeded.
@@ -1909,6 +1910,58 @@ bool checker_check_stmt(Checker* checker, Stmt* stmt) {
 bool checker_check_stmts(Checker* checker, StmtVec* stmts) {
     assert(checker != NULL);
     assert(stmts != NULL);
+    
+    /* Pass 1: Register all function signatures in the environment.
+     * This allows functions to call each other regardless of definition order,
+     * and enables recursive calls.
+     */
+    for (size_t i = 0; i < stmts->len; i++) {
+        Stmt* stmt = stmts->data[i];
+        if (stmt->type == STMT_FN) {
+            FunctionDef* fn = &stmt->data.fn;
+            
+            /* Build function type from parameter and return type annotations */
+            TypeVec* param_types = TypeVec_new(checker->arena);
+            
+            if (fn->params) {
+                for (size_t j = 0; j < fn->params->len; j++) {
+                    Parameter* param = &fn->params->data[j];
+                    Type* param_type = NULL;
+                    
+                    if (param->type_ann) {
+                        param_type = resolve_type_expr(checker, param->type_ann);
+                        if (!param_type || param_type->kind == TYPE_ERROR) {
+                            /* Use a placeholder type variable on error */
+                            param_type = type_var(checker->arena, param->name, type_fresh_var_id());
+                        }
+                    } else {
+                        /* No annotation: use fresh type variable */
+                        param_type = type_var(checker->arena, param->name, type_fresh_var_id());
+                    }
+                    
+                    TypeVec_push(checker->arena, param_types, param_type);
+                }
+            }
+            
+            /* Determine return type */
+            Type* return_type = NULL;
+            if (fn->return_type) {
+                return_type = resolve_type_expr(checker, fn->return_type);
+                if (!return_type || return_type->kind == TYPE_ERROR) {
+                    return_type = type_var(checker->arena, string_new(checker->arena, "result"), type_fresh_var_id());
+                }
+            } else {
+                /* No return type annotation: use fresh type variable */
+                return_type = type_var(checker->arena, string_new(checker->arena, "result"), type_fresh_var_id());
+            }
+            
+            /* Create function type and register it */
+            Type* fn_type = type_fn(checker->arena, param_types, return_type);
+            checker_define(checker, fn->name, fn_type);
+        }
+    }
+    
+    /* Pass 2: Type check all statements (including function bodies) */
     for (size_t i = 0; i < stmts->len; i++) {
         if (!checker_check_stmt(checker, stmts->data[i])) {
             return false;
