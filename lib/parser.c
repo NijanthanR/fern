@@ -1136,11 +1136,16 @@ Stmt* parse_stmt(Parser* parser) {
         SourceLoc loc = parser->previous.loc;
         Expr* value = NULL;
         
-        if (!check(parser, TOKEN_EOF) && !check(parser, TOKEN_RBRACE)) {
+        if (!check(parser, TOKEN_EOF) && !check(parser, TOKEN_RBRACE) && !check(parser, TOKEN_COMMA)) {
             value = parse_expression(parser);
         }
-        
-        return stmt_return(parser->arena, value, loc);
+
+        // Postfix guard: return expr if condition
+        Stmt* ret = stmt_return(parser->arena, value, loc);
+        if (match(parser, TOKEN_IF)) {
+            ret->data.return_stmt.condition = parse_expression(parser);
+        }
+        return ret;
     }
     
     // Expression statement

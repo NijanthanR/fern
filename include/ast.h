@@ -372,6 +372,7 @@ typedef struct {
 /* Return statement */
 typedef struct {
     Expr* value;        // NULL for bare return
+    Expr* condition;    // NULL unless postfix guard: return x if cond
 } ReturnStmt;
 
 /* Expression statement */

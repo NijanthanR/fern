@@ -509,6 +509,7 @@ Stmt* stmt_return(Arena* arena, Expr* value, SourceLoc loc) {
     stmt->type = STMT_RETURN;
     stmt->loc = loc;
     stmt->data.return_stmt.value = value;
+    stmt->data.return_stmt.condition = NULL;
     
     return stmt;
 }

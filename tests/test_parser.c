@@ -1905,6 +1905,36 @@ void test_parse_method_call(void) {
     arena_destroy(arena);
 }
 
+/* Test: Parse return with postfix guard */
+void test_parse_return_postfix_if(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "return 0 if x == 0");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_RETURN);
+    ASSERT_NOT_NULL(stmt->data.return_stmt.value);
+    ASSERT_EQ(stmt->data.return_stmt.value->type, EXPR_INT_LIT);
+    ASSERT_NOT_NULL(stmt->data.return_stmt.condition);
+    ASSERT_EQ(stmt->data.return_stmt.condition->type, EXPR_BINARY);
+
+    arena_destroy(arena);
+}
+
+/* Test: Return without postfix guard has NULL condition */
+void test_parse_return_no_guard(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "return 42");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_RETURN);
+    ASSERT_NOT_NULL(stmt->data.return_stmt.value);
+    ASSERT_NULL(stmt->data.return_stmt.condition);
+
+    arena_destroy(arena);
+}
+
 /* Test: Parse constructor pattern in match */
 void test_parse_match_constructor(void) {
     Arena* arena = arena_create(4096);
@@ -2286,6 +2316,8 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_dot_access);
     TEST_RUN(test_parse_dot_chain);
     TEST_RUN(test_parse_method_call);
+    TEST_RUN(test_parse_return_postfix_if);
+    TEST_RUN(test_parse_return_no_guard);
     TEST_RUN(test_parse_match_constructor);
     TEST_RUN(test_parse_match_nested_constructor);
     TEST_RUN(test_parse_match_guard);
