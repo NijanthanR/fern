@@ -115,11 +115,12 @@ static bool is_wide_var(Codegen* cg, String* name) {
     return false;
 }
 
+static void clear_wide_vars(Codegen* cg) __attribute__((unused));
 /**
  * Clear wide variable tracking (call at start of each function).
+ * Currently unused but available for future per-function scope tracking.
  * @param cg The codegen context.
  */
-static void clear_wide_vars(Codegen* cg) __attribute__((unused));
 static void clear_wide_vars(Codegen* cg) {
     /* FERN_STYLE: allow(assertion-density) - simple reset function */
     assert(cg != NULL);
@@ -594,6 +595,164 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                     String* index = codegen_expr(cg, call->args->data[1].value);
                     emit(cg, "    %s =w call $fern_list_get(l %s, w %s)\n",
                         string_cstr(result), string_cstr(list), string_cstr(index));
+                    return result;
+                }
+
+                /* ===== Additional String Functions ===== */
+
+                /* Handle str_starts_with(s, prefix) -> Bool */
+                if (strcmp(fn_name, "str_starts_with") == 0 && call->args->len == 2) {
+                    String* s = codegen_expr(cg, call->args->data[0].value);
+                    String* prefix = codegen_expr(cg, call->args->data[1].value);
+                    emit(cg, "    %s =w call $fern_str_starts_with(l %s, l %s)\n",
+                        string_cstr(result), string_cstr(s), string_cstr(prefix));
+                    return result;
+                }
+
+                /* Handle str_ends_with(s, suffix) -> Bool */
+                if (strcmp(fn_name, "str_ends_with") == 0 && call->args->len == 2) {
+                    String* s = codegen_expr(cg, call->args->data[0].value);
+                    String* suffix = codegen_expr(cg, call->args->data[1].value);
+                    emit(cg, "    %s =w call $fern_str_ends_with(l %s, l %s)\n",
+                        string_cstr(result), string_cstr(s), string_cstr(suffix));
+                    return result;
+                }
+
+                /* Handle str_contains(s, substr) -> Bool */
+                if (strcmp(fn_name, "str_contains") == 0 && call->args->len == 2) {
+                    String* s = codegen_expr(cg, call->args->data[0].value);
+                    String* substr = codegen_expr(cg, call->args->data[1].value);
+                    emit(cg, "    %s =w call $fern_str_contains(l %s, l %s)\n",
+                        string_cstr(result), string_cstr(s), string_cstr(substr));
+                    return result;
+                }
+
+                /* Handle str_slice(s, start, end) -> String */
+                if (strcmp(fn_name, "str_slice") == 0 && call->args->len == 3) {
+                    String* s = codegen_expr(cg, call->args->data[0].value);
+                    String* start = codegen_expr(cg, call->args->data[1].value);
+                    String* end = codegen_expr(cg, call->args->data[2].value);
+                    emit(cg, "    %s =l call $fern_str_slice(l %s, w %s, w %s)\n",
+                        string_cstr(result), string_cstr(s), string_cstr(start), string_cstr(end));
+                    return result;
+                }
+
+                /* Handle str_trim(s) -> String */
+                if (strcmp(fn_name, "str_trim") == 0 && call->args->len == 1) {
+                    String* s = codegen_expr(cg, call->args->data[0].value);
+                    emit(cg, "    %s =l call $fern_str_trim(l %s)\n",
+                        string_cstr(result), string_cstr(s));
+                    return result;
+                }
+
+                /* Handle str_trim_start(s) -> String */
+                if (strcmp(fn_name, "str_trim_start") == 0 && call->args->len == 1) {
+                    String* s = codegen_expr(cg, call->args->data[0].value);
+                    emit(cg, "    %s =l call $fern_str_trim_start(l %s)\n",
+                        string_cstr(result), string_cstr(s));
+                    return result;
+                }
+
+                /* Handle str_trim_end(s) -> String */
+                if (strcmp(fn_name, "str_trim_end") == 0 && call->args->len == 1) {
+                    String* s = codegen_expr(cg, call->args->data[0].value);
+                    emit(cg, "    %s =l call $fern_str_trim_end(l %s)\n",
+                        string_cstr(result), string_cstr(s));
+                    return result;
+                }
+
+                /* Handle str_to_upper(s) -> String */
+                if (strcmp(fn_name, "str_to_upper") == 0 && call->args->len == 1) {
+                    String* s = codegen_expr(cg, call->args->data[0].value);
+                    emit(cg, "    %s =l call $fern_str_to_upper(l %s)\n",
+                        string_cstr(result), string_cstr(s));
+                    return result;
+                }
+
+                /* Handle str_to_lower(s) -> String */
+                if (strcmp(fn_name, "str_to_lower") == 0 && call->args->len == 1) {
+                    String* s = codegen_expr(cg, call->args->data[0].value);
+                    emit(cg, "    %s =l call $fern_str_to_lower(l %s)\n",
+                        string_cstr(result), string_cstr(s));
+                    return result;
+                }
+
+                /* Handle str_replace(s, old, new) -> String */
+                if (strcmp(fn_name, "str_replace") == 0 && call->args->len == 3) {
+                    String* s = codegen_expr(cg, call->args->data[0].value);
+                    String* old_str = codegen_expr(cg, call->args->data[1].value);
+                    String* new_str = codegen_expr(cg, call->args->data[2].value);
+                    emit(cg, "    %s =l call $fern_str_replace(l %s, l %s, l %s)\n",
+                        string_cstr(result), string_cstr(s), string_cstr(old_str), string_cstr(new_str));
+                    return result;
+                }
+
+                /* Handle str_repeat(s, n) -> String */
+                if (strcmp(fn_name, "str_repeat") == 0 && call->args->len == 2) {
+                    String* s = codegen_expr(cg, call->args->data[0].value);
+                    String* n = codegen_expr(cg, call->args->data[1].value);
+                    emit(cg, "    %s =l call $fern_str_repeat(l %s, w %s)\n",
+                        string_cstr(result), string_cstr(s), string_cstr(n));
+                    return result;
+                }
+
+                /* Handle str_is_empty(s) -> Bool */
+                if (strcmp(fn_name, "str_is_empty") == 0 && call->args->len == 1) {
+                    String* s = codegen_expr(cg, call->args->data[0].value);
+                    emit(cg, "    %s =w call $fern_str_is_empty(l %s)\n",
+                        string_cstr(result), string_cstr(s));
+                    return result;
+                }
+
+                /* ===== Additional List Functions ===== */
+
+                /* Handle list_push(list, elem) -> List */
+                if (strcmp(fn_name, "list_push") == 0 && call->args->len == 2) {
+                    String* list = codegen_expr(cg, call->args->data[0].value);
+                    String* elem = codegen_expr(cg, call->args->data[1].value);
+                    emit(cg, "    %s =l call $fern_list_push(l %s, w %s)\n",
+                        string_cstr(result), string_cstr(list), string_cstr(elem));
+                    return result;
+                }
+
+                /* Handle list_reverse(list) -> List */
+                if (strcmp(fn_name, "list_reverse") == 0 && call->args->len == 1) {
+                    String* list = codegen_expr(cg, call->args->data[0].value);
+                    emit(cg, "    %s =l call $fern_list_reverse(l %s)\n",
+                        string_cstr(result), string_cstr(list));
+                    return result;
+                }
+
+                /* Handle list_concat(a, b) -> List */
+                if (strcmp(fn_name, "list_concat") == 0 && call->args->len == 2) {
+                    String* a = codegen_expr(cg, call->args->data[0].value);
+                    String* b = codegen_expr(cg, call->args->data[1].value);
+                    emit(cg, "    %s =l call $fern_list_concat(l %s, l %s)\n",
+                        string_cstr(result), string_cstr(a), string_cstr(b));
+                    return result;
+                }
+
+                /* Handle list_head(list) -> elem */
+                if (strcmp(fn_name, "list_head") == 0 && call->args->len == 1) {
+                    String* list = codegen_expr(cg, call->args->data[0].value);
+                    emit(cg, "    %s =w call $fern_list_head(l %s)\n",
+                        string_cstr(result), string_cstr(list));
+                    return result;
+                }
+
+                /* Handle list_tail(list) -> List */
+                if (strcmp(fn_name, "list_tail") == 0 && call->args->len == 1) {
+                    String* list = codegen_expr(cg, call->args->data[0].value);
+                    emit(cg, "    %s =l call $fern_list_tail(l %s)\n",
+                        string_cstr(result), string_cstr(list));
+                    return result;
+                }
+
+                /* Handle list_is_empty(list) -> Bool */
+                if (strcmp(fn_name, "list_is_empty") == 0 && call->args->len == 1) {
+                    String* list = codegen_expr(cg, call->args->data[0].value);
+                    emit(cg, "    %s =w call $fern_list_is_empty(l %s)\n",
+                        string_cstr(result), string_cstr(list));
                     return result;
                 }
             }

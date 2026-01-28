@@ -130,6 +130,229 @@ static Type* error_type_at(Checker* checker, SourceLoc loc, const char* fmt, ...
     return type_error(checker->arena, string_new(checker->arena, full_buf));
 }
 
+/* ========== Built-in Function Registration ========== */
+
+/**
+ * Helper to register a built-in function with the given signature.
+ * @param checker The type checker context.
+ * @param name The function name.
+ * @param fn_type The function type.
+ */
+static void register_builtin(Checker* checker, const char* name, Type* fn_type) {
+    assert(checker != NULL);
+    assert(name != NULL);
+    assert(fn_type != NULL);
+    type_env_define(checker->env, string_new(checker->arena, name), fn_type);
+}
+
+/**
+ * Register built-in I/O functions.
+ * @param checker The type checker context.
+ */
+static void register_io_builtins(Checker* checker) {
+    assert(checker != NULL);
+    assert(checker->arena != NULL);
+    Arena* arena = checker->arena;
+
+    /* print(Int) -> Int */
+    TypeVec* print_params = TypeVec_new(arena);
+    TypeVec_push(arena, print_params, type_int(arena));
+    register_builtin(checker, "print", type_fn(arena, print_params, type_int(arena)));
+
+    /* println(Int) -> Int */
+    TypeVec* println_params = TypeVec_new(arena);
+    TypeVec_push(arena, println_params, type_int(arena));
+    register_builtin(checker, "println", type_fn(arena, println_params, type_int(arena)));
+}
+
+/**
+ * Register built-in string functions.
+ * @param checker The type checker context.
+ */
+static void register_string_builtins(Checker* checker) {
+    // FERN_STYLE: allow(function-length) registering all string builtins in one place
+    assert(checker != NULL);
+    assert(checker->arena != NULL);
+    Arena* arena = checker->arena;
+    TypeVec* params;
+
+    /* str_len(String) -> Int */
+    params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_string(arena));
+    register_builtin(checker, "str_len", type_fn(arena, params, type_int(arena)));
+
+    /* str_concat(String, String) -> String */
+    params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_string(arena));
+    TypeVec_push(arena, params, type_string(arena));
+    register_builtin(checker, "str_concat", type_fn(arena, params, type_string(arena)));
+
+    /* str_eq(String, String) -> Bool */
+    params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_string(arena));
+    TypeVec_push(arena, params, type_string(arena));
+    register_builtin(checker, "str_eq", type_fn(arena, params, type_bool(arena)));
+
+    /* str_starts_with(String, String) -> Bool */
+    params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_string(arena));
+    TypeVec_push(arena, params, type_string(arena));
+    register_builtin(checker, "str_starts_with", type_fn(arena, params, type_bool(arena)));
+
+    /* str_ends_with(String, String) -> Bool */
+    params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_string(arena));
+    TypeVec_push(arena, params, type_string(arena));
+    register_builtin(checker, "str_ends_with", type_fn(arena, params, type_bool(arena)));
+
+    /* str_contains(String, String) -> Bool */
+    params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_string(arena));
+    TypeVec_push(arena, params, type_string(arena));
+    register_builtin(checker, "str_contains", type_fn(arena, params, type_bool(arena)));
+
+    /* str_slice(String, Int, Int) -> String */
+    params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_string(arena));
+    TypeVec_push(arena, params, type_int(arena));
+    TypeVec_push(arena, params, type_int(arena));
+    register_builtin(checker, "str_slice", type_fn(arena, params, type_string(arena)));
+
+    /* str_trim(String) -> String */
+    params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_string(arena));
+    register_builtin(checker, "str_trim", type_fn(arena, params, type_string(arena)));
+
+    /* str_trim_start(String) -> String */
+    params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_string(arena));
+    register_builtin(checker, "str_trim_start", type_fn(arena, params, type_string(arena)));
+
+    /* str_trim_end(String) -> String */
+    params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_string(arena));
+    register_builtin(checker, "str_trim_end", type_fn(arena, params, type_string(arena)));
+
+    /* str_to_upper(String) -> String */
+    params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_string(arena));
+    register_builtin(checker, "str_to_upper", type_fn(arena, params, type_string(arena)));
+
+    /* str_to_lower(String) -> String */
+    params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_string(arena));
+    register_builtin(checker, "str_to_lower", type_fn(arena, params, type_string(arena)));
+
+    /* str_replace(String, String, String) -> String */
+    params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_string(arena));
+    TypeVec_push(arena, params, type_string(arena));
+    TypeVec_push(arena, params, type_string(arena));
+    register_builtin(checker, "str_replace", type_fn(arena, params, type_string(arena)));
+
+    /* str_repeat(String, Int) -> String */
+    params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_string(arena));
+    TypeVec_push(arena, params, type_int(arena));
+    register_builtin(checker, "str_repeat", type_fn(arena, params, type_string(arena)));
+
+    /* str_is_empty(String) -> Bool */
+    params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_string(arena));
+    register_builtin(checker, "str_is_empty", type_fn(arena, params, type_bool(arena)));
+}
+
+/**
+ * Register built-in list functions.
+ * @param checker The type checker context.
+ */
+static void register_list_builtins(Checker* checker) {
+    // FERN_STYLE: allow(function-length) registering all list builtins in one place
+    assert(checker != NULL);
+    assert(checker->arena != NULL);
+    Arena* arena = checker->arena;
+    TypeVec* params;
+    Type* var;
+    TypeVec* type_args;
+    Type* list_type;
+    int var_id = 1;
+
+    /* list_len(List(a)) -> Int */
+    params = TypeVec_new(arena);
+    var = type_var(arena, string_new(arena, "a"), var_id++);
+    type_args = TypeVec_new(arena);
+    TypeVec_push(arena, type_args, var);
+    list_type = type_con(arena, string_new(arena, "List"), type_args);
+    TypeVec_push(arena, params, list_type);
+    register_builtin(checker, "list_len", type_fn(arena, params, type_int(arena)));
+
+    /* list_get(List(a), Int) -> a */
+    params = TypeVec_new(arena);
+    var = type_var(arena, string_new(arena, "b"), var_id++);
+    type_args = TypeVec_new(arena);
+    TypeVec_push(arena, type_args, var);
+    list_type = type_con(arena, string_new(arena, "List"), type_args);
+    TypeVec_push(arena, params, list_type);
+    TypeVec_push(arena, params, type_int(arena));
+    register_builtin(checker, "list_get", type_fn(arena, params, var));
+
+    /* list_push(List(a), a) -> List(a) */
+    params = TypeVec_new(arena);
+    var = type_var(arena, string_new(arena, "c"), var_id++);
+    type_args = TypeVec_new(arena);
+    TypeVec_push(arena, type_args, var);
+    list_type = type_con(arena, string_new(arena, "List"), type_args);
+    TypeVec_push(arena, params, list_type);
+    TypeVec_push(arena, params, var);
+    register_builtin(checker, "list_push", type_fn(arena, params, list_type));
+
+    /* list_reverse(List(a)) -> List(a) */
+    params = TypeVec_new(arena);
+    var = type_var(arena, string_new(arena, "d"), var_id++);
+    type_args = TypeVec_new(arena);
+    TypeVec_push(arena, type_args, var);
+    list_type = type_con(arena, string_new(arena, "List"), type_args);
+    TypeVec_push(arena, params, list_type);
+    register_builtin(checker, "list_reverse", type_fn(arena, params, list_type));
+
+    /* list_concat(List(a), List(a)) -> List(a) */
+    params = TypeVec_new(arena);
+    var = type_var(arena, string_new(arena, "e"), var_id++);
+    type_args = TypeVec_new(arena);
+    TypeVec_push(arena, type_args, var);
+    list_type = type_con(arena, string_new(arena, "List"), type_args);
+    TypeVec_push(arena, params, list_type);
+    TypeVec_push(arena, params, list_type);
+    register_builtin(checker, "list_concat", type_fn(arena, params, list_type));
+
+    /* list_head(List(a)) -> a */
+    params = TypeVec_new(arena);
+    var = type_var(arena, string_new(arena, "f"), var_id++);
+    type_args = TypeVec_new(arena);
+    TypeVec_push(arena, type_args, var);
+    list_type = type_con(arena, string_new(arena, "List"), type_args);
+    TypeVec_push(arena, params, list_type);
+    register_builtin(checker, "list_head", type_fn(arena, params, var));
+
+    /* list_tail(List(a)) -> List(a) */
+    params = TypeVec_new(arena);
+    var = type_var(arena, string_new(arena, "g"), var_id++);
+    type_args = TypeVec_new(arena);
+    TypeVec_push(arena, type_args, var);
+    list_type = type_con(arena, string_new(arena, "List"), type_args);
+    TypeVec_push(arena, params, list_type);
+    register_builtin(checker, "list_tail", type_fn(arena, params, list_type));
+
+    /* list_is_empty(List(a)) -> Bool */
+    params = TypeVec_new(arena);
+    var = type_var(arena, string_new(arena, "h"), var_id++);
+    type_args = TypeVec_new(arena);
+    TypeVec_push(arena, type_args, var);
+    list_type = type_con(arena, string_new(arena, "List"), type_args);
+    TypeVec_push(arena, params, list_type);
+    register_builtin(checker, "list_is_empty", type_fn(arena, params, type_bool(arena)));
+}
+
 /* ========== Checker Creation ========== */
 
 /**
@@ -147,59 +370,9 @@ Checker* checker_new(Arena* arena) {
     checker->errors_tail = NULL;
 
     /* Register built-in functions from the runtime library */
-
-    /* print(Int) -> Int - prints integer without newline, returns 0 */
-    TypeVec* print_params = TypeVec_new(arena);
-    TypeVec_push(arena, print_params, type_int(arena));
-    Type* print_type = type_fn(arena, print_params, type_int(arena));
-    type_env_define(checker->env, string_new(arena, "print"), print_type);
-
-    /* println(Int) -> Int - prints integer with newline, returns 0 */
-    TypeVec* println_params = TypeVec_new(arena);
-    TypeVec_push(arena, println_params, type_int(arena));
-    Type* println_type = type_fn(arena, println_params, type_int(arena));
-    type_env_define(checker->env, string_new(arena, "println"), println_type);
-
-    /* str_len(String) -> Int - get string length */
-    TypeVec* str_len_params = TypeVec_new(arena);
-    TypeVec_push(arena, str_len_params, type_string(arena));
-    Type* str_len_type = type_fn(arena, str_len_params, type_int(arena));
-    type_env_define(checker->env, string_new(arena, "str_len"), str_len_type);
-
-    /* str_concat(String, String) -> String - concatenate strings */
-    TypeVec* str_concat_params = TypeVec_new(arena);
-    TypeVec_push(arena, str_concat_params, type_string(arena));
-    TypeVec_push(arena, str_concat_params, type_string(arena));
-    Type* str_concat_type = type_fn(arena, str_concat_params, type_string(arena));
-    type_env_define(checker->env, string_new(arena, "str_concat"), str_concat_type);
-
-    /* str_eq(String, String) -> Bool - compare strings */
-    TypeVec* str_eq_params = TypeVec_new(arena);
-    TypeVec_push(arena, str_eq_params, type_string(arena));
-    TypeVec_push(arena, str_eq_params, type_string(arena));
-    Type* str_eq_type = type_fn(arena, str_eq_params, type_bool(arena));
-    type_env_define(checker->env, string_new(arena, "str_eq"), str_eq_type);
-
-    /* list_len(List(a)) -> Int - get list length */
-    TypeVec* list_len_params = TypeVec_new(arena);
-    Type* list_elem_var = type_var(arena, string_new(arena, "a"), 1);
-    TypeVec* list_type_args = TypeVec_new(arena);
-    TypeVec_push(arena, list_type_args, list_elem_var);
-    Type* list_type = type_con(arena, string_new(arena, "List"), list_type_args);
-    TypeVec_push(arena, list_len_params, list_type);
-    Type* list_len_type = type_fn(arena, list_len_params, type_int(arena));
-    type_env_define(checker->env, string_new(arena, "list_len"), list_len_type);
-
-    /* list_get(List(a), Int) -> a - get element at index */
-    TypeVec* list_get_params = TypeVec_new(arena);
-    Type* list_elem_var2 = type_var(arena, string_new(arena, "b"), 2);
-    TypeVec* list_type_args2 = TypeVec_new(arena);
-    TypeVec_push(arena, list_type_args2, list_elem_var2);
-    Type* list_type2 = type_con(arena, string_new(arena, "List"), list_type_args2);
-    TypeVec_push(arena, list_get_params, list_type2);
-    TypeVec_push(arena, list_get_params, type_int(arena));
-    Type* list_get_type = type_fn(arena, list_get_params, list_elem_var2);
-    type_env_define(checker->env, string_new(arena, "list_get"), list_get_type);
+    register_io_builtins(checker);
+    register_string_builtins(checker);
+    register_list_builtins(checker);
 
     return checker;
 }
