@@ -776,7 +776,7 @@ make test
 **Agent Turn**: IMPLEMENTER
 **Status**: IN_PROGRESS
 **Started**: 2026-01-28 03:25:00
-**Last Updated**: 2026-01-28 03:25:00
+**Last Updated**: 2026-01-28 11:30:00
 
 ### Previous Task
 
@@ -1091,7 +1091,7 @@ Ready for next task: Nested expressions and precedence edge cases
 ## Iteration 5: Nested List and Block Expressions
 
 **Agent Turn**: IMPLEMENTER
-**Status**: PENDING
+**Status**: IN_PROGRESS
 **Task**: Test and handle nested expressions
 
 ### Current Task
@@ -1117,6 +1117,13 @@ Ready for next task: Nested expressions and precedence edge cases
 Since our parser is recursive, nested expressions should already work.
 This iteration is about VERIFICATION - ensuring complex nesting works correctly.
 If tests fail, we'll fix any issues found.
+
+**Task for IMPLEMENTER**:
+Following TDD workflow:
+1. RED: Add 3 tests for nested expressions (expected to PASS immediately)
+2. If tests pass: verification complete
+3. If tests fail: debug and fix parser issues
+4. Update ROADMAP.md with results
 
 **Implementation Notes**:
 (IMPLEMENTER will fill this after completing the task)
