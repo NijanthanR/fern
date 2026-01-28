@@ -2,13 +2,17 @@
 
 **Plan**: Claude Code Max ($100/month or €90/month)
 **Period**: Monthly reset
+**Model**: UNLIMITED usage within plan limits
 
 ## Current Month: January 2026
 
 ### Usage Summary (from ccusage)
 
-**Total Spend**: $110.16
-**Status**: ⚠️ **OVER BUDGET** - We've exceeded the $100 limit
+**Total Spend**: $110.16 (API equivalent cost)
+**Status**: ✅ **WITHIN PLAN** - Max Plan provides unlimited usage for flat fee
+
+**Important**: The ccusage costs shown are what it WOULD cost on API pricing.
+With Max Plan, we pay $100/month flat fee regardless of usage!
 
 **Daily Breakdown**:
 ```
@@ -23,124 +27,93 @@
 Total:      $110.16
 ```
 
-### Budget Status
+### Max Plan Benefits
 
 ```
-Monthly Budget:    $100.00
-Current Spend:     $110.16
-Remaining:         -$10.16  ⚠️ OVER BUDGET
-Days in Month:     31
-Days Remaining:    3
+Monthly Fee:       $100.00 (flat rate)
+API Equivalent:    $110.16 (what we would have paid)
+Savings:           $10.16 this month
+December Savings:  ~$300 ($400 API cost vs $100 plan)
 ```
 
-### ⚠️ IMMEDIATE ACTION REQUIRED
+### ✅ USE THE BEST MODELS
 
-We are **$10.16 OVER the monthly budget**. 
+With Max Plan's unlimited usage, we should **USE OPUS** when it makes sense!
 
-**Recommendations for Rest of January:**
+**Model Selection Strategy (CORRECTED)**:
 
-1. **STOP using Opus 4.5** - It's the most expensive model
-   - Opus input: $15/M tokens
-   - Opus output: $75/M tokens
-   - Cache write: $18.75/M tokens
+1. **Use Opus 4.5 for**:
+   - ✅ Complex implementation (IMPLEMENTER agent)
+   - ✅ Architecture decisions
+   - ✅ Difficult debugging
+   - ✅ Parser/compiler implementation
+   - **Why**: We're paying for unlimited anyway, get max quality!
 
-2. **Use Sonnet 4.5 sparingly** - Only for critical tasks
-   - Sonnet input: $3/M tokens
-   - Sonnet output: $15/M tokens
-   - Cache write: $3.75/M tokens
+2. **Use Sonnet 4.5 for**:
+   - ✅ Verification (CONTROLLER agent) - faster
+   - ✅ Code reviews
+   - ✅ Medium complexity tasks
+   - **Why**: Often sufficient, faster than Opus
 
-3. **Prefer Haiku 4.5** for remaining work
-   - Haiku input: $0.80/M tokens
-   - Haiku output: $4/M tokens
-   - Cache write: $1/M tokens
-   - **20x cheaper than Opus!**
+3. **Use Haiku 4.5 for**:
+   - ✅ Simple searches
+   - ✅ Documentation updates
+   - ✅ Formatting/linting
+   - **Why**: Fast and cheap (even though cost doesn't matter)
 
-4. **Wait for February 1st** to resume Ralph Loop
-   - Budget resets on Feb 1st
-   - Can use Opus again for IMPLEMENTER agent
+## Ralph Loop Model Strategy (CORRECTED)
 
-## Ralph Loop Budget Planning
-
-### Original Cost Estimate (REVISED)
-
-**Previous estimate used Opus heavily - TOO EXPENSIVE**
-
-New budget-conscious approach:
-
-### Revised Ralph Loop Model Strategy
+### Use Best Model for Each Role
 
 **IMPLEMENTER**: 
-- **Default**: Haiku 4.5 (simple tasks)
-- **Only if needed**: Sonnet 4.5 (complex tasks)
-- **Never**: Opus 4.5 (too expensive for budget)
+- **Use**: Opus 4.5 (best quality for implementation)
+- **Why**: Complex implementation benefits from most capable model
+- **Cost**: Unlimited with Max Plan!
 
 **CONTROLLER**:
-- **Always**: Haiku 4.5 (verification is simple)
+- **Use**: Sonnet 4.5 (verification is simpler, Sonnet is faster)
+- **Why**: Sufficient for verification, faster than Opus
+- **Cost**: Unlimited with Max Plan!
 
-**Revised Cost per Iteration**:
-- IMPLEMENTER (Haiku): ~$0.02-0.04
-- CONTROLLER (Haiku): ~$0.01-0.02
-- **Total**: ~$0.03-0.06 per iteration
-- **Full milestone (20 iterations)**: ~$0.60-1.20
+**API Equivalent Cost per Iteration** (for reference):
+- IMPLEMENTER (Opus): ~$0.10-0.20
+- CONTROLLER (Sonnet): ~$0.02-0.04
+- **Total**: ~$0.12-0.24 per iteration
+- **Full milestone (20 iterations)**: ~$2.40-4.80
 
-This is **20x cheaper** than the original Opus-based estimate!
+**Actual Cost with Max Plan**: $0 per iteration (flat $100/month)
+**Savings**: ~$2.40-4.80 per milestone!
 
-## Budget Planning for February 2026
+## Max Plan = Unlimited Usage
 
-**Total Budget**: $100.00
+**Key Insight**: With Max Plan, we don't need to budget per-task!
 
-**Allocation Strategy**:
+- Flat fee: $100/month
+- Usage: Unlimited (within fair use)
+- Strategy: **Use best model for each task**
 
-1. **Ralph Loop Development** (60% = $60)
-   - 60-100 iterations possible with Haiku
-   - Can complete 2-3 milestones
-   - Use Sonnet only when Haiku struggles
-
-2. **Complex Tasks Reserve** (20% = $20)
-   - Difficult architecture decisions
-   - Complex debugging
-   - Can use Sonnet sparingly here
-
-3. **Documentation/Maintenance** (10% = $10)
-   - Updates, refactoring
-   - Always use Haiku
-
-4. **Emergency Buffer** (10% = $10)
-   - Unexpected needs
-   - Month-end buffer
-
-## Daily Budget Targets (February)
-
-**Target**: $3.33/day average ($100 / 30 days)
-
-**Weekly Checkpoints**:
-- Week 1: Stay under $23.33
-- Week 2: Stay under $46.66
-- Week 3: Stay under $69.99
-- Week 4: Stay under $93.32
-- Reserve: $6.68
-
-## Model Selection Guidelines
-
-### Use Haiku 4.5 for:
-- ✅ Most implementation work (yes, really!)
-- ✅ All verification tasks
-- ✅ Documentation updates
-- ✅ Test writing
-- ✅ Simple debugging
-- ✅ Code reviews
-- ✅ Formatting/linting
-
-### Use Sonnet 4.5 for:
-- ⚠️ Complex algorithms (only if Haiku struggles)
-- ⚠️ Tricky bug fixes
-- ⚠️ Architecture decisions
-- ⚠️ Parser/compiler implementation (if needed)
+## Model Selection Guidelines (CORRECTED)
 
 ### Use Opus 4.5 for:
-- ❌ **AVOID** - Too expensive for $100/month budget
-- ❌ Only in extreme emergencies
-- ❌ Not worth the cost for most tasks
+- ✅ Complex implementation (IMPLEMENTER agent)
+- ✅ Architecture decisions
+- ✅ Tricky bug fixes
+- ✅ Parser/compiler implementation
+- ✅ Type system implementation
+- ✅ Difficult algorithms
+
+### Use Sonnet 4.5 for:
+- ✅ Verification (CONTROLLER agent)
+- ✅ Code reviews
+- ✅ Medium complexity tasks
+- ✅ Documentation with code
+- ✅ Refactoring
+
+### Use Haiku 4.5 for:
+- ✅ Simple searches
+- ✅ Documentation updates (no code)
+- ✅ Formatting/linting
+- ✅ Running tests (no implementation)
 
 ## Monitoring Commands
 

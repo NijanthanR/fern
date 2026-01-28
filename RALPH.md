@@ -82,9 +82,8 @@ The agents use special markers in ROADMAP.md to communicate:
 
 ### IMPLEMENTER Agent
 
-**Model**: Claude Haiku 4.5 (default, budget-conscious)
-**Upgrade**: Sonnet 4.5 only if task is too complex for Haiku
-**Budget**: Stay within $100/month Max Plan limit
+**Model**: Claude Opus 4.5 (best quality for complex implementation)
+**Max Plan**: Unlimited usage for flat $100/month fee
 
 **Responsibilities:**
 1. Read next task from ROADMAP.md
@@ -109,7 +108,7 @@ The agents use special markers in ROADMAP.md to communicate:
 
 ### CONTROLLER Agent
 
-**Model**: Claude Haiku 4.5 (verification is simple, Haiku is sufficient)
+**Model**: Claude Sonnet 4.5 (verification is simpler, Sonnet is faster than Opus)
 
 **Responsibilities:**
 1. Read ROADMAP.md status
@@ -368,74 +367,65 @@ Track in ROADMAP.md:
 
 ## Cost Optimization
 
-### Model Selection Strategy (Budget-Conscious)
+### Model Selection Strategy (Max Plan)
 
-**⚠️ IMPORTANT: Monthly Budget = $100 (Max Plan)**
+**✅ UNLIMITED USAGE: Monthly Budget = $100 flat fee (Max Plan)**
 
-Current status (Jan 2026): $110.16 spent - OVER BUDGET
-Strategy: Use Haiku 4.5 as default to stay within budget
+**Max Plan Benefit**: $110.16 API equivalent usage this month = $10.16 savings!
+December would have been $400 on API = **$300 savings per month**
 
-**IMPLEMENTER**: Claude Haiku 4.5 (default)
-- Haiku is surprisingly capable for focused tasks
-- Excellent test coverage guides implementation
-- Clear specifications in DESIGN.md reduce complexity
-- **Cost**: ~$0.02-0.04 per iteration (20x cheaper than Opus!)
-- **Upgrade to Sonnet**: Only if Haiku genuinely struggles
+**Strategy**: Use best model for each task - we're paying for unlimited!
 
-**CONTROLLER**: Claude Haiku 4.5 (always)
-- Verification is straightforward (run tests, check criteria)
-- Haiku is perfect for this role
-- **Cost**: ~$0.01-0.02 per iteration
+**IMPLEMENTER**: Claude Opus 4.5
+- Best quality for complex implementation
+- Parser, type system, compiler work benefits from Opus
+- **API Cost**: ~$0.10-0.20 per iteration
+- **Max Plan Cost**: $0 (unlimited!)
+
+**CONTROLLER**: Claude Sonnet 4.5
+- Perfect for verification (fast + capable)
+- Run tests, check criteria, select next task
+- **API Cost**: ~$0.02-0.04 per iteration
+- **Max Plan Cost**: $0 (unlimited!)
 
 **Token Management**:
-- Monitor with `ccusage` command daily
-- Check budget: `ccusage | grep Total`
-- Target: <$3.33/day average ($100/30 days)
-- Stop if approaching monthly limit
+- Monitor with `ccusage` command for reference
+- Check usage: `ccusage | grep Total`
+- No daily budget needed (Max Plan is unlimited)
+- Track to understand value vs API pricing
 
-**Cost Projection (Revised)**:
-- IMPLEMENTER (Haiku): ~$0.02-0.04 per iteration
-- CONTROLLER (Haiku): ~$0.01-0.02 per iteration
-- **Total**: ~$0.03-0.06 per iteration
-- **Full milestone (20 iterations)**: ~$0.60-1.20
-- **Budget allows**: 60-100 iterations per month!
-
-### Model Upgrade Path
-
-Start with Haiku, upgrade only if needed:
-
-1. **Try Haiku first** (default)
-   - Most tasks work fine with Haiku
-   - Great for TDD with good tests
-   
-2. **Upgrade to Sonnet if**:
-   - Haiku produces buggy code repeatedly
-   - Complex algorithm needs deeper reasoning
-   - Architecture decision needed
-   
-3. **Never use Opus**:
-   - Too expensive for $100/month budget
-   - Haiku + good tests > Opus alone
+**Cost Projection**:
+- IMPLEMENTER (Opus): ~$0.10-0.20 per iteration (API equivalent)
+- CONTROLLER (Sonnet): ~$0.02-0.04 per iteration (API equivalent)
+- **Total**: ~$0.12-0.24 per iteration (API equivalent)
+- **Full milestone (20 iterations)**: ~$2.40-4.80 (API equivalent)
+- **Max Plan actual cost**: $0 per iteration, $100/month flat fee
+- **Savings per milestone**: $2.40-4.80!
 
 ### When to Use Each Model
 
-**Haiku 4.5** (USE FOR EVERYTHING):
-- ✅ All implementation work (yes!)
-- ✅ All verification tasks
-- ✅ Documentation updates
-- ✅ Test writing
-- ✅ Debugging
+**Opus 4.5** (PRIMARY FOR IMPLEMENTATION):
+- ✅ Complex implementation (IMPLEMENTER agent)
+- ✅ Architecture decisions
+- ✅ Parser/compiler work
+- ✅ Type system implementation
+- ✅ Difficult algorithms
+- ✅ Tricky debugging
+
+**Sonnet 4.5** (PRIMARY FOR VERIFICATION):
+- ✅ Verification (CONTROLLER agent)
 - ✅ Code reviews
+- ✅ Medium complexity tasks
+- ✅ Documentation with code
+- ✅ Refactoring
+
+**Haiku 4.5** (SIMPLE TASKS ONLY):
+- ✅ Simple searches
+- ✅ Documentation updates (no code)
 - ✅ Formatting/linting
+- ✅ Quick file reads
 
-**Sonnet 4.5** (ONLY IF HAIKU FAILS):
-- ⚠️ Complex algorithms after Haiku fails
-- ⚠️ Tricky bugs Haiku can't solve
-- ⚠️ Architecture decisions
-
-**Opus 4.5** (NEVER):
-- ❌ Too expensive - avoid completely
-- ❌ Not worth cost for this budget
+**Key Insight**: With Max Plan, prioritize **quality over cost** - use Opus liberally!
 
 ## Safety Measures
 
