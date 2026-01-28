@@ -769,14 +769,50 @@ make test
 - Use SDS for all strings
 - Use stb_ds for hash maps and arrays
 
+## Iteration 9: Function Definition Parsing
+
+**Agent Turn**: IMPLEMENTER
+**Status**: READY
+**Task**: Implement function definition parsing with parameters and return types
+
+### Task Requirements
+
+Implement parsing for function definitions:
+```fern
+fn add(x: Int, y: Int) -> Int:
+    x + y
+
+fn greet(name: String) -> String:
+    "Hello, {name}!"
+```
+
+**Tests to Write** (TDD - RED phase first):
+- test_parse_function_no_params() - Parse: `fn main() -> (): Ok(())`
+- test_parse_function_with_params() - Parse: `fn add(x: Int, y: Int) -> Int: x + y`
+- test_parse_function_with_body() - Parse function with block body containing multiple statements
+
+**Expected Changes**:
+- tests/test_parser.c (add 3+ new tests)
+- include/ast.h (add FunctionDef struct, Parameter struct if needed)
+- lib/ast.c (add function definition helpers)
+- lib/parser.c (add parse_function_definition)
+
+**Success Criteria**:
+- [ ] All new function parsing tests pass
+- [ ] No regression in existing 61 tests
+- [ ] No compiler warnings
+- [ ] Follows TDD workflow (RED → GREEN → update ROADMAP)
+
+---
+
 ## Ralph Loop Status
 
 **Current Milestone**: 2 - Parser
-**Current Iteration**: 8
+**Current Iteration**: 9
 **Agent Turn**: IMPLEMENTER
-**Status**: IN_PROGRESS
-**Started**: 2026-01-28 11:45:00
-**Last Updated**: 2026-01-28 11:45:00
+**Status**: READY
+**Started**: 2026-01-28 11:50:00
+**Last Updated**: 2026-01-28 11:50:00
 
 ### Previous Task
 
@@ -1369,13 +1405,13 @@ Next priority: Type parsing for type annotations.
 
 ## Iteration 8: Type Parsing
 
-**Agent Turn**: IMPLEMENTER
-**Status**: COMPLETE ✅
+**Agent Turn**: CONTROLLER
+**Status**: COMPLETE ✅ VERIFIED
 **Task**: Implement type annotation parsing
 
 ### Completed Task
 
-- [x] Implement type annotation parsing ✅ COMPLETE
+- [x] Implement type annotation parsing ✅ VERIFIED
 
 **Tests Written**:
 - test_parse_type_int() - Parse: `Int` ✓
@@ -1406,7 +1442,7 @@ Next priority: Type parsing for type annotations.
 
 Implementation completed with TDD workflow:
 1. RED phase: Added 7 failing tests for type annotations (9aafe10)
-2. GREEN phase: Implemented type parsing
+2. GREEN phase: Implemented type parsing (12208d8)
 
 Type Expression AST Redesign:
 - Replaced simple `TypeExpr { String* name; SourceLoc loc; }` with a proper tagged union
@@ -1427,7 +1463,50 @@ Total:  61
 Passed: 61
 ```
 
-Ready for CONTROLLER verification.
+### Verification Notes
+
+**Written by**: CONTROLLER (Sonnet 4.5)
+**Time**: 2026-01-28 11:50:00
+
+✅ ACCEPTED - Type annotation parsing implementation
+
+Verification Results:
+- Tests: 61/61 passing ✓
+- Code quality: Excellent ✓
+- No compiler warnings ✓
+- Uses arena allocation correctly ✓
+- Follows existing parser patterns ✓
+- Comprehensive type support ✓
+
+Success Criteria Met:
+- [x] All 7 new tests pass
+- [x] No regression (54 → 61 tests, all passing)
+- [x] No compiler warnings
+- [x] Proper AST design with tagged unions
+
+Code Review:
+- TypeExpr redesign: Excellent use of tagged union pattern ✓
+- parse_type() function: Clean recursive descent ✓
+- Supports simple, parameterized, and function types ✓
+- Helper functions (type_named, type_function) follow patterns ✓
+
+Commits reviewed:
+- 9aafe10: Tests (RED phase) ✓
+- 12208d8: Implementation (GREEN phase) ✓
+
+**Parser Milestone Progress:**
+We've completed 8 iterations with 61/61 tests passing. The parser now handles:
+- Basic expressions (literals, identifiers, binary/unary ops, function calls)
+- Control flow (if/else, match with patterns)
+- Data structures (blocks, lists, nested combinations)
+- Statements (let, return, expression statements)
+- Result handling (← bind operator)
+- Function composition (|> pipe operator)
+- **NEW**: Type annotations (simple, parameterized, function types)
+
+Core expression and type parsing is now complete. Ready to move beyond Milestone 2 or enhance current functionality.
+
+---
 
 ---
 
