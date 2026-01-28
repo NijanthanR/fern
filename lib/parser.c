@@ -444,7 +444,7 @@ static Expr* parse_primary_internal(Parser* parser) {
 // Type parsing
 // Parses type annotations: Int, String, Result(String, Error), (Int, String) -> Bool
 TypeExpr* parse_type(Parser* parser) {
-    // Function type: (param, param) -> return_type
+    // Parenthesized type: either () unit type or (params) -> return function type
     if (match(parser, TOKEN_LPAREN)) {
         SourceLoc loc = parser->previous.loc;
         TypeExprVec* params = TypeExprVec_new(parser->arena);
@@ -457,10 +457,16 @@ TypeExpr* parse_type(Parser* parser) {
         }
 
         consume(parser, TOKEN_RPAREN, "Expected ')' after type parameters");
-        consume(parser, TOKEN_ARROW, "Expected '->' after function type parameters");
 
-        TypeExpr* return_type = parse_type(parser);
-        return type_function(parser->arena, params, return_type, loc);
+        // If followed by ->, it's a function type; otherwise () is the unit type
+        if (match(parser, TOKEN_ARROW)) {
+            TypeExpr* return_type = parse_type(parser);
+            return type_function(parser->arena, params, return_type, loc);
+        }
+
+        // Unit type: () — represent as named type "()"
+        String* unit_name = string_new(parser->arena, "()");
+        return type_named(parser->arena, unit_name, NULL, loc);
     }
 
     // Named type: Ident or Ident(args)
@@ -487,6 +493,42 @@ TypeExpr* parse_type(Parser* parser) {
 
 // Statement parsing
 Stmt* parse_stmt(Parser* parser) {
+    // Function definition: fn name(params) -> type: body
+    if (match(parser, TOKEN_FN)) {
+        SourceLoc loc = parser->previous.loc;
+
+        Token name_tok = consume(parser, TOKEN_IDENT, "Expected function name");
+        consume(parser, TOKEN_LPAREN, "Expected '(' after function name");
+
+        // Parse parameters: name: Type, name: Type, ...
+        ParameterVec* params = ParameterVec_new(parser->arena);
+        if (!check(parser, TOKEN_RPAREN)) {
+            do {
+                Token param_name = consume(parser, TOKEN_IDENT, "Expected parameter name");
+                consume(parser, TOKEN_COLON, "Expected ':' after parameter name");
+                TypeExpr* param_type = parse_type(parser);
+
+                Parameter param;
+                param.name = param_name.text;
+                param.type_ann = param_type;
+                ParameterVec_push(parser->arena, params, param);
+            } while (match(parser, TOKEN_COMMA));
+        }
+        consume(parser, TOKEN_RPAREN, "Expected ')' after parameters");
+
+        // Parse return type: -> Type
+        TypeExpr* return_type = NULL;
+        if (match(parser, TOKEN_ARROW)) {
+            return_type = parse_type(parser);
+        }
+
+        // Parse body after colon
+        consume(parser, TOKEN_COLON, "Expected ':' after function signature");
+        Expr* body = parse_expression(parser);
+
+        return stmt_fn(parser->arena, name_tok.text, params, return_type, body, loc);
+    }
+
     // Let statement
     if (match(parser, TOKEN_LET)) {
         SourceLoc loc = parser->previous.loc;

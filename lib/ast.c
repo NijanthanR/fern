@@ -210,6 +210,24 @@ TypeExpr* type_function(Arena* arena, TypeExprVec* params, TypeExpr* return_type
     return type;
 }
 
+/* Create function definition statement */
+Stmt* stmt_fn(Arena* arena, String* name, ParameterVec* params, TypeExpr* return_type, Expr* body, SourceLoc loc) {
+    assert(arena != NULL);
+    assert(name != NULL);
+    assert(params != NULL);
+    assert(body != NULL);
+
+    Stmt* stmt = arena_alloc(arena, sizeof(Stmt));
+    stmt->type = STMT_FN;
+    stmt->loc = loc;
+    stmt->data.fn.name = name;
+    stmt->data.fn.params = params;
+    stmt->data.fn.return_type = return_type;
+    stmt->data.fn.body = body;
+
+    return stmt;
+}
+
 /* Create let statement */
 Stmt* stmt_let(Arena* arena, Pattern* pattern, TypeExpr* type_ann, Expr* value, SourceLoc loc) {
     assert(arena != NULL);

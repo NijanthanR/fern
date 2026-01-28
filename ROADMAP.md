@@ -220,7 +220,7 @@ tests/parser/
   - [x] Return statements
   - [ ] Pattern parsing (basic identifier patterns done)
   - [ ] Type parsing
-  - [ ] Function definitions (including clauses)
+  - [x] Function definitions (basic — single clause with parameters and return type)
   - [ ] Module declarations
   - [ ] Error recovery
 
@@ -798,10 +798,44 @@ fn greet(name: String) -> String:
 - lib/parser.c (add parse_function_definition)
 
 **Success Criteria**:
-- [ ] All new function parsing tests pass
-- [ ] No regression in existing 61 tests
-- [ ] No compiler warnings
-- [ ] Follows TDD workflow (RED → GREEN → update ROADMAP)
+- [x] All new function parsing tests pass
+- [x] No regression in existing 61 tests (61 → 64 tests, all passing)
+- [x] No compiler warnings
+- [x] Follows TDD workflow (RED → GREEN → update ROADMAP)
+
+### Implementation Notes
+
+**Written by**: IMPLEMENTER (Opus 4.5)
+**Time**: 2026-01-28
+
+Implementation completed with TDD workflow:
+1. RED phase: Added 3 failing tests for function definitions (602a1b1)
+2. GREEN phase: Implemented function definition parsing
+
+**AST Changes:**
+- Added `Parameter` struct (name + type annotation) and `ParameterVec`
+- Added `FunctionDef` struct (name, params, return_type, body)
+- Added `STMT_FN` statement type
+- Added `stmt_fn()` helper function
+
+**Parser Changes:**
+- Added function definition parsing in `parse_stmt()` — triggered by `TOKEN_FN`
+- Parses syntax: `fn name(param: Type, param: Type) -> ReturnType: body_expr`
+- Parameters are comma-separated `name: Type` pairs
+- Return type annotation is optional (after `->`)
+- Body is a single expression after `:`
+- Updated `parse_type()` to handle `()` as unit type (not just function types)
+
+**Key Design Decision:**
+The `()` unit type is handled in `parse_type()` — when `()` is not followed by `->`, it's treated as a named type "()" rather than a function type. This allows `fn main() -> (): ...` to parse correctly.
+
+Test Results:
+```
+Total:  64
+Passed: 64
+```
+
+Ready for CONTROLLER verification.
 
 ---
 
@@ -810,9 +844,9 @@ fn greet(name: String) -> String:
 **Current Milestone**: 2 - Parser
 **Current Iteration**: 9
 **Agent Turn**: IMPLEMENTER
-**Status**: READY
+**Status**: COMPLETE
 **Started**: 2026-01-28 11:50:00
-**Last Updated**: 2026-01-28 11:50:00
+**Last Updated**: 2026-01-28
 
 ### Previous Task
 
