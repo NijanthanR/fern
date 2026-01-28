@@ -1408,7 +1408,7 @@ Ready for next task.
 ## Iteration 14: Module and Import Declarations
 
 **Agent Turn**: IMPLEMENTER
-**Status**: READY
+**Status**: ✅ COMPLETE
 **Task**: Implement module and import declaration parsing
 
 ### Task Requirements
@@ -1447,10 +1447,10 @@ import math.geometry as geo
 - lib/parser.c (add import parsing, enhance function parsing for pub keyword)
 
 **Success Criteria**:
-- [ ] All 5+ new tests pass
-- [ ] No regression in existing 82 tests (82 → 87+ tests, all passing)
-- [ ] No compiler warnings
-- [ ] Follows TDD workflow (RED → GREEN → update ROADMAP)
+- [x] All 5 new tests pass (test_parse_pub_function, test_parse_private_function, test_parse_import_module, test_parse_import_items, test_parse_import_alias)
+- [x] No regression in existing 82 tests (82 → 87 tests, all passing)
+- [x] No compiler warnings
+- [x] Follows TDD workflow (RED → GREEN → update ROADMAP)
 
 **Key Design Considerations**:
 - `pub` keyword is optional prefix for function definitions
@@ -1459,14 +1459,23 @@ import math.geometry as geo
 - Parser should create STMT_IMPORT statement type
 - FunctionDef needs `is_public` boolean field
 
+**Implementation Notes**:
+- Added `TOKEN_AS` and `TOKEN_MODULE` keywords to lexer (token.h, lexer.c, token.c)
+- Added `StringVec` (VEC_TYPE) for module path segments and import items
+- Added `STMT_IMPORT` statement type with `ImportDecl` struct (path, items, alias)
+- Added `is_public` boolean field to `FunctionDef`
+- Updated `stmt_fn()` signature to include `is_public` parameter
+- Parser handles `pub fn` prefix, `import path.to.module`, `import path.{items}`, `import path as alias`
+- All 87 tests passing (82 existing + 5 new), no regressions
+
 ---
 
 ## Ralph Loop Status
 
 **Current Milestone**: 2 - Parser
-**Current Iteration**: 13
-**Agent Turn**: CONTROLLER
-**Status**: COMPLETE
+**Current Iteration**: 14
+**Agent Turn**: VERIFIER
+**Status**: IMPLEMENTED
 **Started**: 2026-01-28 13:10:00
 **Last Updated**: 2026-01-28
 

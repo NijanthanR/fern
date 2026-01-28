@@ -627,6 +627,58 @@ static Pattern* parse_pattern(Parser* parser) {
 
 // Statement parsing
 Stmt* parse_stmt(Parser* parser) {
+    // Import declaration: import path.to.module [.{items}] [as alias]
+    if (match(parser, TOKEN_IMPORT)) {
+        SourceLoc loc = parser->previous.loc;
+
+        // Parse module path: ident.ident.ident
+        StringVec* path = StringVec_new(parser->arena);
+        Token first = consume(parser, TOKEN_IDENT, "Expected module name after 'import'");
+        StringVec_push(parser->arena, path, first.text);
+
+        while (match(parser, TOKEN_DOT)) {
+            // Check for selective import: path.{item, item}
+            if (check(parser, TOKEN_LBRACE)) {
+                break;
+            }
+            Token segment = consume(parser, TOKEN_IDENT, "Expected module name after '.'");
+            StringVec_push(parser->arena, path, segment.text);
+        }
+
+        // Check for selective import: .{item, item}
+        StringVec* items = NULL;
+        if (match(parser, TOKEN_LBRACE)) {
+            items = StringVec_new(parser->arena);
+            if (!check(parser, TOKEN_RBRACE)) {
+                do {
+                    Token item = consume(parser, TOKEN_IDENT, "Expected import item name");
+                    StringVec_push(parser->arena, items, item.text);
+                } while (match(parser, TOKEN_COMMA));
+            }
+            consume(parser, TOKEN_RBRACE, "Expected '}' after import items");
+        }
+
+        // Check for alias: as name
+        String* alias = NULL;
+        if (match(parser, TOKEN_AS)) {
+            Token alias_tok = consume(parser, TOKEN_IDENT, "Expected alias name after 'as'");
+            alias = alias_tok.text;
+        }
+
+        return stmt_import(parser->arena, path, items, alias, loc);
+    }
+
+    // Public function: pub fn name(...)
+    // Check for 'pub' keyword prefix
+    bool is_public = false;
+    if (match(parser, TOKEN_PUB)) {
+        is_public = true;
+        // pub must be followed by fn
+        if (!check(parser, TOKEN_FN)) {
+            error_at_current(parser, "Expected 'fn' after 'pub'");
+        }
+    }
+
     // Function definition: fn name(params) -> type: body
     //   OR multi-clause:   fn name(patterns) -> body
     if (match(parser, TOKEN_FN)) {
@@ -663,7 +715,7 @@ Stmt* parse_stmt(Parser* parser) {
             consume(parser, TOKEN_COLON, "Expected ':' after function signature");
             Expr* body = parse_expression(parser);
 
-            return stmt_fn(parser->arena, name_tok.text, params, return_type, body, loc);
+            return stmt_fn(parser->arena, name_tok.text, is_public, params, return_type, body, loc);
         } else {
             // Multi-clause: fn name(pattern, ...) -> body
             // We already consumed '(' — parse pattern params
@@ -693,6 +745,7 @@ Stmt* parse_stmt(Parser* parser) {
             stmt->type = STMT_FN;
             stmt->loc = loc;
             stmt->data.fn.name = name_tok.text;
+            stmt->data.fn.is_public = is_public;
             stmt->data.fn.params = NULL;
             stmt->data.fn.return_type = NULL;
             stmt->data.fn.body = NULL;

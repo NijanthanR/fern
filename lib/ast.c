@@ -227,7 +227,7 @@ TypeExpr* type_function(Arena* arena, TypeExprVec* params, TypeExpr* return_type
 }
 
 /* Create function definition statement */
-Stmt* stmt_fn(Arena* arena, String* name, ParameterVec* params, TypeExpr* return_type, Expr* body, SourceLoc loc) {
+Stmt* stmt_fn(Arena* arena, String* name, bool is_public, ParameterVec* params, TypeExpr* return_type, Expr* body, SourceLoc loc) {
     assert(arena != NULL);
     assert(name != NULL);
     assert(params != NULL);
@@ -237,10 +237,26 @@ Stmt* stmt_fn(Arena* arena, String* name, ParameterVec* params, TypeExpr* return
     stmt->type = STMT_FN;
     stmt->loc = loc;
     stmt->data.fn.name = name;
+    stmt->data.fn.is_public = is_public;
     stmt->data.fn.params = params;
     stmt->data.fn.return_type = return_type;
     stmt->data.fn.body = body;
     stmt->data.fn.clauses = NULL;
+
+    return stmt;
+}
+
+/* Create import declaration statement */
+Stmt* stmt_import(Arena* arena, StringVec* path, StringVec* items, String* alias, SourceLoc loc) {
+    assert(arena != NULL);
+    assert(path != NULL);
+
+    Stmt* stmt = arena_alloc(arena, sizeof(Stmt));
+    stmt->type = STMT_IMPORT;
+    stmt->loc = loc;
+    stmt->data.import.path = path;
+    stmt->data.import.items = items;    // Can be NULL
+    stmt->data.import.alias = alias;    // Can be NULL
 
     return stmt;
 }

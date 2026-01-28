@@ -36,6 +36,8 @@ const char* token_type_name(TokenType type) {
         case TOKEN_AND: return "AND";
         case TOKEN_OR: return "OR";
         case TOKEN_NOT: return "NOT";
+        case TOKEN_AS: return "AS";
+        case TOKEN_MODULE: return "MODULE";
         case TOKEN_SPAWN: return "SPAWN";
         case TOKEN_SEND: return "SEND";
         case TOKEN_RECEIVE: return "RECEIVE";

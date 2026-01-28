@@ -46,6 +46,8 @@ typedef enum {
     TOKEN_AND,          // and
     TOKEN_OR,           // or
     TOKEN_NOT,          // not
+    TOKEN_AS,           // as
+    TOKEN_MODULE,       // module
     TOKEN_SPAWN,        // spawn
     TOKEN_SEND,         // send
     TOKEN_RECEIVE,      // receive

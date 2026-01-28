@@ -104,7 +104,10 @@ static TokenType check_keyword(const char* start, size_t length, const char* res
 static TokenType identifier_type(const char* start, size_t length) {
     // Check keywords based on first character for efficiency
     switch (start[0]) {
-        case 'a': return check_keyword(start, length, "and", TOKEN_AND);
+        case 'a':
+            if (length == 2) return check_keyword(start, length, "as", TOKEN_AS);
+            if (length == 3) return check_keyword(start, length, "and", TOKEN_AND);
+            break;
         case 'd':
             if (length > 1) {
                 switch (start[1]) {
@@ -140,7 +143,10 @@ static TokenType identifier_type(const char* start, size_t length) {
             }
             break;
         case 'l': return check_keyword(start, length, "let", TOKEN_LET);
-        case 'm': return check_keyword(start, length, "match", TOKEN_MATCH);
+        case 'm':
+            if (length == 5) return check_keyword(start, length, "match", TOKEN_MATCH);
+            if (length == 6) return check_keyword(start, length, "module", TOKEN_MODULE);
+            break;
         case 'n': return check_keyword(start, length, "not", TOKEN_NOT);
         case 'o': return check_keyword(start, length, "or", TOKEN_OR);
         case 'p': return check_keyword(start, length, "pub", TOKEN_PUB);

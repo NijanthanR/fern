@@ -229,11 +229,15 @@ VEC_TYPE(FunctionClauseVec, FunctionClause)
  */
 typedef struct {
     String* name;
+    bool is_public;                  // true if preceded by 'pub' keyword
     ParameterVec* params;            // Typed params (single-clause)
     TypeExpr* return_type;           // NULL if no return type annotation
     Expr* body;                      // Body (single-clause)
     FunctionClauseVec* clauses;      // NULL for single-clause functions
 } FunctionDef;
+
+/* String vector (for import paths and items) */
+VEC_TYPE(StringVec, String*)
 
 /* Statement types */
 typedef enum {
@@ -241,6 +245,7 @@ typedef enum {
     STMT_RETURN,        // return expr
     STMT_EXPR,          // expression statement
     STMT_FN,            // fn name(params) -> type: body
+    STMT_IMPORT,        // import path.to.module
 } StmtType;
 
 /* Let statement */
@@ -260,6 +265,13 @@ typedef struct {
     Expr* expr;
 } ExprStmt;
 
+/* Import declaration: import path.to.module [.{items}] [as alias] */
+typedef struct {
+    StringVec* path;        // Module path segments (e.g., ["math", "geometry"])
+    StringVec* items;       // NULL if no specific items; otherwise ["cors", "auth"]
+    String* alias;          // NULL if no alias; otherwise "geo"
+} ImportDecl;
+
 /* Statement node */
 struct Stmt {
     StmtType type;
@@ -269,6 +281,7 @@ struct Stmt {
         ReturnStmt return_stmt;
         ExprStmt expr;
         FunctionDef fn;
+        ImportDecl import;
     } data;
 };
 
@@ -340,7 +353,8 @@ Expr* expr_with(Arena* arena, WithBindingVec* bindings, Expr* body, MatchArmVec*
 Stmt* stmt_let(Arena* arena, Pattern* pattern, TypeExpr* type_ann, Expr* value, SourceLoc loc);
 Stmt* stmt_return(Arena* arena, Expr* value, SourceLoc loc);
 Stmt* stmt_expr(Arena* arena, Expr* expr, SourceLoc loc);
-Stmt* stmt_fn(Arena* arena, String* name, ParameterVec* params, TypeExpr* return_type, Expr* body, SourceLoc loc);
+Stmt* stmt_fn(Arena* arena, String* name, bool is_public, ParameterVec* params, TypeExpr* return_type, Expr* body, SourceLoc loc);
+Stmt* stmt_import(Arena* arena, StringVec* path, StringVec* items, String* alias, SourceLoc loc);
 
 /* Create patterns */
 Pattern* pattern_ident(Arena* arena, String* name, SourceLoc loc);
