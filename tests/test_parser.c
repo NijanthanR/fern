@@ -537,6 +537,133 @@ void test_parse_pipe_in_block(void) {
     arena_destroy(arena);
 }
 
+/* Test: Parse type annotation - simple named type (Int) */
+void test_parse_type_int(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "Int");
+
+    TypeExpr* type = parse_type(parser);
+    ASSERT_NOT_NULL(type);
+    ASSERT_EQ(type->kind, TYPE_NAMED);
+    ASSERT_STR_EQ(string_cstr(type->data.named.name), "Int");
+    ASSERT_NULL(type->data.named.args);
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse type annotation - String */
+void test_parse_type_string(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "String");
+
+    TypeExpr* type = parse_type(parser);
+    ASSERT_NOT_NULL(type);
+    ASSERT_EQ(type->kind, TYPE_NAMED);
+    ASSERT_STR_EQ(string_cstr(type->data.named.name), "String");
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse type annotation - Bool */
+void test_parse_type_bool(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "Bool");
+
+    TypeExpr* type = parse_type(parser);
+    ASSERT_NOT_NULL(type);
+    ASSERT_EQ(type->kind, TYPE_NAMED);
+    ASSERT_STR_EQ(string_cstr(type->data.named.name), "Bool");
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse type annotation - custom type (User) */
+void test_parse_type_custom(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "User");
+
+    TypeExpr* type = parse_type(parser);
+    ASSERT_NOT_NULL(type);
+    ASSERT_EQ(type->kind, TYPE_NAMED);
+    ASSERT_STR_EQ(string_cstr(type->data.named.name), "User");
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse type annotation - Result(String, Error) */
+void test_parse_type_result(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "Result(String, Error)");
+
+    TypeExpr* type = parse_type(parser);
+    ASSERT_NOT_NULL(type);
+    ASSERT_EQ(type->kind, TYPE_NAMED);
+    ASSERT_STR_EQ(string_cstr(type->data.named.name), "Result");
+    ASSERT_NOT_NULL(type->data.named.args);
+    ASSERT_EQ(type->data.named.args->len, 2);
+
+    // First type arg: String
+    TypeExpr* arg1 = TypeExprVec_get(type->data.named.args, 0);
+    ASSERT_EQ(arg1->kind, TYPE_NAMED);
+    ASSERT_STR_EQ(string_cstr(arg1->data.named.name), "String");
+
+    // Second type arg: Error
+    TypeExpr* arg2 = TypeExprVec_get(type->data.named.args, 1);
+    ASSERT_EQ(arg2->kind, TYPE_NAMED);
+    ASSERT_STR_EQ(string_cstr(arg2->data.named.name), "Error");
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse type annotation - List(Int) */
+void test_parse_type_list(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "List(Int)");
+
+    TypeExpr* type = parse_type(parser);
+    ASSERT_NOT_NULL(type);
+    ASSERT_EQ(type->kind, TYPE_NAMED);
+    ASSERT_STR_EQ(string_cstr(type->data.named.name), "List");
+    ASSERT_NOT_NULL(type->data.named.args);
+    ASSERT_EQ(type->data.named.args->len, 1);
+
+    // Type arg: Int
+    TypeExpr* arg1 = TypeExprVec_get(type->data.named.args, 0);
+    ASSERT_EQ(arg1->kind, TYPE_NAMED);
+    ASSERT_STR_EQ(string_cstr(arg1->data.named.name), "Int");
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse type annotation - function type (Int, String) -> Bool */
+void test_parse_type_function(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "(Int, String) -> Bool");
+
+    TypeExpr* type = parse_type(parser);
+    ASSERT_NOT_NULL(type);
+    ASSERT_EQ(type->kind, TYPE_FUNCTION);
+    ASSERT_NOT_NULL(type->data.func.params);
+    ASSERT_EQ(type->data.func.params->len, 2);
+    ASSERT_NOT_NULL(type->data.func.return_type);
+
+    // First param: Int
+    TypeExpr* param1 = TypeExprVec_get(type->data.func.params, 0);
+    ASSERT_EQ(param1->kind, TYPE_NAMED);
+    ASSERT_STR_EQ(string_cstr(param1->data.named.name), "Int");
+
+    // Second param: String
+    TypeExpr* param2 = TypeExprVec_get(type->data.func.params, 1);
+    ASSERT_EQ(param2->kind, TYPE_NAMED);
+    ASSERT_STR_EQ(string_cstr(param2->data.named.name), "String");
+
+    // Return type: Bool
+    ASSERT_EQ(type->data.func.return_type->kind, TYPE_NAMED);
+    ASSERT_STR_EQ(string_cstr(type->data.func.return_type->data.named.name), "Bool");
+
+    arena_destroy(arena);
+}
+
 /* Test: Parse simple bind expression (x <- f()) */
 void test_parse_bind_simple(void) {
     Arena* arena = arena_create(4096);
@@ -627,4 +754,11 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_bind_simple);
     TEST_RUN(test_parse_bind_with_call);
     TEST_RUN(test_parse_bind_in_block);
+    TEST_RUN(test_parse_type_int);
+    TEST_RUN(test_parse_type_string);
+    TEST_RUN(test_parse_type_bool);
+    TEST_RUN(test_parse_type_custom);
+    TEST_RUN(test_parse_type_result);
+    TEST_RUN(test_parse_type_list);
+    TEST_RUN(test_parse_type_function);
 }
