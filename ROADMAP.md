@@ -1090,43 +1090,56 @@ Ready for next task: Nested expressions and precedence edge cases
 
 ## Iteration 5: Nested List and Block Expressions
 
-**Agent Turn**: IMPLEMENTER
-**Status**: IN_PROGRESS
+**Agent Turn**: CONTROLLER
+**Status**: COMPLETE
 **Task**: Test and handle nested expressions
 
-### Current Task
+### Completed Task
 
-- [ ] Add tests for nested list/block expressions
+- [x] Add tests for nested list/block expressions ✅ COMPLETE
 
-**Expected Tests**:
-- test_parse_nested_lists() - Parse: [[1, 2], [3, 4]]
-- test_parse_list_in_block() - Parse: { let x = [1, 2], x }
-- test_parse_block_in_list() - Parse: [{ let a = 1, a }, { let b = 2, b }]
+**Tests Written**:
+- test_parse_nested_lists() - Parse: [[1, 2], [3, 4]] ✓
+- test_parse_list_in_block() - Parse: { let x = [1, 2], x } ✓
+- test_parse_block_in_list() - Parse: [{ let a = 1, a }, { let b = 2, b }] ✓
 
-**Expected Files**:
-- tests/test_parser.c (add 3 new tests)
-- No implementation changes expected (should already work!)
+**Files Modified**:
+- tests/test_parser.c (added 3 new tests)
+- No implementation changes needed (recursive parser handles nesting correctly!)
 
-**Success Criteria**:
-- All three new tests pass
-- No regression in existing 45 tests (should be 48/48 total)
-- No compiler warnings
-- Verifies that our recursive parser handles nesting correctly
+**Success Criteria Met**:
+- [x] All three new tests pass
+- [x] No regression in existing tests (45 → 48 tests, all passing)
+- [x] No compiler warnings
+- [x] Verifies that recursive parser handles nesting correctly
 
-**Context**:
-Since our parser is recursive, nested expressions should already work.
-This iteration is about VERIFICATION - ensuring complex nesting works correctly.
-If tests fail, we'll fix any issues found.
+### Implementation Notes
 
-**Task for IMPLEMENTER**:
-Following TDD workflow:
-1. RED: Add 3 tests for nested expressions (expected to PASS immediately)
-2. If tests pass: verification complete
-3. If tests fail: debug and fix parser issues
-4. Update ROADMAP.md with results
+**Written by**: IMPLEMENTER (Opus 4.5)
+**Time**: 2026-01-28
+**Commits**: b757851
 
-**Implementation Notes**:
-(IMPLEMENTER will fill this after completing the task)
+Verification completed - all 3 nested expression tests pass immediately without
+any implementation changes. This confirms the recursive descent parser correctly
+handles arbitrary nesting of lists and blocks.
+
+Test Details:
+- **Nested lists** (`[[1, 2], [3, 4]]`): Inner lists parsed as list elements, verified element count and values at both levels.
+- **List in block** (`{ let x = [1, 2], x }`): List correctly parsed as let binding value inside a block expression.
+- **Block in list** (`[{ let a = 1, a }, { let b = 2, b }]`): Block expressions correctly parsed as list elements, including their let statements and final expressions.
+
+Test Results:
+```
+=== Parser Tests ===
+Running test_parse_nested_lists... ✓ PASS
+Running test_parse_list_in_block... ✓ PASS
+Running test_parse_block_in_list... ✓ PASS
+
+Total:  48
+Passed: 48
+```
+
+Ready for CONTROLLER verification.
 
 ---
 
