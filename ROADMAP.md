@@ -1144,10 +1144,10 @@ fn fibonacci(n) -> fibonacci(n - 1) + fibonacci(n - 2)
 - lib/parser.c (enhance function parsing to collect adjacent clauses by name)
 
 **Success Criteria**:
-- [ ] All 4 new tests pass
-- [ ] No regression in existing 74 tests (74 → 78+ tests, all passing)
-- [ ] No compiler warnings
-- [ ] Follows TDD workflow (RED → GREEN → update ROADMAP)
+- [x] All 4 new tests pass
+- [x] No regression in existing 74 tests (74 → 78 tests, all passing)
+- [x] No compiler warnings
+- [x] Follows TDD workflow (RED → GREEN → update ROADMAP)
 
 **Key Design Considerations**:
 - Function clauses with the same name must be adjacent (no interleaving)
@@ -1155,14 +1155,60 @@ fn fibonacci(n) -> fibonacci(n - 1) + fibonacci(n - 2)
 - Parser should group clauses into a single FunctionDef with multiple clauses
 - Error if clauses are not adjacent
 
+### Implementation Notes
+
+**Written by**: IMPLEMENTER (Opus 4.5)
+**Time**: 2026-01-28
+
+Implementation completed with TDD workflow:
+1. RED phase: Added 4 failing tests for multi-clause function definitions (bb00f66)
+2. GREEN phase: Implemented multi-clause function parsing
+
+**Tests Written**:
+- test_parse_function_multi_clause_simple() - Parse: `fn fact(0) -> 1` then `fn fact(n) -> n * fact(n - 1)` ✓
+- test_parse_function_multi_clause_fibonacci() - Parse fibonacci with 3 clauses ✓
+- test_parse_function_clauses_must_be_adjacent() - Parse error when clauses are separated ✓
+- test_parse_function_pattern_params() - Parse: `fn greet("Alice") -> "Hi Alice"`, `fn greet(name) -> "Hello"` ✓
+
+**Files Modified**:
+- tests/test_parser.c (added 4 new tests)
+- include/ast.h (added FunctionClause, FunctionClauseVec, PatternVec; extended FunctionDef with clauses field)
+- include/parser.h (added parse_stmts declaration)
+- lib/ast.c (initialize clauses to NULL in stmt_fn)
+- lib/parser.c (added is_typed_params, parse_pattern, multi-clause fn parsing, parse_stmts with clause grouping)
+
+**AST Changes:**
+- Added `PatternVec` (vector of Pattern*)
+- Added `FunctionClause` struct (params: PatternVec*, return_type: TypeExpr*, body: Expr*)
+- Added `FunctionClauseVec` (vector of FunctionClause)
+- Extended `FunctionDef` with optional `clauses` field (NULL for single-clause typed functions)
+
+**Parser Changes:**
+- Added `is_typed_params()` — uses `lexer_peek` to detect whether fn parameters are typed (name: Type) or pattern-based. IDENT followed by COLON means typed; everything else means pattern.
+- Added `parse_pattern()` — reusable pattern parser for wildcard, identifier, and literal patterns (extracted from match expression parsing logic).
+- Enhanced `parse_stmt()` for `TOKEN_FN` — now branches into single-clause (typed params, colon body) or multi-clause (pattern params, arrow body).
+- Added `parse_stmts()` — parses multiple statements, groups adjacent `fn` clauses with same name into single FunctionDef, and emits error for non-adjacent duplicate clauses.
+
+**Key Design Decision:**
+The two function forms are distinguished syntactically:
+- Single-clause: `fn name(param: Type) -> RetType: body` (colon before body)
+- Multi-clause: `fn name(pattern) -> body` (arrow before body, no colon)
+Detection uses `lexer_peek` for 2-token lookahead (IDENT + COLON = typed params).
+
+Test Results:
+```
+Total:  78
+Passed: 78
+```
+
 ---
 
 ## Ralph Loop Status
 
 **Current Milestone**: 2 - Parser
-**Current Iteration**: 11
-**Agent Turn**: IMPLEMENTER
-**Status**: READY
+**Current Iteration**: 12
+**Agent Turn**: CONTROLLER
+**Status**: COMPLETE
 **Started**: 2026-01-28 13:10:00
 **Last Updated**: 2026-01-28
 

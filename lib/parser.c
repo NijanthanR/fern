@@ -1,6 +1,7 @@
 #include "parser.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // Forward declarations for expression parsing with precedence
 static Expr* parse_expression(Parser* parser);
@@ -496,42 +497,120 @@ TypeExpr* parse_type(Parser* parser) {
     return type_named(parser->arena, name_tok.text, args, loc);
 }
 
+// Forward declaration
+static Pattern* parse_pattern(Parser* parser);
+
+// Detect whether the current fn parameter list uses typed params (name: Type)
+// or pattern params (pattern-based dispatch). Call after consuming '('.
+// Returns true if params are typed (single-clause style).
+static bool is_typed_params(Parser* parser) {
+    // Empty params: () — treat as single-clause
+    if (check(parser, TOKEN_RPAREN)) return true;
+    // If first token is IDENT, peek at the lexer's next token to check for ':'
+    // IDENT followed by COLON means typed param (name: Type)
+    // IDENT followed by anything else means pattern param (identifier binding)
+    if (check(parser, TOKEN_IDENT)) {
+        Token next = lexer_peek(parser->lexer);
+        return next.type == TOKEN_COLON;
+    }
+    // Non-identifier first param (literal, underscore) → pattern params
+    return false;
+}
+
+// Parse a pattern (for match arms and function clause parameters)
+static Pattern* parse_pattern(Parser* parser) {
+    if (match(parser, TOKEN_UNDERSCORE)) {
+        return pattern_wildcard(parser->arena, parser->previous.loc);
+    }
+    if (check(parser, TOKEN_IDENT)) {
+        Token ident_tok = parser->current;
+        advance(parser);
+        return pattern_ident(parser->arena, ident_tok.text, ident_tok.loc);
+    }
+    // Literal patterns: integers, strings, booleans
+    Expr* pattern_expr = parse_primary_internal(parser);
+    Pattern* pattern = arena_alloc(parser->arena, sizeof(Pattern));
+    pattern->type = PATTERN_LIT;
+    pattern->loc = pattern_expr->loc;
+    pattern->data.literal = pattern_expr;
+    return pattern;
+}
+
 // Statement parsing
 Stmt* parse_stmt(Parser* parser) {
     // Function definition: fn name(params) -> type: body
+    //   OR multi-clause:   fn name(patterns) -> body
     if (match(parser, TOKEN_FN)) {
         SourceLoc loc = parser->previous.loc;
 
         Token name_tok = consume(parser, TOKEN_IDENT, "Expected function name");
         consume(parser, TOKEN_LPAREN, "Expected '(' after function name");
 
-        // Parse parameters: name: Type, name: Type, ...
-        ParameterVec* params = ParameterVec_new(parser->arena);
-        if (!check(parser, TOKEN_RPAREN)) {
-            do {
-                Token param_name = consume(parser, TOKEN_IDENT, "Expected parameter name");
-                consume(parser, TOKEN_COLON, "Expected ':' after parameter name");
-                TypeExpr* param_type = parse_type(parser);
+        // Detect if this is a typed-param (single-clause) or pattern-param (multi-clause)
+        if (is_typed_params(parser)) {
+            // Single-clause: fn name(param: Type, ...) -> RetType: body
+            ParameterVec* params = ParameterVec_new(parser->arena);
+            if (!check(parser, TOKEN_RPAREN)) {
+                do {
+                    Token param_name = consume(parser, TOKEN_IDENT, "Expected parameter name");
+                    consume(parser, TOKEN_COLON, "Expected ':' after parameter name");
+                    TypeExpr* param_type = parse_type(parser);
 
-                Parameter param;
-                param.name = param_name.text;
-                param.type_ann = param_type;
-                ParameterVec_push(parser->arena, params, param);
-            } while (match(parser, TOKEN_COMMA));
+                    Parameter param;
+                    param.name = param_name.text;
+                    param.type_ann = param_type;
+                    ParameterVec_push(parser->arena, params, param);
+                } while (match(parser, TOKEN_COMMA));
+            }
+            consume(parser, TOKEN_RPAREN, "Expected ')' after parameters");
+
+            // Parse return type: -> Type
+            TypeExpr* return_type = NULL;
+            if (match(parser, TOKEN_ARROW)) {
+                return_type = parse_type(parser);
+            }
+
+            // Parse body after colon
+            consume(parser, TOKEN_COLON, "Expected ':' after function signature");
+            Expr* body = parse_expression(parser);
+
+            return stmt_fn(parser->arena, name_tok.text, params, return_type, body, loc);
+        } else {
+            // Multi-clause: fn name(pattern, ...) -> body
+            // We already consumed '(' — parse pattern params
+            PatternVec* params = PatternVec_new(parser->arena);
+            if (!check(parser, TOKEN_RPAREN)) {
+                do {
+                    Pattern* pat = parse_pattern(parser);
+                    PatternVec_push(parser->arena, params, pat);
+                } while (match(parser, TOKEN_COMMA));
+            }
+            consume(parser, TOKEN_RPAREN, "Expected ')' after pattern parameters");
+
+            // Parse body after ->
+            consume(parser, TOKEN_ARROW, "Expected '->' after pattern parameters");
+            Expr* body = parse_expression(parser);
+
+            // Create a function def with a single clause
+            FunctionClause clause;
+            clause.params = params;
+            clause.return_type = NULL;
+            clause.body = body;
+
+            FunctionClauseVec* clauses = FunctionClauseVec_new(parser->arena);
+            FunctionClauseVec_push(parser->arena, clauses, clause);
+
+            Stmt* stmt = arena_alloc(parser->arena, sizeof(Stmt));
+            stmt->type = STMT_FN;
+            stmt->loc = loc;
+            stmt->data.fn.name = name_tok.text;
+            stmt->data.fn.params = NULL;
+            stmt->data.fn.return_type = NULL;
+            stmt->data.fn.body = NULL;
+            stmt->data.fn.clauses = clauses;
+
+            return stmt;
         }
-        consume(parser, TOKEN_RPAREN, "Expected ')' after parameters");
-
-        // Parse return type: -> Type
-        TypeExpr* return_type = NULL;
-        if (match(parser, TOKEN_ARROW)) {
-            return_type = parse_type(parser);
-        }
-
-        // Parse body after colon
-        consume(parser, TOKEN_COLON, "Expected ':' after function signature");
-        Expr* body = parse_expression(parser);
-
-        return stmt_fn(parser->arena, name_tok.text, params, return_type, body, loc);
     }
 
     // Let statement
@@ -576,11 +655,41 @@ Stmt* parse_stmt(Parser* parser) {
 
 // Parse multiple statements until EOF.
 // Groups adjacent fn definitions with the same name into multi-clause functions.
+// Emits an error if non-adjacent clauses share the same name.
 StmtVec* parse_stmts(Parser* parser) {
     StmtVec* stmts = StmtVec_new(parser->arena);
 
     while (!check(parser, TOKEN_EOF)) {
         Stmt* stmt = parse_stmt(parser);
+
+        // If this is a multi-clause fn (has clauses), try to merge with adjacent same-name fn
+        if (stmt->type == STMT_FN && stmt->data.fn.clauses != NULL) {
+            // Check if the previous statement is the same multi-clause fn name
+            if (stmts->len > 0) {
+                Stmt* prev = StmtVec_get(stmts, stmts->len - 1);
+                if (prev->type == STMT_FN && prev->data.fn.clauses != NULL &&
+                    strcmp(string_cstr(prev->data.fn.name), string_cstr(stmt->data.fn.name)) == 0) {
+                    // Merge: append this clause to the previous fn's clause list
+                    FunctionClause clause = FunctionClauseVec_get(stmt->data.fn.clauses, 0);
+                    FunctionClauseVec_push(parser->arena, prev->data.fn.clauses, clause);
+                    continue; // Don't add as separate statement
+                }
+
+                // Check for non-adjacent duplicate: same name but not immediately before
+                for (size_t i = 0; i < stmts->len - 1; i++) {
+                    Stmt* earlier = StmtVec_get(stmts, i);
+                    if (earlier->type == STMT_FN &&
+                        strcmp(string_cstr(earlier->data.fn.name), string_cstr(stmt->data.fn.name)) == 0) {
+                        // Non-adjacent clauses — emit error
+                        fprintf(stderr, "Error: Function clauses for '%s' must be adjacent\n",
+                                string_cstr(stmt->data.fn.name));
+                        parser->had_error = true;
+                        break;
+                    }
+                }
+            }
+        }
+
         StmtVec_push(parser->arena, stmts, stmt);
     }
 
