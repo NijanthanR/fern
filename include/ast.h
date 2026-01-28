@@ -246,6 +246,7 @@ typedef enum {
     STMT_EXPR,          // expression statement
     STMT_FN,            // fn name(params) -> type: body
     STMT_IMPORT,        // import path.to.module
+    STMT_DEFER,         // defer expr
 } StmtType;
 
 /* Let statement */
@@ -272,6 +273,11 @@ typedef struct {
     String* alias;          // NULL if no alias; otherwise "geo"
 } ImportDecl;
 
+/* Defer statement: defer <expression> */
+typedef struct {
+    Expr* expr;
+} DeferStmt;
+
 /* Statement node */
 struct Stmt {
     StmtType type;
@@ -282,6 +288,7 @@ struct Stmt {
         ExprStmt expr;
         FunctionDef fn;
         ImportDecl import;
+        DeferStmt defer_stmt;
     } data;
 };
 
@@ -355,6 +362,7 @@ Stmt* stmt_return(Arena* arena, Expr* value, SourceLoc loc);
 Stmt* stmt_expr(Arena* arena, Expr* expr, SourceLoc loc);
 Stmt* stmt_fn(Arena* arena, String* name, bool is_public, ParameterVec* params, TypeExpr* return_type, Expr* body, SourceLoc loc);
 Stmt* stmt_import(Arena* arena, StringVec* path, StringVec* items, String* alias, SourceLoc loc);
+Stmt* stmt_defer(Arena* arena, Expr* expr, SourceLoc loc);
 
 /* Create patterns */
 Pattern* pattern_ident(Arena* arena, String* name, SourceLoc loc);

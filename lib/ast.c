@@ -261,6 +261,19 @@ Stmt* stmt_import(Arena* arena, StringVec* path, StringVec* items, String* alias
     return stmt;
 }
 
+/* Create defer statement */
+Stmt* stmt_defer(Arena* arena, Expr* expr, SourceLoc loc) {
+    assert(arena != NULL);
+    assert(expr != NULL);
+
+    Stmt* stmt = arena_alloc(arena, sizeof(Stmt));
+    stmt->type = STMT_DEFER;
+    stmt->loc = loc;
+    stmt->data.defer_stmt.expr = expr;
+
+    return stmt;
+}
+
 /* Create let statement */
 Stmt* stmt_let(Arena* arena, Pattern* pattern, TypeExpr* type_ann, Expr* value, SourceLoc loc) {
     assert(arena != NULL);

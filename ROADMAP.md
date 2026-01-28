@@ -1534,8 +1534,8 @@ Ready for next milestone or refinement tasks.
 
 ## Iteration 15: Defer Statement Parsing
 
-**Agent Turn**: IMPLEMENTER
-**Status**: 🚧 IN PROGRESS
+**Agent Turn**: CONTROLLER
+**Status**: COMPLETE ✅
 **Task**: Implement defer statement parsing for resource cleanup
 
 ### Task Requirements
@@ -1565,10 +1565,10 @@ fn process() -> Result((), Error):
 - lib/parser.c (add defer statement parsing in parse_stmt)
 
 **Success Criteria**:
-- [ ] All 4 new tests pass
-- [ ] No regression in existing 87 tests (87 → 91 tests, all passing)
-- [ ] No compiler warnings
-- [ ] Follows TDD workflow (RED → GREEN → update ROADMAP)
+- [x] All 4 new tests pass
+- [x] No regression in existing 87 tests (87 → 91 tests, all passing)
+- [x] No compiler warnings
+- [x] Follows TDD workflow (RED → GREEN → update ROADMAP)
 
 **Key Design Considerations**:
 - `defer` is followed by a single expression (typically a function call)
@@ -1576,14 +1576,52 @@ fn process() -> Result((), Error):
 - Parser creates STMT_DEFER statement type with the deferred expression
 - Syntax: `defer <expression>`
 
+### Implementation Notes
+
+**Written by**: IMPLEMENTER (Opus 4.5)
+**Time**: 2026-01-28
+
+Implementation completed with TDD workflow:
+1. RED phase: Added 4 failing tests for defer statement parsing (64f92d4)
+2. GREEN phase: Implemented defer statement AST and parser
+
+**Tests Written**:
+- test_parse_defer_simple() - Parse: `defer close(file)` ✓
+- test_parse_defer_with_call() - Parse: `defer cleanup_resource(handle)` ✓
+- test_parse_defer_in_block() - Parse: `{ file <- open(), defer close(file), read(file) }` ✓
+- test_parse_defer_multiple() - Parse: `{ defer release1(r1), defer release2(r2), compute() }` ✓
+
+**Files Modified**:
+- tests/test_parser.c (added 4 new tests)
+- include/ast.h (added STMT_DEFER, DeferStmt struct, defer_stmt in Stmt union)
+- lib/ast.c (added stmt_defer helper)
+- lib/parser.c (added defer statement parsing in parse_stmt, added TOKEN_DEFER to block statement detection)
+
+**AST Changes:**
+- Added `DeferStmt` struct (expr: Expr*)
+- Added `STMT_DEFER` statement type
+- Added `defer_stmt` field to Stmt union
+- Added `stmt_defer()` helper function
+
+**Parser Changes:**
+- Added `defer` statement parsing in `parse_stmt()`, triggered by `TOKEN_DEFER`
+- Parses syntax: `defer <expression>` — consumes the defer keyword, then parses the following expression
+- Added `TOKEN_DEFER` to the block parser's statement detection condition alongside `TOKEN_LET` and `TOKEN_RETURN`, so defer statements are recognized inside block expressions
+
+Test Results:
+```
+Total:  91
+Passed: 91
+```
+
 ---
 
 ## Ralph Loop Status
 
 **Current Milestone**: 2 - Parser
 **Current Iteration**: 15
-**Agent Turn**: IMPLEMENTER
-**Status**: STARTED
+**Agent Turn**: CONTROLLER
+**Status**: AWAITING VERIFICATION
 **Started**: 2026-01-28 14:45:00
 **Last Updated**: 2026-01-28
 

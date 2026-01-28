@@ -389,7 +389,7 @@ static Expr* parse_primary_internal(Parser* parser) {
         // Parse comma-separated statements/expressions: { stmt, stmt, expr }
         while (!check(parser, TOKEN_RBRACE)) {
             // Check if this is a statement (let/return) or expression
-            if (check(parser, TOKEN_LET) || check(parser, TOKEN_RETURN)) {
+            if (check(parser, TOKEN_LET) || check(parser, TOKEN_RETURN) || check(parser, TOKEN_DEFER)) {
                 Stmt* stmt = parse_stmt(parser);
                 StmtVec_push(parser->arena, stmts, stmt);
                 
@@ -666,6 +666,13 @@ Stmt* parse_stmt(Parser* parser) {
         }
 
         return stmt_import(parser->arena, path, items, alias, loc);
+    }
+
+    // Defer statement: defer <expression>
+    if (match(parser, TOKEN_DEFER)) {
+        SourceLoc loc = parser->previous.loc;
+        Expr* expr = parse_expression(parser);
+        return stmt_defer(parser->arena, expr, loc);
     }
 
     // Public function: pub fn name(...)
