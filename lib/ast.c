@@ -408,6 +408,7 @@ Stmt* stmt_fn(Arena* arena, String* name, bool is_public, ParameterVec* params, 
     stmt->data.fn.is_public = is_public;
     stmt->data.fn.params = params;
     stmt->data.fn.return_type = return_type;
+    stmt->data.fn.where_clauses = NULL;
     stmt->data.fn.body = body;
     stmt->data.fn.clauses = NULL;
 

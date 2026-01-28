@@ -56,6 +56,7 @@ typedef enum {
     TOKEN_IN,           // in
     TOKEN_UNLESS,       // unless
     TOKEN_DERIVE,       // derive
+    TOKEN_WHERE,        // where
     TOKEN_SPAWN,        // spawn
     TOKEN_SEND,         // send
     TOKEN_RECEIVE,      // receive

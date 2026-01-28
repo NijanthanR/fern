@@ -1196,11 +1196,23 @@ Stmt* parse_stmt(Parser* parser) {
                 return_type = parse_type(parser);
             }
 
+            // Optional where clause: where Ord(a), Show(a)
+            TypeExprVec* where_clauses = NULL;
+            if (match(parser, TOKEN_WHERE)) {
+                where_clauses = TypeExprVec_new(parser->arena);
+                do {
+                    TypeExpr* constraint = parse_type(parser);
+                    TypeExprVec_push(parser->arena, where_clauses, constraint);
+                } while (match(parser, TOKEN_COMMA));
+            }
+
             // Parse body after colon
             consume(parser, TOKEN_COLON, "Expected ':' after function signature");
             Expr* body = parse_expression(parser);
 
-            return stmt_fn(parser->arena, name_tok.text, is_public, params, return_type, body, loc);
+            Stmt* fn_stmt = stmt_fn(parser->arena, name_tok.text, is_public, params, return_type, body, loc);
+            fn_stmt->data.fn.where_clauses = where_clauses;
+            return fn_stmt;
         } else {
             // Multi-clause: fn name(pattern, ...) -> body
             // We already consumed '(' — parse pattern params
@@ -1233,6 +1245,7 @@ Stmt* parse_stmt(Parser* parser) {
             stmt->data.fn.is_public = is_public;
             stmt->data.fn.params = NULL;
             stmt->data.fn.return_type = NULL;
+            stmt->data.fn.where_clauses = NULL;
             stmt->data.fn.body = NULL;
             stmt->data.fn.clauses = clauses;
 

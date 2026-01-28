@@ -46,6 +46,7 @@ const char* token_type_name(TokenType type) {
         case TOKEN_IN: return "IN";
         case TOKEN_UNLESS: return "UNLESS";
         case TOKEN_DERIVE: return "DERIVE";
+        case TOKEN_WHERE: return "WHERE";
         case TOKEN_SPAWN: return "SPAWN";
         case TOKEN_SEND: return "SEND";
         case TOKEN_RECEIVE: return "RECEIVE";

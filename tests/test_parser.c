@@ -2514,6 +2514,49 @@ void test_parse_type_no_derive(void) {
     arena_destroy(arena);
 }
 
+/* Test: fn sort(items: List(a)) -> List(a) where Ord(a): body */
+void test_parse_fn_where_clause(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "fn sort(items: List(a)) -> List(a) where Ord(a): items");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_FN);
+    ASSERT_STR_EQ(string_cstr(stmt->data.fn.name), "sort");
+    ASSERT_NOT_NULL(stmt->data.fn.return_type);
+    ASSERT_NOT_NULL(stmt->data.fn.where_clauses);
+    ASSERT_EQ(stmt->data.fn.where_clauses->len, 1);
+
+    arena_destroy(arena);
+}
+
+/* Test: fn with multiple where constraints */
+void test_parse_fn_where_multi(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "fn display(items: List(a)) -> () where Ord(a), Show(a): items");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_FN);
+    ASSERT_NOT_NULL(stmt->data.fn.where_clauses);
+    ASSERT_EQ(stmt->data.fn.where_clauses->len, 2);
+
+    arena_destroy(arena);
+}
+
+/* Test: fn without where clause — where_clauses is NULL */
+void test_parse_fn_no_where(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "fn add(x: Int, y: Int) -> Int: x");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_FN);
+    ASSERT_NULL(stmt->data.fn.where_clauses);
+
+    arena_destroy(arena);
+}
+
 void run_parser_tests(void) {
     printf("\n=== Parser Tests ===\n");
     TEST_RUN(test_parse_int_literal);
@@ -2644,4 +2687,7 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_let_else_tuple);
     TEST_RUN(test_parse_type_derive);
     TEST_RUN(test_parse_type_no_derive);
+    TEST_RUN(test_parse_fn_where_clause);
+    TEST_RUN(test_parse_fn_where_multi);
+    TEST_RUN(test_parse_fn_no_where);
 }

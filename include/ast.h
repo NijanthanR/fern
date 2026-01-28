@@ -344,6 +344,7 @@ typedef struct {
     bool is_public;                  // true if preceded by 'pub' keyword
     ParameterVec* params;            // Typed params (single-clause)
     TypeExpr* return_type;           // NULL if no return type annotation
+    TypeExprVec* where_clauses;      // NULL if no where clause; e.g., where Ord(a), Show(a)
     Expr* body;                      // Body (single-clause)
     FunctionClauseVec* clauses;      // NULL for single-clause functions
 } FunctionDef;
