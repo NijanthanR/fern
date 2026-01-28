@@ -218,7 +218,7 @@ tests/parser/
   - [x] Function calls
   - [x] Let statements
   - [x] Return statements
-  - [ ] Pattern parsing (basic identifier patterns done)
+  - [x] Pattern parsing (identifier, wildcard, int/string/bool literals)
   - [ ] Type parsing
   - [x] Function definitions (basic — single clause with parameters and return type)
   - [ ] Module declarations
@@ -906,14 +906,44 @@ match value:
 - lib/parser.c (enhance parse_pattern to handle all literal types)
 
 **Success Criteria**:
-- [ ] All new pattern parsing tests pass
-- [ ] No regression in existing 64 tests (64 → 69+ tests, all passing)
-- [ ] No compiler warnings
-- [ ] Follows TDD workflow (RED → GREEN → update ROADMAP)
+- [x] All new pattern parsing tests pass
+- [x] No regression in existing 64 tests (64 → 69 tests, all passing)
+- [x] No compiler warnings
+- [x] Follows TDD workflow (RED → GREEN → update ROADMAP)
 
 ### Implementation Notes
 
-Ready for IMPLEMENTER to begin.
+**Written by**: IMPLEMENTER (Opus 4.5)
+**Time**: 2026-01-28
+
+Implementation completed with TDD workflow:
+1. RED phase: Added 5 tests for pattern parsing; 4 passed immediately, 1 failed (identifier pattern)
+2. GREEN phase: Enhanced match pattern parsing to distinguish identifiers from literals
+
+**Tests Written**:
+- test_parse_pattern_int_literal() - Parse: `match x: 42 -> "found"` ✓
+- test_parse_pattern_string_literal() - Parse: `match x: "test" -> "found"` ✓
+- test_parse_pattern_bool_literal() - Parse: `match x: true -> "yes", false -> "no"` ✓
+- test_parse_pattern_wildcard() - Parse: `match x: _ -> "anything"` ✓
+- test_parse_pattern_identifier() - Parse: `match x: value -> value` ✓
+
+**Files Modified**:
+- tests/test_parser.c (added 5 new tests)
+- lib/parser.c (enhanced pattern parsing in match expression)
+
+**Parser Change**:
+The match pattern parser previously used `parse_primary_internal()` for all non-wildcard patterns, wrapping the result as `PATTERN_LIT`. This incorrectly treated identifiers as literal patterns. The fix adds an explicit `TOKEN_IDENT` check before the general literal fallback:
+- `TOKEN_UNDERSCORE` → `PATTERN_WILDCARD` (unchanged)
+- `TOKEN_IDENT` → `PATTERN_IDENT` (NEW: binding pattern)
+- Everything else → `PATTERN_LIT` via `parse_primary_internal()` (int, string, bool literals)
+
+This correctly distinguishes binding patterns (`value -> ...`) from literal patterns (`42 -> ...`).
+
+Test Results:
+```
+Total:  69
+Passed: 69
+```
 
 ---
 
@@ -921,8 +951,8 @@ Ready for IMPLEMENTER to begin.
 
 **Current Milestone**: 2 - Parser
 **Current Iteration**: 10
-**Agent Turn**: IMPLEMENTER
-**Status**: READY
+**Agent Turn**: CONTROLLER
+**Status**: COMPLETE - AWAITING VERIFICATION
 **Started**: 2026-01-28 13:10:00
 **Last Updated**: 2026-01-28
 
