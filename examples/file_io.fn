@@ -1,0 +1,54 @@
+# File I/O operations example
+# Demonstrates file reading, writing, and utility functions
+
+fn bool_to_int(b: Bool) -> Int:
+    if b: 1 else: 0
+
+fn main() -> Int:
+    # Test file_exists on non-existent file
+    let exists_before = file_exists("/tmp/fern_test_file.txt")
+    println(bool_to_int(exists_before))
+
+    # Write a file
+    let write_result = write_file("/tmp/fern_test_file.txt", "Hello from Fern!")
+    println(bool_to_int(is_ok(write_result)))
+
+    # Check file exists after writing
+    let exists_after = file_exists("/tmp/fern_test_file.txt")
+    println(bool_to_int(exists_after))
+
+    # Get file size
+    let size_result = file_size("/tmp/fern_test_file.txt")
+    match size_result:
+        Ok(size) -> println(size)
+        Err(e) -> println(e)
+
+    # Read the file back
+    let read_result = read_file("/tmp/fern_test_file.txt")
+    match read_result:
+        Ok(content) -> println(str_len(content))
+        Err(e) -> println(e)
+
+    # Append to the file
+    let append_result = append_file("/tmp/fern_test_file.txt", " More content.")
+    println(bool_to_int(is_ok(append_result)))
+
+    # Check new file size after append
+    let size_after = file_size("/tmp/fern_test_file.txt")
+    match size_after:
+        Ok(size) -> println(size)
+        Err(e) -> println(e)
+
+    # Delete the file
+    let delete_result = delete_file("/tmp/fern_test_file.txt")
+    println(bool_to_int(is_ok(delete_result)))
+
+    # Verify file no longer exists
+    let exists_deleted = file_exists("/tmp/fern_test_file.txt")
+    println(bool_to_int(exists_deleted))
+
+    # Try to read non-existent file (should fail)
+    let read_missing = read_file("/tmp/nonexistent_file_12345.txt")
+    println(bool_to_int(is_ok(read_missing)))
+
+    0
