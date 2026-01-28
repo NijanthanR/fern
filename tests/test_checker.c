@@ -661,6 +661,59 @@ void test_check_try_requires_result(void) {
     arena_destroy(arena);
 }
 
+/* ========== Generic Type Instantiation Tests ========== */
+
+void test_check_generic_identity(void) {
+    Arena* arena = arena_create(4096);
+    
+    // Define: fn identity(a) -> a  (generic function)
+    // When called with Int, should return Int
+    int var_id = type_fresh_var_id();
+    Type* type_a = type_var(arena, string_new(arena, "a"), var_id);
+    
+    TypeVec* params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_a);
+    Type* fn_type = type_fn(arena, params, type_a);
+    
+    // identity(42) should have type Int
+    Parser* parser = parser_new(arena, "identity(42)");
+    Expr* expr = parse_expr(parser);
+    Checker* checker = checker_new(arena);
+    checker_define(checker, string_new(arena, "identity"), fn_type);
+    Type* t = checker_infer_expr(checker, expr);
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_INT);
+    
+    arena_destroy(arena);
+}
+
+void test_check_generic_list_head(void) {
+    Arena* arena = arena_create(4096);
+    
+    // Define: fn head(List(a)) -> Option(a)
+    int var_id = type_fresh_var_id();
+    Type* type_a = type_var(arena, string_new(arena, "a"), var_id);
+    
+    TypeVec* params = TypeVec_new(arena);
+    TypeVec_push(arena, params, type_list(arena, type_a));
+    Type* fn_type = type_fn(arena, params, type_option(arena, type_a));
+    
+    // head([1, 2, 3]) should have type Option(Int)
+    Parser* parser = parser_new(arena, "head([1, 2, 3])");
+    Expr* expr = parse_expr(parser);
+    Checker* checker = checker_new(arena);
+    checker_define(checker, string_new(arena, "head"), fn_type);
+    Type* t = checker_infer_expr(checker, expr);
+    
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_CON);
+    ASSERT_STR_EQ(string_cstr(t->data.con.name), "Option");
+    ASSERT_EQ(t->data.con.args->data[0]->kind, TYPE_INT);
+    
+    arena_destroy(arena);
+}
+
 /* ========== Test Runner ========== */
 
 void run_checker_tests(void) {
@@ -737,4 +790,8 @@ void run_checker_tests(void) {
     // Try operator (?)
     TEST_RUN(test_check_try_unwraps_result);
     TEST_RUN(test_check_try_requires_result);
+    
+    // Generic type instantiation
+    TEST_RUN(test_check_generic_identity);
+    TEST_RUN(test_check_generic_list_head);
 }

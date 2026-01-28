@@ -265,6 +265,272 @@ static Type* check_tuple_expr(Checker* checker, TupleExpr* expr) {
     return type_tuple(checker->arena, elem_types);
 }
 
+/* ========== Type Unification ========== */
+
+/* Check if a type contains a specific type variable */
+static bool type_contains_var(Type* type, int var_id) {
+    if (!type) return false;
+    
+    switch (type->kind) {
+        case TYPE_VAR:
+            if (type->data.var.bound) {
+                return type_contains_var(type->data.var.bound, var_id);
+            }
+            return type->data.var.id == var_id;
+            
+        case TYPE_CON:
+            if (type->data.con.args) {
+                for (size_t i = 0; i < type->data.con.args->len; i++) {
+                    if (type_contains_var(type->data.con.args->data[i], var_id)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+            
+        case TYPE_FN:
+            for (size_t i = 0; i < type->data.fn.params->len; i++) {
+                if (type_contains_var(type->data.fn.params->data[i], var_id)) {
+                    return true;
+                }
+            }
+            return type_contains_var(type->data.fn.result, var_id);
+            
+        case TYPE_TUPLE:
+            for (size_t i = 0; i < type->data.tuple.elements->len; i++) {
+                if (type_contains_var(type->data.tuple.elements->data[i], var_id)) {
+                    return true;
+                }
+            }
+            return false;
+            
+        default:
+            return false;
+    }
+}
+
+/* Unify two types, binding type variables as needed
+ * Returns true if unification succeeded */
+static bool unify(Type* a, Type* b) {
+    if (!a || !b) return a == b;
+    
+    /* Follow bound type variables */
+    while (a->kind == TYPE_VAR && a->data.var.bound) {
+        a = a->data.var.bound;
+    }
+    while (b->kind == TYPE_VAR && b->data.var.bound) {
+        b = b->data.var.bound;
+    }
+    
+    /* Same type variable */
+    if (a->kind == TYPE_VAR && b->kind == TYPE_VAR && 
+        a->data.var.id == b->data.var.id) {
+        return true;
+    }
+    
+    /* Bind unbound type variable to concrete type */
+    if (a->kind == TYPE_VAR && !a->data.var.bound) {
+        /* Occurs check: can't unify a with something containing a */
+        if (type_contains_var(b, a->data.var.id)) {
+            return false;
+        }
+        a->data.var.bound = b;
+        return true;
+    }
+    
+    if (b->kind == TYPE_VAR && !b->data.var.bound) {
+        if (type_contains_var(a, b->data.var.id)) {
+            return false;
+        }
+        b->data.var.bound = a;
+        return true;
+    }
+    
+    /* Different kinds */
+    if (a->kind != b->kind) {
+        return false;
+    }
+    
+    /* Same kind - compare structurally */
+    switch (a->kind) {
+        case TYPE_INT:
+        case TYPE_FLOAT:
+        case TYPE_STRING:
+        case TYPE_BOOL:
+        case TYPE_UNIT:
+        case TYPE_ERROR:
+            return true;
+            
+        case TYPE_CON:
+            if (!string_equal(a->data.con.name, b->data.con.name)) {
+                return false;
+            }
+            if (!a->data.con.args && !b->data.con.args) return true;
+            if (!a->data.con.args || !b->data.con.args) return false;
+            if (a->data.con.args->len != b->data.con.args->len) return false;
+            for (size_t i = 0; i < a->data.con.args->len; i++) {
+                if (!unify(a->data.con.args->data[i], b->data.con.args->data[i])) {
+                    return false;
+                }
+            }
+            return true;
+            
+        case TYPE_FN:
+            if (a->data.fn.params->len != b->data.fn.params->len) return false;
+            for (size_t i = 0; i < a->data.fn.params->len; i++) {
+                if (!unify(a->data.fn.params->data[i], b->data.fn.params->data[i])) {
+                    return false;
+                }
+            }
+            return unify(a->data.fn.result, b->data.fn.result);
+            
+        case TYPE_TUPLE:
+            if (a->data.tuple.elements->len != b->data.tuple.elements->len) return false;
+            for (size_t i = 0; i < a->data.tuple.elements->len; i++) {
+                if (!unify(a->data.tuple.elements->data[i], b->data.tuple.elements->data[i])) {
+                    return false;
+                }
+            }
+            return true;
+            
+        case TYPE_VAR:
+            /* Already handled above */
+            return false;
+    }
+    
+    return false;
+}
+
+/* Substitute bound type variables with their concrete types */
+static Type* substitute(Arena* arena, Type* type) {
+    if (!type) return NULL;
+    
+    switch (type->kind) {
+        case TYPE_VAR:
+            if (type->data.var.bound) {
+                return substitute(arena, type->data.var.bound);
+            }
+            return type;
+            
+        case TYPE_CON: {
+            if (!type->data.con.args || type->data.con.args->len == 0) {
+                return type;
+            }
+            TypeVec* new_args = TypeVec_new(arena);
+            for (size_t i = 0; i < type->data.con.args->len; i++) {
+                TypeVec_push(arena, new_args, 
+                    substitute(arena, type->data.con.args->data[i]));
+            }
+            return type_con(arena, type->data.con.name, new_args);
+        }
+            
+        case TYPE_FN: {
+            TypeVec* new_params = TypeVec_new(arena);
+            for (size_t i = 0; i < type->data.fn.params->len; i++) {
+                TypeVec_push(arena, new_params,
+                    substitute(arena, type->data.fn.params->data[i]));
+            }
+            return type_fn(arena, new_params, 
+                substitute(arena, type->data.fn.result));
+        }
+            
+        case TYPE_TUPLE: {
+            TypeVec* new_elements = TypeVec_new(arena);
+            for (size_t i = 0; i < type->data.tuple.elements->len; i++) {
+                TypeVec_push(arena, new_elements,
+                    substitute(arena, type->data.tuple.elements->data[i]));
+            }
+            return type_tuple(arena, new_elements);
+        }
+            
+        default:
+            return type;
+    }
+}
+
+/* ========== Type Instantiation ========== */
+
+/* Map from old var id to new type variable */
+typedef struct VarMapping {
+    int old_id;
+    Type* new_var;
+    struct VarMapping* next;
+} VarMapping;
+
+/* Find a mapping for a type variable ID */
+static Type* find_var_mapping(VarMapping* map, int var_id) {
+    for (VarMapping* m = map; m != NULL; m = m->next) {
+        if (m->old_id == var_id) {
+            return m->new_var;
+        }
+    }
+    return NULL;
+}
+
+/* Instantiate a type, replacing type variables with fresh ones.
+ * This maintains sharing: if the same type variable appears multiple times,
+ * it will be replaced with the same fresh variable each time. */
+static Type* instantiate_type(Arena* arena, Type* type, VarMapping** map) {
+    if (!type) return NULL;
+    
+    switch (type->kind) {
+        case TYPE_VAR: {
+            /* Check if we already have a mapping for this variable */
+            Type* existing = find_var_mapping(*map, type->data.var.id);
+            if (existing) {
+                return existing;
+            }
+            
+            /* Create a fresh type variable with a new ID */
+            int new_id = type_fresh_var_id();
+            Type* fresh = type_var(arena, type->data.var.name, new_id);
+            
+            /* Add to mapping */
+            VarMapping* new_map = arena_alloc(arena, sizeof(VarMapping));
+            new_map->old_id = type->data.var.id;
+            new_map->new_var = fresh;
+            new_map->next = *map;
+            *map = new_map;
+            
+            return fresh;
+        }
+            
+        case TYPE_CON: {
+            if (!type->data.con.args || type->data.con.args->len == 0) {
+                return type;
+            }
+            TypeVec* new_args = TypeVec_new(arena);
+            for (size_t i = 0; i < type->data.con.args->len; i++) {
+                TypeVec_push(arena, new_args, 
+                    instantiate_type(arena, type->data.con.args->data[i], map));
+            }
+            return type_con(arena, type->data.con.name, new_args);
+        }
+            
+        case TYPE_FN: {
+            TypeVec* new_params = TypeVec_new(arena);
+            for (size_t i = 0; i < type->data.fn.params->len; i++) {
+                TypeVec_push(arena, new_params,
+                    instantiate_type(arena, type->data.fn.params->data[i], map));
+            }
+            return type_fn(arena, new_params, 
+                instantiate_type(arena, type->data.fn.result, map));
+        }
+            
+        case TYPE_TUPLE: {
+            TypeVec* new_elements = TypeVec_new(arena);
+            for (size_t i = 0; i < type->data.tuple.elements->len; i++) {
+                TypeVec_push(arena, new_elements,
+                    instantiate_type(arena, type->data.tuple.elements->data[i], map));
+            }
+            return type_tuple(arena, new_elements);
+        }
+            
+        default:
+            return type;
+    }
+}
+
 /* ========== Function Call Type Checking ========== */
 
 static Type* check_call_expr(Checker* checker, CallExpr* expr) {
@@ -278,7 +544,13 @@ static Type* check_call_expr(Checker* checker, CallExpr* expr) {
             string_cstr(type_to_string(checker->arena, callee_type)));
     }
     
-    TypeFn* fn = &callee_type->data.fn;
+    /* Instantiate the function type with fresh type variables.
+     * This ensures that multiple calls to the same generic function
+     * don't interfere with each other, and that type variables that
+     * appear multiple times (like in (a) -> a) share the same binding. */
+    VarMapping* var_map = NULL;
+    Type* fn_type_inst = instantiate_type(checker->arena, callee_type, &var_map);
+    TypeFn* fn = &fn_type_inst->data.fn;
     
     /* Check argument count */
     size_t expected_count = fn->params->len;
@@ -289,14 +561,14 @@ static Type* check_call_expr(Checker* checker, CallExpr* expr) {
             expected_count, actual_count);
     }
     
-    /* Check argument types */
+    /* Unify argument types with parameter types (handles generics) */
     for (size_t i = 0; i < actual_count; i++) {
         Type* expected = fn->params->data[i];
         Type* actual = checker_infer_expr(checker, expr->args->data[i].value);
         
         if (actual->kind == TYPE_ERROR) return actual;
         
-        if (!type_assignable(actual, expected)) {
+        if (!unify(expected, actual)) {
             return error_type(checker, "Argument %zu: expected %s, got %s",
                 i + 1,
                 string_cstr(type_to_string(checker->arena, expected)),
@@ -304,7 +576,8 @@ static Type* check_call_expr(Checker* checker, CallExpr* expr) {
         }
     }
     
-    return fn->result;
+    /* Substitute bound type variables in the result type */
+    return substitute(checker->arena, fn->result);
 }
 
 /* ========== If Expression Type Checking ========== */
