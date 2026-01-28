@@ -139,6 +139,20 @@ Expr* expr_match(Arena* arena, Expr* value, MatchArmVec* arms, SourceLoc loc) {
     return expr;
 }
 
+/* Create block expression */
+Expr* expr_block(Arena* arena, StmtVec* stmts, Expr* final_expr, SourceLoc loc) {
+    assert(arena != NULL);
+    assert(stmts != NULL);
+    
+    Expr* expr = arena_alloc(arena, sizeof(Expr));
+    expr->type = EXPR_BLOCK;
+    expr->loc = loc;
+    expr->data.block.stmts = stmts;
+    expr->data.block.final_expr = final_expr;  // Can be NULL
+    
+    return expr;
+}
+
 /* Create let statement */
 Stmt* stmt_let(Arena* arena, Pattern* pattern, TypeExpr* type_ann, Expr* value, SourceLoc loc) {
     assert(arena != NULL);

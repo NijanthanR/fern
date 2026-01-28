@@ -366,6 +366,44 @@ static Expr* parse_primary_internal(Parser* parser) {
         return expr_if(parser->arena, condition, then_branch, else_branch, loc);
     }
     
+    // Block expression
+    if (match(parser, TOKEN_LBRACE)) {
+        SourceLoc loc = parser->previous.loc;
+        
+        StmtVec* stmts = StmtVec_new(parser->arena);
+        Expr* final_expr = NULL;
+        
+        // Parse comma-separated statements/expressions: { stmt, stmt, expr }
+        while (!check(parser, TOKEN_RBRACE)) {
+            // Check if this is a statement (let/return) or expression
+            if (check(parser, TOKEN_LET) || check(parser, TOKEN_RETURN)) {
+                Stmt* stmt = parse_stmt(parser);
+                StmtVec_push(parser->arena, stmts, stmt);
+                
+                // After statement, expect comma or closing brace
+                if (!check(parser, TOKEN_RBRACE)) {
+                    consume(parser, TOKEN_COMMA, "Expected ',' after statement in block");
+                }
+            } else {
+                // Parse expression
+                Expr* expr = parse_expression(parser);
+                
+                // If followed by comma, it's an expression statement
+                if (match(parser, TOKEN_COMMA)) {
+                    Stmt* stmt = stmt_expr(parser->arena, expr, expr->loc);
+                    StmtVec_push(parser->arena, stmts, stmt);
+                } else {
+                    // No comma means this is the final expression
+                    final_expr = expr;
+                    break;
+                }
+            }
+        }
+        
+        consume(parser, TOKEN_RBRACE, "Expected '}' after block");
+        return expr_block(parser->arena, stmts, final_expr, loc);
+    }
+    
     // Grouped expression
     if (match(parser, TOKEN_LPAREN)) {
         Expr* expr = parse_expression(parser);

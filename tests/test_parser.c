@@ -295,7 +295,7 @@ void test_parse_match_with_default(void) {
 /* Test: Parse simple block expression */
 void test_parse_block_simple(void) {
     Arena* arena = arena_create(4096);
-    Parser* parser = parser_new(arena, "{ let x = 5; x + 1 }");
+    Parser* parser = parser_new(arena, "{ let x = 5, x + 1 }");
     
     Expr* expr = parse_expr(parser);
     ASSERT_NOT_NULL(expr);
@@ -313,7 +313,7 @@ void test_parse_block_simple(void) {
 /* Test: Parse block with multiple statements */
 void test_parse_block_multiple_statements(void) {
     Arena* arena = arena_create(4096);
-    Parser* parser = parser_new(arena, "{ let a = 1; let b = 2; a + b }");
+    Parser* parser = parser_new(arena, "{ let a = 1, let b = 2, a + b }");
     
     Expr* expr = parse_expr(parser);
     ASSERT_NOT_NULL(expr);
