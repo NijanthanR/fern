@@ -275,25 +275,19 @@ void test_lex_float_trailing_zero(void) {
 /* Test: Lex loop keywords */
 void test_lex_loop_keywords(void) {
     Arena* arena = arena_create(4096);
-    Lexer* lex = lexer_new(arena, "for while loop break continue in");
+    Lexer* lex = lexer_new(arena, "for break continue in");
 
     Token t1 = lexer_next(lex);
     ASSERT_EQ(t1.type, TOKEN_FOR);
 
     Token t2 = lexer_next(lex);
-    ASSERT_EQ(t2.type, TOKEN_WHILE);
+    ASSERT_EQ(t2.type, TOKEN_BREAK);
 
     Token t3 = lexer_next(lex);
-    ASSERT_EQ(t3.type, TOKEN_LOOP);
+    ASSERT_EQ(t3.type, TOKEN_CONTINUE);
 
     Token t4 = lexer_next(lex);
-    ASSERT_EQ(t4.type, TOKEN_BREAK);
-
-    Token t5 = lexer_next(lex);
-    ASSERT_EQ(t5.type, TOKEN_CONTINUE);
-
-    Token t6 = lexer_next(lex);
-    ASSERT_EQ(t6.type, TOKEN_IN);
+    ASSERT_EQ(t4.type, TOKEN_IN);
 
     arena_destroy(arena);
 }

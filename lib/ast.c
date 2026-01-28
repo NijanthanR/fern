@@ -256,34 +256,6 @@ Expr* expr_for(Arena* arena, String* var_name, Expr* iterable, Expr* body, Sourc
     return expr;
 }
 
-/* Create while loop expression */
-Expr* expr_while(Arena* arena, Expr* condition, Expr* body, SourceLoc loc) {
-    assert(arena != NULL);
-    assert(condition != NULL);
-    assert(body != NULL);
-
-    Expr* expr = arena_alloc(arena, sizeof(Expr));
-    expr->type = EXPR_WHILE;
-    expr->loc = loc;
-    expr->data.while_loop.condition = condition;
-    expr->data.while_loop.body = body;
-
-    return expr;
-}
-
-/* Create infinite loop expression */
-Expr* expr_loop(Arena* arena, Expr* body, SourceLoc loc) {
-    assert(arena != NULL);
-    assert(body != NULL);
-
-    Expr* expr = arena_alloc(arena, sizeof(Expr));
-    expr->type = EXPR_LOOP;
-    expr->loc = loc;
-    expr->data.loop.body = body;
-
-    return expr;
-}
-
 Expr* expr_lambda(Arena* arena, StringVec* params, Expr* body, SourceLoc loc) {
     assert(arena != NULL);
     assert(params != NULL);

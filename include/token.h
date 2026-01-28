@@ -49,8 +49,7 @@ typedef enum {
     TOKEN_AS,           // as
     TOKEN_MODULE,       // module
     TOKEN_FOR,          // for
-    TOKEN_WHILE,        // while
-    TOKEN_LOOP,         // loop
+
     TOKEN_BREAK,        // break
     TOKEN_CONTINUE,     // continue
     TOKEN_IN,           // in

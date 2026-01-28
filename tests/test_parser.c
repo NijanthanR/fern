@@ -1645,33 +1645,6 @@ void test_parse_for_loop(void) {
     arena_destroy(arena);
 }
 
-/* Test: Parse while loop */
-void test_parse_while_loop(void) {
-    Arena* arena = arena_create(4096);
-    Parser* parser = parser_new(arena, "while x < 10: process(x)");
-
-    Expr* expr = parse_expr(parser);
-    ASSERT_NOT_NULL(expr);
-    ASSERT_EQ(expr->type, EXPR_WHILE);
-    ASSERT_EQ(expr->data.while_loop.condition->type, EXPR_BINARY);
-    ASSERT_EQ(expr->data.while_loop.body->type, EXPR_CALL);
-
-    arena_destroy(arena);
-}
-
-/* Test: Parse infinite loop */
-void test_parse_loop(void) {
-    Arena* arena = arena_create(4096);
-    Parser* parser = parser_new(arena, "loop: process()");
-
-    Expr* expr = parse_expr(parser);
-    ASSERT_NOT_NULL(expr);
-    ASSERT_EQ(expr->type, EXPR_LOOP);
-    ASSERT_EQ(expr->data.loop.body->type, EXPR_CALL);
-
-    arena_destroy(arena);
-}
-
 /* Test: Parse break statement */
 void test_parse_break(void) {
     Arena* arena = arena_create(4096);
@@ -2850,8 +2823,7 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_type_def_record);
     TEST_RUN(test_parse_type_def_pub);
     TEST_RUN(test_parse_for_loop);
-    TEST_RUN(test_parse_while_loop);
-    TEST_RUN(test_parse_loop);
+
     TEST_RUN(test_parse_break);
     TEST_RUN(test_parse_break_with_value);
     TEST_RUN(test_parse_continue);

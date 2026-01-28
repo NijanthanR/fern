@@ -42,8 +42,7 @@ typedef enum {
     EXPR_DOT,           // object.field
     EXPR_RANGE,         // 0..10 or 0..=10
     EXPR_FOR,           // for item in iterable: body
-    EXPR_WHILE,         // while condition: body
-    EXPR_LOOP,          // loop: body
+
     EXPR_LAMBDA,        // (x, y) -> expr
     EXPR_INTERP_STRING, // "Hello, {name}!"
     EXPR_MAP,           // %{ key: value, ... }
@@ -211,17 +210,6 @@ typedef struct {
     Expr* body;
 } ForExpr;
 
-/* While loop expression: while condition: body */
-typedef struct {
-    Expr* condition;
-    Expr* body;
-} WhileExpr;
-
-/* Loop expression (infinite): loop: body */
-typedef struct {
-    Expr* body;
-} LoopExpr;
-
 /* Lambda expression: (params) -> body */
 typedef struct {
     StringVec* params;
@@ -322,8 +310,7 @@ struct Expr {
         DotExpr dot;
         RangeExpr range;
         ForExpr for_loop;
-        WhileExpr while_loop;
-        LoopExpr loop;
+
         LambdaExpr lambda;
         InterpStringExpr interp_string;
         MapExpr map;
@@ -584,8 +571,7 @@ Expr* expr_with(Arena* arena, WithBindingVec* bindings, Expr* body, MatchArmVec*
 Expr* expr_dot(Arena* arena, Expr* object, String* field, SourceLoc loc);
 Expr* expr_range(Arena* arena, Expr* start, Expr* end, bool inclusive, SourceLoc loc);
 Expr* expr_for(Arena* arena, String* var_name, Expr* iterable, Expr* body, SourceLoc loc);
-Expr* expr_while(Arena* arena, Expr* condition, Expr* body, SourceLoc loc);
-Expr* expr_loop(Arena* arena, Expr* body, SourceLoc loc);
+
 Expr* expr_lambda(Arena* arena, StringVec* params, Expr* body, SourceLoc loc);
 Expr* expr_interp_string(Arena* arena, ExprVec* parts, SourceLoc loc);
 Expr* expr_map(Arena* arena, MapEntryVec* entries, SourceLoc loc);

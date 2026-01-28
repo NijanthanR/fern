@@ -863,23 +863,6 @@ static Expr* parse_primary_internal(Parser* parser) {
         return expr_for(parser->arena, var_tok.text, iterable, body, loc);
     }
 
-    // While loop: while condition: body
-    if (match(parser, TOKEN_WHILE)) {
-        SourceLoc loc = parser->previous.loc;
-        Expr* condition = parse_expression(parser);
-        consume(parser, TOKEN_COLON, "Expected ':' after while condition");
-        Expr* body = parse_expression(parser);
-        return expr_while(parser->arena, condition, body, loc);
-    }
-
-    // Infinite loop: loop: body
-    if (match(parser, TOKEN_LOOP)) {
-        SourceLoc loc = parser->previous.loc;
-        consume(parser, TOKEN_COLON, "Expected ':' after 'loop'");
-        Expr* body = parse_expression(parser);
-        return expr_loop(parser->arena, body, loc);
-    }
-
     // Lambda or grouped expression
     if (match(parser, TOKEN_LPAREN)) {
         SourceLoc loc = parser->previous.loc;
