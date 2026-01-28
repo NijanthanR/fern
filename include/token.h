@@ -91,6 +91,7 @@ typedef enum {
     TOKEN_COLON,        // :
     TOKEN_DOT,          // .
     TOKEN_DOTDOT,       // ..
+    TOKEN_DOTDOTEQ,     // ..=
     TOKEN_ELLIPSIS,     // ...
     TOKEN_UNDERSCORE,   // _
     TOKEN_AT,           // @

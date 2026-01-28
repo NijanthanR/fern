@@ -334,6 +334,7 @@ Token lexer_next(Lexer* lex) {
         case '.':
             if (match(lex, '.')) {
                 if (match(lex, '.')) return make_token(lex, TOKEN_ELLIPSIS, lex->current - 3, lex->current);
+                if (match(lex, '=')) return make_token(lex, TOKEN_DOTDOTEQ, lex->current - 3, lex->current);
                 return make_token(lex, TOKEN_DOTDOT, lex->current - 2, lex->current);
             }
             return make_token(lex, TOKEN_DOT, lex->current - 1, lex->current);

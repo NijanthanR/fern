@@ -1712,6 +1712,21 @@ void test_parse_continue(void) {
 }
 
 /* Test: Parse range expression (exclusive) */
+/* Test: Parse inclusive range ..= */
+void test_parse_range_inclusive(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "0..=10");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_RANGE);
+    ASSERT_EQ(expr->data.range.start->data.int_lit.value, 0);
+    ASSERT_EQ(expr->data.range.end->data.int_lit.value, 10);
+    ASSERT_TRUE(expr->data.range.inclusive);
+
+    arena_destroy(arena);
+}
+
 void test_parse_range_exclusive(void) {
     Arena* arena = arena_create(4096);
     Parser* parser = parser_new(arena, "0..10");
@@ -2078,6 +2093,7 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_break);
     TEST_RUN(test_parse_break_with_value);
     TEST_RUN(test_parse_continue);
+    TEST_RUN(test_parse_range_inclusive);
     TEST_RUN(test_parse_range_exclusive);
     TEST_RUN(test_parse_for_range);
     TEST_RUN(test_parse_trait_def);

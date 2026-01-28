@@ -109,9 +109,12 @@ static Expr* parse_range(Parser* parser) {
 
     if (match(parser, TOKEN_DOTDOT)) {
         SourceLoc loc = parser->previous.loc;
-        // TODO: check for ..= (inclusive) when TOKEN_DOTDOT_EQ exists
         Expr* end = parse_logical_or(parser);
         expr = expr_range(parser->arena, expr, end, false, loc);
+    } else if (match(parser, TOKEN_DOTDOTEQ)) {
+        SourceLoc loc = parser->previous.loc;
+        Expr* end = parse_logical_or(parser);
+        expr = expr_range(parser->arena, expr, end, true, loc);
     }
 
     return expr;
