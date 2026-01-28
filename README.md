@@ -2,7 +2,7 @@
 
 > A statically-typed, functional language with Python aesthetics that compiles to single binaries.
 
-**Status:** 🚧 In active development - Milestone 1 (Lexer) core complete, 23/23 tests passing
+**Status:** 🚧 In active development - Milestone 2 (Parser) in progress, 36/36 tests passing
 
 ## What is Fern?
 
@@ -39,29 +39,44 @@ Ok(process(validated))
 We're implementing the compiler using test-driven development. See [DESIGN.md](DESIGN.md) for the complete language specification.
 
 **Completed:**
-- ✅ Language specification (DESIGN.md)
-- ✅ Build system and test infrastructure  
-- ✅ Safety libraries (arena, strings, collections)
-- ✅ Development workflow and pre-commit hooks
-- ✅ Lexer implementation (Milestone 1 - core features)
+- ✅ Milestone 0: Project Setup
+  - Build system and test infrastructure  
+  - Safety libraries (arena, strings, collections)
+  - Development workflow and pre-commit hooks
+  - CI/CD pipeline
+- ✅ Milestone 1: Lexer (core complete)
   - All keywords, operators, literals
-  - 23/23 tests passing
   - Critical `<-` operator working
+  - 23/23 tests passing
 
 **In Progress:**
-- 🚧 Lexer enhancements (indentation, floats, string interpolation)
+- 🚧 Milestone 2: Parser
+  - Core parser complete (36/36 tests passing)
+  - Expression parsing with operator precedence
+  - Statement parsing (let, return)
+  - Function calls, binary/unary operators
+  - Remaining: function definitions, blocks, type annotations
 
 **Next:**
-- Parser implementation (Milestone 2)
+- Complete Milestone 2 (Parser)
+- Milestone 3: Type System
 - See [ROADMAP.md](ROADMAP.md) for full plan
+
+## Autonomous Development (Ralph Loop)
+
+We're using an autonomous agent system called **Ralph Loop** for systematic development:
+- Two agents (IMPLEMENTER and CONTROLLER) work together
+- Communication via ROADMAP.md
+- Strict TDD: tests first, implementation second, verification third
+- See [RALPH.md](RALPH.md) for architecture details
 
 ## Documentation
 
 - [Language Design](DESIGN.md) - Complete specification
-- [Implementation Roadmap](ROADMAP.md) - Development plan
+- [Implementation Roadmap](ROADMAP.md) - Development plan with Ralph Loop status
+- [Ralph Loop System](RALPH.md) - Autonomous development architecture
 - [Decision Log](DECISIONS.md) - Architectural decisions
 - [Development Guidelines](CLAUDE.md) - For AI-assisted development
-- [Build Instructions](BUILD.md) - How to build and test
 
 ## Inspiration
 
