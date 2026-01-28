@@ -1905,6 +1905,49 @@ void test_parse_method_call(void) {
     arena_destroy(arena);
 }
 
+/* Test: Parse tuple literal */
+void test_parse_tuple(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "(1, 2, 3)");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_TUPLE);
+    ASSERT_EQ(expr->data.tuple.elements->len, 3);
+    ASSERT_EQ(expr->data.tuple.elements->data[0]->type, EXPR_INT_LIT);
+    ASSERT_EQ(expr->data.tuple.elements->data[1]->type, EXPR_INT_LIT);
+    ASSERT_EQ(expr->data.tuple.elements->data[2]->type, EXPR_INT_LIT);
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse two-element tuple */
+void test_parse_tuple_pair(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "(10, 20)");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_TUPLE);
+    ASSERT_EQ(expr->data.tuple.elements->len, 2);
+
+    arena_destroy(arena);
+}
+
+/* Test: Grouped expression (not tuple) stays as grouped */
+void test_parse_grouped_not_tuple(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "(42)");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    // (42) is a grouped expression, not a tuple
+    ASSERT_EQ(expr->type, EXPR_INT_LIT);
+    ASSERT_EQ(expr->data.int_lit.value, 42);
+
+    arena_destroy(arena);
+}
+
 /* Test: Parse empty map literal */
 void test_parse_map_empty(void) {
     Arena* arena = arena_create(4096);
@@ -2185,6 +2228,9 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_dot_access);
     TEST_RUN(test_parse_dot_chain);
     TEST_RUN(test_parse_method_call);
+    TEST_RUN(test_parse_tuple);
+    TEST_RUN(test_parse_tuple_pair);
+    TEST_RUN(test_parse_grouped_not_tuple);
     TEST_RUN(test_parse_map_empty);
     TEST_RUN(test_parse_map_literal);
     TEST_RUN(test_parse_interp_string);

@@ -47,6 +47,7 @@ typedef enum {
     EXPR_LAMBDA,        // (x, y) -> expr
     EXPR_INTERP_STRING, // "Hello, {name}!"
     EXPR_MAP,           // %{ key: value, ... }
+    EXPR_TUPLE,         // (a, b, c)
 } ExprType;
 
 /* Binary operators */
@@ -228,6 +229,11 @@ typedef struct {
     ExprVec* parts;  // Mix of EXPR_STRING_LIT and other expressions
 } InterpStringExpr;
 
+/* Tuple literal: (a, b, c) */
+typedef struct {
+    ExprVec* elements;
+} TupleExpr;
+
 /* Map entry: key: value */
 typedef struct {
     Expr* key;
@@ -268,6 +274,7 @@ struct Expr {
         LambdaExpr lambda;
         InterpStringExpr interp_string;
         MapExpr map;
+        TupleExpr tuple;
     } data;
 };
 
@@ -489,6 +496,7 @@ Expr* expr_loop(Arena* arena, Expr* body, SourceLoc loc);
 Expr* expr_lambda(Arena* arena, StringVec* params, Expr* body, SourceLoc loc);
 Expr* expr_interp_string(Arena* arena, ExprVec* parts, SourceLoc loc);
 Expr* expr_map(Arena* arena, MapEntryVec* entries, SourceLoc loc);
+Expr* expr_tuple(Arena* arena, ExprVec* elements, SourceLoc loc);
 
 /* Create statements */
 Stmt* stmt_let(Arena* arena, Pattern* pattern, TypeExpr* type_ann, Expr* value, SourceLoc loc);

@@ -712,16 +712,29 @@ static Expr* parse_primary_internal(Parser* parser) {
             return expr_lambda(parser->arena, params, body, loc);
         }
 
-        // Not a lambda — restore state and parse as grouped expression
+        // Not a lambda — restore state and parse as grouped expression or tuple
         parser->current = saved_current;
         parser->previous = saved_previous;
         parser->had_error = saved_error;
         parser->panic_mode = saved_panic;
         lexer_restore(parser->lexer, saved_lexer);
 
-        Expr* expr = parse_expression(parser);
+        Expr* first = parse_expression(parser);
+
+        if (match(parser, TOKEN_COMMA)) {
+            // Tuple: (a, b, ...)
+            ExprVec* elements = ExprVec_new(parser->arena);
+            ExprVec_push(parser->arena, elements, first);
+            do {
+                ExprVec_push(parser->arena, elements, parse_expression(parser));
+            } while (match(parser, TOKEN_COMMA));
+            consume(parser, TOKEN_RPAREN, "Expected ')' after tuple elements");
+            return expr_tuple(parser->arena, elements, loc);
+        }
+
+        // Grouped expression: (expr)
         consume(parser, TOKEN_RPAREN, "Expected ')' after expression");
-        return expr;
+        return first;
     }
     
     error_at_current(parser, "Expected expression");

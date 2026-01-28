@@ -299,6 +299,18 @@ Expr* expr_lambda(Arena* arena, StringVec* params, Expr* body, SourceLoc loc) {
     return expr;
 }
 
+Expr* expr_tuple(Arena* arena, ExprVec* elements, SourceLoc loc) {
+    assert(arena != NULL);
+    assert(elements != NULL);
+
+    Expr* expr = arena_alloc(arena, sizeof(Expr));
+    expr->type = EXPR_TUPLE;
+    expr->loc = loc;
+    expr->data.tuple.elements = elements;
+
+    return expr;
+}
+
 Expr* expr_map(Arena* arena, MapEntryVec* entries, SourceLoc loc) {
     assert(arena != NULL);
     assert(entries != NULL);
