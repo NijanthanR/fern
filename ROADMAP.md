@@ -512,10 +512,11 @@ void test_infer_generic_list() {
 
 ---
 
-## Milestone 4: QBE Code Generation
+## Milestone 4: QBE Code Generation ✓ COMPLETE
 
-**Status:** 🚧 In Progress - Core codegen complete, 32 tests passing
-**Tests:** 331 total (32 codegen tests)
+**Status:** ✅ Complete - Full compilation pipeline working, 346 tests passing
+**Completed:** 2026-01-28
+**Tests:** 346 total (38 codegen tests)
 
 **Goal:** Generate QBE IR from AST
 
@@ -561,9 +562,9 @@ tests/test_codegen.c       # All codegen tests in single file
 
 **Success Criteria:**
 - [x] Core codegen tests pass (38/38)
-- [ ] `fern build file.fn` creates executable
-- [ ] Generated code runs correctly
-- [ ] Binary sizes match targets (CLI <1MB, server <4MB)
+- [x] `fern build file.fn` creates executable ✅
+- [x] Generated code runs correctly ✅
+- [ ] Binary sizes match targets (CLI <1MB, server <4MB) - pending optimization
 
 **Test Examples:**
 
