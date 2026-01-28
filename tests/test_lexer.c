@@ -452,6 +452,75 @@ void test_lex_block_comment_end(void) {
     arena_destroy(arena);
 }
 
+/* Test: Unicode identifier - Greek letter pi */
+void test_lex_unicode_greek(void) {
+    Arena* arena = arena_create(4096);
+    Lexer* lex = lexer_new(arena, "π");
+    
+    Token tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_IDENT);
+    ASSERT_STR_EQ(string_cstr(tok.text), "π");
+    
+    arena_destroy(arena);
+}
+
+/* Test: Unicode identifier - Japanese */
+void test_lex_unicode_japanese(void) {
+    Arena* arena = arena_create(4096);
+    Lexer* lex = lexer_new(arena, "日本語");
+    
+    Token tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_IDENT);
+    ASSERT_STR_EQ(string_cstr(tok.text), "日本語");
+    
+    arena_destroy(arena);
+}
+
+/* Test: Unicode identifier - emoji */
+void test_lex_unicode_emoji(void) {
+    Arena* arena = arena_create(4096);
+    Lexer* lex = lexer_new(arena, "🚀");
+    
+    Token tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_IDENT);
+    ASSERT_STR_EQ(string_cstr(tok.text), "🚀");
+    
+    arena_destroy(arena);
+}
+
+/* Test: Unicode identifier - mixed with ASCII */
+void test_lex_unicode_mixed(void) {
+    Arena* arena = arena_create(4096);
+    Lexer* lex = lexer_new(arena, "calculate_π_value");
+    
+    Token tok = lexer_next(lex);
+    ASSERT_EQ(tok.type, TOKEN_IDENT);
+    ASSERT_STR_EQ(string_cstr(tok.text), "calculate_π_value");
+    
+    arena_destroy(arena);
+}
+
+/* Test: Unicode in let statement */
+void test_lex_unicode_let(void) {
+    Arena* arena = arena_create(4096);
+    Lexer* lex = lexer_new(arena, "let π = 3.14159");
+    
+    Token tok1 = lexer_next(lex);
+    ASSERT_EQ(tok1.type, TOKEN_LET);
+    
+    Token tok2 = lexer_next(lex);
+    ASSERT_EQ(tok2.type, TOKEN_IDENT);
+    ASSERT_STR_EQ(string_cstr(tok2.text), "π");
+    
+    Token tok3 = lexer_next(lex);
+    ASSERT_EQ(tok3.type, TOKEN_ASSIGN);
+    
+    Token tok4 = lexer_next(lex);
+    ASSERT_EQ(tok4.type, TOKEN_FLOAT);
+    
+    arena_destroy(arena);
+}
+
 void run_lexer_tests(void) {
     printf("\n=== Lexer Tests ===\n");
     TEST_RUN(test_lex_integer);
@@ -481,4 +550,9 @@ void run_lexer_tests(void) {
     TEST_RUN(test_lex_block_comment);
     TEST_RUN(test_lex_block_comment_multiline);
     TEST_RUN(test_lex_block_comment_end);
+    TEST_RUN(test_lex_unicode_greek);
+    TEST_RUN(test_lex_unicode_japanese);
+    TEST_RUN(test_lex_unicode_emoji);
+    TEST_RUN(test_lex_unicode_mixed);
+    TEST_RUN(test_lex_unicode_let);
 }

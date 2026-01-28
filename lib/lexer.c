@@ -94,17 +94,39 @@ static void skip_whitespace(Lexer* lex) {
     }
 }
 
-/* Helper: Check if character is valid in identifier */
-static bool is_ident_start(char c) {
-    assert(c >= 0 || c < 0);  // Always true - documents c is used
-    assert((unsigned char)c <= 127 || (unsigned char)c > 127);  // Always true
-    return isalpha(c) || c == '_';
+/* Helper: Check if byte starts a multi-byte UTF-8 sequence */
+static bool is_utf8_start(unsigned char c) {
+    // UTF-8 multi-byte sequences start with 0b11xxxxxx (>= 0xC0)
+    // Single-byte ASCII starts with 0b0xxxxxxx (< 0x80)
+    return c >= 0xC0;
 }
 
+/* Helper: Check if byte is a UTF-8 continuation byte */
+static bool is_utf8_cont(unsigned char c) {
+    // UTF-8 continuation bytes are 0b10xxxxxx (0x80-0xBF)
+    return (c & 0xC0) == 0x80;
+}
+
+/* Helper: Check if character is valid at start of identifier */
+static bool is_ident_start(char c) {
+    unsigned char uc = (unsigned char)c;
+    // ASCII letters and underscore
+    if (isalpha(c) || c == '_') return true;
+    // UTF-8 multi-byte sequence start (Unicode letters, emoji, etc.)
+    if (is_utf8_start(uc)) return true;
+    return false;
+}
+
+/* Helper: Check if character is valid in identifier (continuation) */
 static bool is_ident_cont(char c) {
-    assert(c >= 0 || c < 0);  // Always true - documents c is used
-    assert((unsigned char)c <= 127 || (unsigned char)c > 127);  // Always true
-    return isalnum(c) || c == '_';
+    unsigned char uc = (unsigned char)c;
+    // ASCII letters, digits, and underscore
+    if (isalnum(c) || c == '_') return true;
+    // UTF-8 multi-byte sequence start (Unicode letters, emoji, etc.)
+    if (is_utf8_start(uc)) return true;
+    // UTF-8 continuation bytes (part of a multi-byte character)
+    if (is_utf8_cont(uc)) return true;
+    return false;
 }
 
 /* Helper: Create token */
