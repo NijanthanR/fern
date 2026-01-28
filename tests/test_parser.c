@@ -2557,6 +2557,39 @@ void test_parse_fn_no_where(void) {
     arena_destroy(arena);
 }
 
+void test_parse_postfix_if(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "log(msg) if debug");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_EXPR);
+    Expr* e = stmt->data.expr.expr;
+    ASSERT_EQ(e->type, EXPR_IF);
+    ASSERT_NOT_NULL(e->data.if_expr.condition);
+    ASSERT_NOT_NULL(e->data.if_expr.then_branch);
+    ASSERT_NULL(e->data.if_expr.else_branch);
+
+    arena_destroy(arena);
+}
+
+void test_parse_postfix_unless(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "validate() unless skip");
+
+    Stmt* stmt = parse_stmt(parser);
+    ASSERT_NOT_NULL(stmt);
+    ASSERT_EQ(stmt->type, STMT_EXPR);
+    Expr* e = stmt->data.expr.expr;
+    ASSERT_EQ(e->type, EXPR_IF);
+    // condition should be UNOP_NOT wrapping "skip"
+    Expr* cond = e->data.if_expr.condition;
+    ASSERT_EQ(cond->type, EXPR_UNARY);
+    ASSERT_EQ(cond->data.unary.op, UNOP_NOT);
+
+    arena_destroy(arena);
+}
+
 void test_parse_index_access(void) {
     Arena* arena = arena_create(4096);
     Parser* parser = parser_new(arena, "items[0]");
@@ -2906,6 +2939,8 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_fn_no_where);
     TEST_RUN(test_parse_newtype);
     TEST_RUN(test_parse_pub_newtype);
+    TEST_RUN(test_parse_postfix_if);
+    TEST_RUN(test_parse_postfix_unless);
     TEST_RUN(test_parse_index_access);
     TEST_RUN(test_parse_index_chain);
     TEST_RUN(test_parse_module_simple);

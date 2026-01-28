@@ -1447,8 +1447,18 @@ Stmt* parse_stmt(Parser* parser) {
         return ret;
     }
     
-    // Expression statement
+    // Expression statement (with optional postfix if/unless)
     Expr* expr = parse_expression(parser);
+
+    if (match(parser, TOKEN_IF)) {
+        Expr* cond = parse_expression(parser);
+        expr = expr_if(parser->arena, cond, expr, NULL, expr->loc);
+    } else if (match(parser, TOKEN_UNLESS)) {
+        Expr* cond = parse_expression(parser);
+        Expr* negated = expr_unary(parser->arena, UNOP_NOT, cond, cond->loc);
+        expr = expr_if(parser->arena, negated, expr, NULL, expr->loc);
+    }
+
     return stmt_expr(parser->arena, expr, expr->loc);
 }
 
