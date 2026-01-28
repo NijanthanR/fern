@@ -383,6 +383,91 @@ void test_parse_list_expressions(void) {
     arena_destroy(arena);
 }
 
+/* Test: Parse nested lists */
+void test_parse_nested_lists(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "[[1, 2], [3, 4]]");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_LIST);
+    ASSERT_EQ(expr->data.list.elements->len, 2);
+
+    // First element: [1, 2]
+    Expr* first = ExprVec_get(expr->data.list.elements, 0);
+    ASSERT_EQ(first->type, EXPR_LIST);
+    ASSERT_EQ(first->data.list.elements->len, 2);
+
+    Expr* one = ExprVec_get(first->data.list.elements, 0);
+    ASSERT_EQ(one->type, EXPR_INT_LIT);
+    ASSERT_EQ(one->data.int_lit.value, 1);
+
+    Expr* two = ExprVec_get(first->data.list.elements, 1);
+    ASSERT_EQ(two->type, EXPR_INT_LIT);
+    ASSERT_EQ(two->data.int_lit.value, 2);
+
+    // Second element: [3, 4]
+    Expr* second = ExprVec_get(expr->data.list.elements, 1);
+    ASSERT_EQ(second->type, EXPR_LIST);
+    ASSERT_EQ(second->data.list.elements->len, 2);
+
+    Expr* three = ExprVec_get(second->data.list.elements, 0);
+    ASSERT_EQ(three->type, EXPR_INT_LIT);
+    ASSERT_EQ(three->data.int_lit.value, 3);
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse list inside block expression */
+void test_parse_list_in_block(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "{ let x = [1, 2], x }");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_BLOCK);
+    ASSERT_EQ(expr->data.block.stmts->len, 1);
+
+    // The let statement should bind a list
+    Stmt* let_stmt = StmtVec_get(expr->data.block.stmts, 0);
+    ASSERT_EQ(let_stmt->type, STMT_LET);
+    ASSERT_EQ(let_stmt->data.let.value->type, EXPR_LIST);
+    ASSERT_EQ(let_stmt->data.let.value->data.list.elements->len, 2);
+
+    // Final expression should be the identifier
+    ASSERT_NOT_NULL(expr->data.block.final_expr);
+    ASSERT_EQ(expr->data.block.final_expr->type, EXPR_IDENT);
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse block expressions inside list */
+void test_parse_block_in_list(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "[{ let a = 1, a }, { let b = 2, b }]");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_LIST);
+    ASSERT_EQ(expr->data.list.elements->len, 2);
+
+    // First element: { let a = 1, a }
+    Expr* first = ExprVec_get(expr->data.list.elements, 0);
+    ASSERT_EQ(first->type, EXPR_BLOCK);
+    ASSERT_EQ(first->data.block.stmts->len, 1);
+    ASSERT_NOT_NULL(first->data.block.final_expr);
+    ASSERT_EQ(first->data.block.final_expr->type, EXPR_IDENT);
+
+    // Second element: { let b = 2, b }
+    Expr* second = ExprVec_get(expr->data.list.elements, 1);
+    ASSERT_EQ(second->type, EXPR_BLOCK);
+    ASSERT_EQ(second->data.block.stmts->len, 1);
+    ASSERT_NOT_NULL(second->data.block.final_expr);
+    ASSERT_EQ(second->data.block.final_expr->type, EXPR_IDENT);
+
+    arena_destroy(arena);
+}
+
 void run_parser_tests(void) {
     printf("\n=== Parser Tests ===\n");
     TEST_RUN(test_parse_int_literal);
@@ -407,4 +492,7 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_list_empty);
     TEST_RUN(test_parse_list_simple);
     TEST_RUN(test_parse_list_expressions);
+    TEST_RUN(test_parse_nested_lists);
+    TEST_RUN(test_parse_list_in_block);
+    TEST_RUN(test_parse_block_in_list);
 }
