@@ -468,6 +468,63 @@ void test_parse_block_in_list(void) {
     arena_destroy(arena);
 }
 
+/* Test: Parse simple bind expression (x <- f()) */
+void test_parse_bind_simple(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "x <- f()");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_BIND);
+    ASSERT_STR_EQ(string_cstr(expr->data.bind.name), "x");
+    ASSERT_NOT_NULL(expr->data.bind.value);
+    ASSERT_EQ(expr->data.bind.value->type, EXPR_CALL);
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse bind with function call argument */
+void test_parse_bind_with_call(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "result <- read_file(\"test.txt\")");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_BIND);
+    ASSERT_STR_EQ(string_cstr(expr->data.bind.name), "result");
+    ASSERT_NOT_NULL(expr->data.bind.value);
+    ASSERT_EQ(expr->data.bind.value->type, EXPR_CALL);
+
+    // Check the call has one argument
+    ASSERT_EQ(expr->data.bind.value->data.call.args->len, 1);
+
+    arena_destroy(arena);
+}
+
+/* Test: Parse bind inside block expression */
+void test_parse_bind_in_block(void) {
+    Arena* arena = arena_create(4096);
+    Parser* parser = parser_new(arena, "{ content <- load(), process(content) }");
+
+    Expr* expr = parse_expr(parser);
+    ASSERT_NOT_NULL(expr);
+    ASSERT_EQ(expr->type, EXPR_BLOCK);
+    ASSERT_NOT_NULL(expr->data.block.stmts);
+    ASSERT_EQ(expr->data.block.stmts->len, 1);
+
+    // First statement should be a bind expression statement
+    Stmt* bind_stmt = StmtVec_get(expr->data.block.stmts, 0);
+    ASSERT_EQ(bind_stmt->type, STMT_EXPR);
+    ASSERT_EQ(bind_stmt->data.expr.expr->type, EXPR_BIND);
+    ASSERT_STR_EQ(string_cstr(bind_stmt->data.expr.expr->data.bind.name), "content");
+
+    // Final expression should be a function call
+    ASSERT_NOT_NULL(expr->data.block.final_expr);
+    ASSERT_EQ(expr->data.block.final_expr->type, EXPR_CALL);
+
+    arena_destroy(arena);
+}
+
 void run_parser_tests(void) {
     printf("\n=== Parser Tests ===\n");
     TEST_RUN(test_parse_int_literal);
@@ -495,4 +552,7 @@ void run_parser_tests(void) {
     TEST_RUN(test_parse_nested_lists);
     TEST_RUN(test_parse_list_in_block);
     TEST_RUN(test_parse_block_in_list);
+    TEST_RUN(test_parse_bind_simple);
+    TEST_RUN(test_parse_bind_with_call);
+    TEST_RUN(test_parse_bind_in_block);
 }
