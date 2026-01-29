@@ -89,25 +89,76 @@ static String* get_basename(Arena* arena, const char* filename) {
     return string_new_len(arena, base, len);
 }
 
-/* ========== Compilation Pipeline ========== */
+/* ========== CLI Definition ========== */
+
+/** Command handler function type. */
+typedef int (*CmdHandler)(Arena* arena, const char* filename);
+
+/** CLI command definition. */
+typedef struct {
+    const char* name;        /* Command name (e.g., "build") */
+    const char* args;        /* Argument placeholder (e.g., "<file>") */
+    const char* description; /* Short description */
+    CmdHandler handler;      /* Function to execute */
+} Command;
+
+/** CLI option definition. */
+typedef struct {
+    const char* short_flag;  /* Short flag (e.g., "-h") */
+    const char* long_flag;   /* Long flag (e.g., "--help") */
+    const char* description; /* Short description */
+} Option;
+
+/* Forward declarations for command handlers */
+static int cmd_build(Arena* arena, const char* filename);
+static int cmd_run(Arena* arena, const char* filename);
+static int cmd_check(Arena* arena, const char* filename);
+static int cmd_emit(Arena* arena, const char* filename);
+static int cmd_lex(Arena* arena, const char* filename);
+static int cmd_parse(Arena* arena, const char* filename);
+
+/** All available commands. */
+static const Command COMMANDS[] = {
+    {"build", "<file>", "Compile to executable",       cmd_build},
+    {"run",   "<file>", "Compile and run immediately", cmd_run},
+    {"check", "<file>", "Type check only",             cmd_check},
+    {"emit",  "<file>", "Emit QBE IR to stdout",       cmd_emit},
+    {"lex",   "<file>", "Show tokens (debug)",         cmd_lex},
+    {"parse", "<file>", "Show AST (debug)",            cmd_parse},
+    {NULL, NULL, NULL, NULL}  /* Sentinel */
+};
+
+/** All available options. */
+static const Option OPTIONS[] = {
+    {"-h", "--help",    "Show this help message"},
+    {"-v", "--version", "Show version information"},
+    {NULL, NULL, NULL}  /* Sentinel */
+};
+
+/* ========== CLI Help Generation ========== */
 
 /**
- * Print usage information.
+ * Print usage information (auto-generated from COMMANDS and OPTIONS).
  */
 static void print_usage(void) {
     // FERN_STYLE: allow(assertion-density) simple print function
     fprintf(stderr, "%s\n\n", FERN_VERSION);
     fprintf(stderr, "Usage: fern <command> [options] <file>\n\n");
+    
+    /* Print commands */
     fprintf(stderr, "Commands:\n");
-    fprintf(stderr, "  build <file>    Compile to executable\n");
-    fprintf(stderr, "  run <file>      Compile and run immediately\n");
-    fprintf(stderr, "  check <file>    Type check only\n");
-    fprintf(stderr, "  emit <file>     Emit QBE IR to stdout\n");
-    fprintf(stderr, "  lex <file>      Show tokens (debug)\n");
-    fprintf(stderr, "  parse <file>    Show AST (debug)\n");
+    for (const Command* cmd = COMMANDS; cmd->name != NULL; cmd++) {
+        fprintf(stderr, "  %-14s %s\n", cmd->name, cmd->description);
+    }
+    
+    /* Print options */
     fprintf(stderr, "\nOptions:\n");
-    fprintf(stderr, "  -h, --help      Show this help message\n");
-    fprintf(stderr, "  -v, --version   Show version information\n");
+    for (const Option* opt = OPTIONS; opt->short_flag != NULL; opt++) {
+        char flags[32];
+        snprintf(flags, sizeof(flags), "%s, %s", opt->short_flag, opt->long_flag);
+        fprintf(stderr, "  %-14s %s\n", flags, opt->description);
+    }
+    
     fprintf(stderr, "\nFile extensions: .fn, .🌿\n");
 }
 
@@ -117,6 +168,32 @@ static void print_usage(void) {
 static void print_version(void) {
     // FERN_STYLE: allow(assertion-density) simple print function
     printf("%s\n", FERN_VERSION);
+}
+
+/**
+ * Find a command by name.
+ * @param name The command name to look up.
+ * @return The command, or NULL if not found.
+ */
+static const Command* find_command(const char* name) {
+    // FERN_STYLE: allow(assertion-density) simple lookup
+    for (const Command* cmd = COMMANDS; cmd->name != NULL; cmd++) {
+        if (strcmp(cmd->name, name) == 0) {
+            return cmd;
+        }
+    }
+    return NULL;
+}
+
+/**
+ * Check if argument matches an option.
+ * @param arg The argument to check.
+ * @param opt The option to match against.
+ * @return true if matches, false otherwise.
+ */
+static bool matches_option(const char* arg, const Option* opt) {
+    // FERN_STYLE: allow(assertion-density) simple comparison
+    return strcmp(arg, opt->short_flag) == 0 || strcmp(arg, opt->long_flag) == 0;
 }
 
 /**
@@ -522,25 +599,35 @@ int main(int argc, char** argv) {
     // Store executable path for runtime library lookup
     g_exe_path = argv[0];
     
-    // Handle --help and --version flags
+    // Handle global options (before command)
     if (argc >= 2) {
-        if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
-            print_usage();
-            return 0;
-        }
-        if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-v") == 0) {
-            print_version();
-            return 0;
+        for (const Option* opt = OPTIONS; opt->short_flag != NULL; opt++) {
+            if (matches_option(argv[1], opt)) {
+                if (strcmp(opt->short_flag, "-h") == 0) {
+                    print_usage();
+                    return 0;
+                }
+                if (strcmp(opt->short_flag, "-v") == 0) {
+                    print_version();
+                    return 0;
+                }
+            }
         }
     }
     
+    // Need at least command and file
     if (argc < 3) {
         print_usage();
         return 1;
     }
     
-    const char* command = argv[1];
-    const char* filename = argv[2];
+    // Find and execute command
+    const Command* cmd = find_command(argv[1]);
+    if (!cmd) {
+        fprintf(stderr, "Unknown command: %s\n\n", argv[1]);
+        print_usage();
+        return 1;
+    }
     
     // Create arena for compiler session
     Arena* arena = arena_create(4 * 1024 * 1024);  // 4MB
@@ -549,25 +636,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     
-    int result;
-    
-    if (strcmp(command, "build") == 0) {
-        result = cmd_build(arena, filename);
-    } else if (strcmp(command, "run") == 0) {
-        result = cmd_run(arena, filename);
-    } else if (strcmp(command, "check") == 0) {
-        result = cmd_check(arena, filename);
-    } else if (strcmp(command, "emit") == 0) {
-        result = cmd_emit(arena, filename);
-    } else if (strcmp(command, "lex") == 0) {
-        result = cmd_lex(arena, filename);
-    } else if (strcmp(command, "parse") == 0) {
-        result = cmd_parse(arena, filename);
-    } else {
-        fprintf(stderr, "Unknown command: %s\n\n", command);
-        print_usage();
-        result = 1;
-    }
+    int result = cmd->handler(arena, argv[2]);
     
     arena_destroy(arena);
     return result;

@@ -769,11 +769,14 @@ Single-header CLI utilities created in `include/cli.h`. Needs polish before prod
   - [ ] Add fix suggestions (like Rust's "help: try X")
   - [ ] Consider adding table formatting for `fern --help`
 
-### Argument Parsing (argtable3)
+### Argument Parsing
 
-Using [argtable3](https://github.com/argtable/argtable3) (BSD-3 license) for argument parsing.
+Using lightweight built-in CLI structure (Command/Option arrays with auto-generated help).
 
-- [x] Add argtable3 to lib/ (`lib/argtable3.c`, `lib/argtable3.h`)
+- [x] Define Command struct (name, args, description, handler)
+- [x] Define Option struct (short_flag, long_flag, description)
+- [x] Auto-generate help from command/option arrays
+- [x] Implement find_command() lookup
 
 - [ ] Implement CLI argument structure
   - [ ] Define subcommands: build, run, check, test, fmt, repl, lsp
