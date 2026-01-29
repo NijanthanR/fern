@@ -1186,12 +1186,13 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                                 string_cstr(result), string_cstr(list));
                             return result;
                         }
-                        /* List.get(list, index) -> elem */
+                        /* List.get(list, index) -> elem (returns l for pointer elements) */
                         if (strcmp(func, "get") == 0 && call->args->len == 2) {
                             String* list = codegen_expr(cg, call->args->data[0].value);
                             String* index = codegen_expr(cg, call->args->data[1].value);
-                            emit(cg, "    %s =w call $fern_list_get(l %s, w %s)\n",
+                            emit(cg, "    %s =l call $fern_list_get(l %s, w %s)\n",
                                 string_cstr(result), string_cstr(list), string_cstr(index));
+                            register_wide_var(cg, result);
                             return result;
                         }
                         /* List.push(list, elem) -> List */
@@ -1960,12 +1961,13 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                     return result;
                 }
 
-                /* Handle list_get(list, index) -> elem */
+                /* Handle list_get(list, index) -> elem (returns l for pointer elements) */
                 if (strcmp(fn_name, "list_get") == 0 && call->args->len == 2) {
                     String* list = codegen_expr(cg, call->args->data[0].value);
                     String* index = codegen_expr(cg, call->args->data[1].value);
-                    emit(cg, "    %s =w call $fern_list_get(l %s, w %s)\n",
+                    emit(cg, "    %s =l call $fern_list_get(l %s, w %s)\n",
                         string_cstr(result), string_cstr(list), string_cstr(index));
+                    register_wide_var(cg, result);
                     return result;
                 }
 
@@ -2180,12 +2182,15 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                 }
             }
 
-            /* Generate code for arguments */
+            /* Generate code for arguments and track their types */
             String** arg_temps = NULL;
+            char* arg_types = NULL;
             if (call->args->len > 0) {
                 arg_temps = arena_alloc(cg->arena, sizeof(String*) * call->args->len);
+                arg_types = arena_alloc(cg->arena, sizeof(char) * call->args->len);
                 for (size_t i = 0; i < call->args->len; i++) {
                     arg_temps[i] = codegen_expr(cg, call->args->data[i].value);
+                    arg_types[i] = qbe_type_for_expr(cg, call->args->data[i].value);
                 }
             }
             
@@ -2202,7 +2207,7 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                     string_cstr(result), ret_type, func_name);
                 for (size_t i = 0; i < call->args->len; i++) {
                     if (i > 0) emit(cg, ", ");
-                    emit(cg, "w %s", string_cstr(arg_temps[i]));
+                    emit(cg, "%c %s", arg_types[i], string_cstr(arg_temps[i]));
                 }
                 emit(cg, ")\n");
             } else {
@@ -2344,17 +2349,19 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
             emit(cg, "%s\n", string_cstr(err_label));
             emit(cg, "    ret %s\n", string_cstr(result_val));
             
-            /* Ok path: unwrap the value */
+            /* Ok path: unwrap the value
+             * Use 'l' since unwrapped value may be a pointer (String, List, etc.) */
             emit(cg, "%s\n", string_cstr(ok_label));
-            emit(cg, "    %s =w call $fern_result_unwrap(l %s)\n",
+            emit(cg, "    %s =l call $fern_result_unwrap(l %s)\n",
                 string_cstr(unwrapped), string_cstr(result_val));
+            register_wide_var(cg, unwrapped);
             
             return unwrapped;
         }
         
         case EXPR_INDEX: {
             /* Index expression: list[index]
-             * Calls fern_list_get(list, index) */
+             * Calls fern_list_get(list, index) - returns l for pointer elements */
             IndexExpr* idx = &expr->data.index_expr;
             
             String* obj = codegen_expr(cg, idx->object);
@@ -2362,8 +2369,9 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
             String* result = fresh_temp(cg);
             
             /* Call runtime function to get element */
-            emit(cg, "    %s =w call $fern_list_get(l %s, w %s)\n",
+            emit(cg, "    %s =l call $fern_list_get(l %s, w %s)\n",
                 string_cstr(result), string_cstr(obj), string_cstr(index));
+            register_wide_var(cg, result);
             
             return result;
         }
@@ -2494,12 +2502,15 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
             /* Loop body */
             emit(cg, "%s\n", string_cstr(loop_body));
             
-            /* Get element at current index and bind to var_name */
+            /* Get element at current index and bind to var_name
+             * Use 'l' type since list elements may be pointers (strings, etc.) */
             String* elem = fresh_temp(cg);
-            emit(cg, "    %s =w call $fern_list_get(l %s, w %s)\n",
+            emit(cg, "    %s =l call $fern_list_get(l %s, w %s)\n",
                 string_cstr(elem), string_cstr(list), string_cstr(idx));
-            emit(cg, "    %%%s =w copy %s\n", 
+            register_wide_var(cg, elem);
+            emit(cg, "    %%%s =l copy %s\n", 
                 string_cstr(for_loop->var_name), string_cstr(elem));
+            register_wide_var(cg, for_loop->var_name);
             
             /* Execute body */
             codegen_expr(cg, for_loop->body);
@@ -2556,13 +2567,16 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                 emit(cg, "    jnz %s, %s, %s\n",
                     string_cstr(is_ok), string_cstr(ok_label), string_cstr(err_label));
                 
-                /* Ok path: unwrap and bind */
+                /* Ok path: unwrap and bind
+                 * Use 'l' since unwrapped value may be a pointer (String, List, etc.) */
                 emit(cg, "%s\n", string_cstr(ok_label));
                 String* unwrapped = fresh_temp(cg);
-                emit(cg, "    %s =w call $fern_result_unwrap(l %s)\n",
+                emit(cg, "    %s =l call $fern_result_unwrap(l %s)\n",
                     string_cstr(unwrapped), string_cstr(res_val));
-                emit(cg, "    %%%s =w copy %s\n",
+                register_wide_var(cg, unwrapped);
+                emit(cg, "    %%%s =l copy %s\n",
                     string_cstr(binding->name), string_cstr(unwrapped));
+                register_wide_var(cg, binding->name);
             }
             
             /* All bindings succeeded: evaluate do body */
