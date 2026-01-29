@@ -2455,7 +2455,10 @@ static size_t display_width(const char* s) {
     size_t width = 0;
     size_t len = strlen(s);
     for (size_t i = 0; i < len; i++) {
-        if (s[i] == '\x1b') {
+        if (s[i] == '\n' || s[i] == '\r') {
+            /* Don't count newlines as width */
+            continue;
+        } else if (s[i] == '\x1b') {
             /* Skip ANSI escape sequence */
             while (i < len && s[i] != 'm') i++;
         } else if ((unsigned char)s[i] >= 0x80) {
@@ -2468,6 +2471,39 @@ static size_t display_width(const char* s) {
         }
     }
     return width;
+}
+
+/**
+ * Get the maximum line width from a multi-line string.
+ * @param s The string (may contain newlines).
+ * @return Maximum display width of any line.
+ */
+static size_t max_line_width(const char* s) {
+    if (!s) return 0;
+    size_t max_width = 0;
+    size_t current_width = 0;
+    size_t len = strlen(s);
+    
+    for (size_t i = 0; i < len; i++) {
+        if (s[i] == '\n') {
+            if (current_width > max_width) max_width = current_width;
+            current_width = 0;
+        } else if (s[i] == '\r') {
+            /* Skip carriage return */
+            continue;
+        } else if (s[i] == '\x1b') {
+            /* Skip ANSI escape sequence */
+            while (i < len && s[i] != 'm') i++;
+        } else if ((unsigned char)s[i] >= 0x80) {
+            if ((unsigned char)s[i] >= 0xC0) current_width++;
+        } else {
+            current_width++;
+        }
+    }
+    /* Check last line (if no trailing newline) */
+    if (current_width > max_width) max_width = current_width;
+    
+    return max_width;
 }
 
 /**
@@ -2586,12 +2622,13 @@ FernPanel* fern_panel_padding(FernPanel* panel, int64_t vertical, int64_t horizo
 }
 
 char* fern_panel_render(FernPanel* panel) {
+    /* FERN_STYLE: allow(function-length) panel rendering with multi-line support */
     if (!panel) return FERN_STRDUP("");
     
     const BoxChars* box = &BOX_CHARS[panel->box_style];
     
-    /* Calculate content width */
-    size_t content_width = display_width(panel->content);
+    /* Calculate content width - use max line width for multi-line content */
+    size_t content_width = max_line_width(panel->content);
     size_t title_width = panel->title ? display_width(panel->title) + 2 : 0;  /* +2 for spaces */
     size_t subtitle_width = panel->subtitle ? display_width(panel->subtitle) + 2 : 0;
     
@@ -2613,7 +2650,7 @@ char* fern_panel_render(FernPanel* panel) {
     }
     
     /* Build result string */
-    size_t result_cap = 4096;
+    size_t result_cap = 8192;
     char* result = FERN_ALLOC(result_cap);
     if (!result) return FERN_STRDUP("");
     result[0] = '\0';
@@ -2650,17 +2687,62 @@ char* fern_panel_render(FernPanel* panel) {
         strcat(result, "\n");
     }
     
-    /* Content line */
-    strcat(result, box->left);
+    /* Content lines - split by newlines and render each line */
     char* h_pad = str_repeat(" ", panel->padding_h);
-    strcat(result, h_pad);
-    char* padded_content = pad_right(panel->content, inner_width - panel->padding_h * 2);
-    strcat(result, padded_content);
-    FERN_FREE(padded_content);
-    strcat(result, h_pad);
+    size_t line_width = inner_width - panel->padding_h * 2;
+    
+    /* Split content into lines */
+    const char* content = panel->content;
+    const char* line_start = content;
+    const char* p = content;
+    
+    while (*p != '\0') {
+        if (*p == '\n') {
+            /* Render this line */
+            size_t line_len = (size_t)(p - line_start);
+            char* line = FERN_ALLOC(line_len + 1);
+            if (line) {
+                memcpy(line, line_start, line_len);
+                line[line_len] = '\0';
+                
+                strcat(result, box->left);
+                strcat(result, h_pad);
+                char* padded_line = pad_right(line, line_width);
+                strcat(result, padded_line);
+                FERN_FREE(padded_line);
+                strcat(result, h_pad);
+                strcat(result, box->right);
+                strcat(result, "\n");
+                FERN_FREE(line);
+            }
+            line_start = p + 1;
+        }
+        p++;
+    }
+    
+    /* Render last line (or only line if no newlines) */
+    if (line_start <= p) {
+        size_t line_len = (size_t)(p - line_start);
+        if (line_len > 0 || line_start == content) {
+            char* line = FERN_ALLOC(line_len + 1);
+            if (line) {
+                memcpy(line, line_start, line_len);
+                line[line_len] = '\0';
+                
+                strcat(result, box->left);
+                strcat(result, h_pad);
+                char* padded_line = pad_right(line, line_width);
+                strcat(result, padded_line);
+                FERN_FREE(padded_line);
+                strcat(result, h_pad);
+                strcat(result, box->right);
+                strcat(result, "\n");
+                FERN_FREE(line);
+            }
+        }
+    }
+    
     FERN_FREE(h_pad);
-    strcat(result, box->right);
-    strcat(result, "\n");
     
     /* Vertical padding (bottom) */
     for (int64_t i = 0; i < panel->padding_v; i++) {
