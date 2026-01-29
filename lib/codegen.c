@@ -43,6 +43,9 @@ struct Codegen {
     /* Track functions that return tuples (pointers) */
     String* tuple_return_funcs[MAX_TUPLE_FUNCS];
     int tuple_func_count;
+    
+    /* Track if a return statement was emitted - avoids unreachable code */
+    bool returned;
 };
 
 /* ========== Helper Functions ========== */
@@ -89,6 +92,19 @@ static String* fresh_label(Codegen* cg) {
     char buf[32];
     snprintf(buf, sizeof(buf), "@L%d", cg->label_counter++);
     return string_new(cg->arena, buf);
+}
+
+/**
+ * Emit a label and reset the returned flag.
+ * After a label, code is reachable again (it's a branch target).
+ * @param cg The codegen context.
+ * @param label The label to emit (without @).
+ */
+static void emit_label(Codegen* cg, const char* label) {
+    assert(cg != NULL);
+    assert(label != NULL);
+    emit(cg, "%s\n", label);
+    cg->returned = false;  /* Code after a label is reachable */
 }
 
 /* ========== Module Path Helpers ========== */
@@ -656,6 +672,7 @@ Codegen* codegen_new(Arena* arena) {
     cg->defer_count = 0;
     cg->wide_var_count = 0;
     cg->tuple_func_count = 0;
+    cg->returned = false;
     return cg;
 }
 
@@ -938,9 +955,14 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
             BlockExpr* block = &expr->data.block;
             String* last = NULL;
             
-            /* Generate code for each statement */
+            /* Generate code for each statement, stopping if we hit a return */
             for (size_t i = 0; i < block->stmts->len; i++) {
                 codegen_stmt(cg, block->stmts->data[i]);
+                if (cg->returned) {
+                    /* A return was hit - don't generate more unreachable code */
+                    last = fresh_temp(cg);  /* Dummy value, won't be used */
+                    return last;
+                }
             }
             
             /* Generate code for the final expression if present */
@@ -962,32 +984,47 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
             String* else_label = fresh_label(cg);
             String* end_label = fresh_label(cg);
             String* result = fresh_temp(cg);
+            bool then_returned = false;
+            bool else_returned = false;
             
             emit(cg, "    jnz %s, %s, %s\n", 
                 string_cstr(cond), string_cstr(then_label), string_cstr(else_label));
             
             /* Then branch */
-            emit(cg, "%s\n", string_cstr(then_label));
+            emit_label(cg, string_cstr(then_label));
             String* then_val = codegen_expr(cg, if_expr->then_branch);
-            char then_type = qbe_type_for_expr(cg, if_expr->then_branch);
-            emit(cg, "    %s =%c copy %s\n", string_cstr(result), then_type, string_cstr(then_val));
-            if (then_type == 'l') {
-                register_wide_var(cg, result);
+            then_returned = cg->returned;
+            if (!then_returned) {
+                char then_type = qbe_type_for_expr(cg, if_expr->then_branch);
+                emit(cg, "    %s =%c copy %s\n", string_cstr(result), then_type, string_cstr(then_val));
+                if (then_type == 'l') {
+                    register_wide_var(cg, result);
+                }
+                emit(cg, "    jmp %s\n", string_cstr(end_label));
             }
-            emit(cg, "    jmp %s\n", string_cstr(end_label));
             
             /* Else branch */
-            emit(cg, "%s\n", string_cstr(else_label));
+            emit_label(cg, string_cstr(else_label));
             if (if_expr->else_branch) {
                 String* else_val = codegen_expr(cg, if_expr->else_branch);
-                char else_type = qbe_type_for_expr(cg, if_expr->else_branch);
-                emit(cg, "    %s =%c copy %s\n", string_cstr(result), else_type, string_cstr(else_val));
+                else_returned = cg->returned;
+                if (!else_returned) {
+                    char else_type = qbe_type_for_expr(cg, if_expr->else_branch);
+                    emit(cg, "    %s =%c copy %s\n", string_cstr(result), else_type, string_cstr(else_val));
+                    emit(cg, "    jmp %s\n", string_cstr(end_label));
+                }
             } else {
                 emit(cg, "    %s =w copy 0\n", string_cstr(result));
+                emit(cg, "    jmp %s\n", string_cstr(end_label));
             }
-            emit(cg, "    jmp %s\n", string_cstr(end_label));
             
-            emit(cg, "%s\n", string_cstr(end_label));
+            /* Only emit end label if at least one branch doesn't return */
+            if (!then_returned || !else_returned) {
+                emit_label(cg, string_cstr(end_label));
+            }
+            /* Reset returned flag - the if expression as a whole didn't return
+             * unless BOTH branches returned */
+            cg->returned = then_returned && else_returned;
             return result;
         }
         
@@ -2787,12 +2824,14 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
  * @param fn The function definition.
  */
 static void codegen_fn_def(Codegen* cg, FunctionDef* fn) {
+    // FERN_STYLE: allow(function-length) QBE function prologue/epilogue handling is inherently complex
     assert(cg != NULL);
     assert(fn != NULL);
     
-    /* Clear defer stack and wide vars at function start */
+    /* Clear defer stack, wide vars, and return flag at function start */
     clear_defers(cg);
     cg->wide_var_count = 0;
+    cg->returned = false;
     
     /* Check if this is main() with no return type (Unit return) */
     const char* fn_name = string_cstr(fn->name);
@@ -2869,6 +2908,7 @@ static void codegen_fn_def(Codegen* cg, FunctionDef* fn) {
  * @param stmt The statement to compile.
  */
 void codegen_stmt(Codegen* cg, Stmt* stmt) {
+    // FERN_STYLE: allow(function-length) switch over all statement types must be in one function
     assert(cg != NULL);
     assert(stmt != NULL);
     
@@ -2974,6 +3014,9 @@ void codegen_stmt(Codegen* cg, Stmt* stmt) {
             } else {
                 emit(cg, "    ret 0\n");
             }
+            /* Mark that we've returned - no more code should be emitted
+             * until we hit a new label (branch target) */
+            cg->returned = true;
             break;
         }
         
