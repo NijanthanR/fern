@@ -256,6 +256,71 @@ static Token make_token(Lexer* lex, TokenType type, const char* start, const cha
 }
 
 /**
+ * Process escape sequences in a string, converting \{ to { and \} to }.
+ * Also handles standard escapes: \n, \t, \r, \\, \".
+ * @param arena The arena for allocation.
+ * @param start Start of string content.
+ * @param end End of string content.
+ * @return New string with escapes processed.
+ */
+static String* process_string_escapes(Arena* arena, const char* start, const char* end) {
+    assert(arena != NULL);
+    assert(start != NULL && end != NULL);
+    
+    size_t len = end - start;
+    /* Allocate buffer - result will be at most len bytes (escapes shrink) */
+    char* buf = arena_alloc(arena, len + 1);
+    size_t out = 0;
+    
+    for (const char* p = start; p < end; p++) {
+        if (*p == '\\' && p + 1 < end) {
+            char next = *(p + 1);
+            switch (next) {
+                case 'n':  buf[out++] = '\n'; p++; break;
+                case 't':  buf[out++] = '\t'; p++; break;
+                case 'r':  buf[out++] = '\r'; p++; break;
+                case '\\': buf[out++] = '\\'; p++; break;
+                case '"':  buf[out++] = '"';  p++; break;
+                case '{':  buf[out++] = '{';  p++; break;
+                case '}':  buf[out++] = '}';  p++; break;
+                default:
+                    /* Unknown escape - keep as-is */
+                    buf[out++] = *p;
+                    break;
+            }
+        } else {
+            buf[out++] = *p;
+        }
+    }
+    buf[out] = '\0';
+    
+    return string_new_len(arena, buf, out);
+}
+
+/**
+ * Create string token with escape processing.
+ * @param lex The lexer.
+ * @param type The token type.
+ * @param start Start of string content.
+ * @param end End of string content.
+ * @return The new token with processed escapes.
+ */
+static Token make_string_token(Lexer* lex, TokenType type, const char* start, const char* end) {
+    assert(lex != NULL);
+    assert(start != NULL && end != NULL && end >= start);
+    Token tok;
+    tok.type = type;
+    
+    tok.text = process_string_escapes(lex->arena, start, end);
+    
+    tok.loc.filename = lex->filename;
+    tok.loc.line = lex->line;
+    tok.loc.column = lex->column;
+    
+    return tok;
+}
+
+/**
  * Check if string matches keyword.
  * @param start Start of string.
  * @param length Length of string.
@@ -474,12 +539,14 @@ static Token lex_string_segment(Lexer* lex, TokenType if_interp, TokenType if_en
     assert(lex->current != NULL);
     const char* start = lex->current;
 
-    while (!is_at_end(lex) && peek(lex) != '"' && peek(lex) != '{') {
+    while (!is_at_end(lex) && peek(lex) != '"') {
         if (peek(lex) == '\\') {
             advance(lex);  // consume backslash
             if (!is_at_end(lex)) advance(lex);  // consume escaped char
             continue;
         }
+        /* Unescaped { starts interpolation, but only if not followed by " */
+        if (peek(lex) == '{' && peek_next(lex) != '"') break;
         advance(lex);
     }
 
@@ -489,16 +556,17 @@ static Token lex_string_segment(Lexer* lex, TokenType if_interp, TokenType if_en
 
     const char* end = lex->current;
 
-    if (peek(lex) == '{') {
+    /* Only start interpolation if { is not followed by closing quote */
+    if (peek(lex) == '{' && peek_next(lex) != '"') {
         advance(lex); // consume '{'
         lex->interp_depth++;
         lex->interp_brace_depth = 0;
-        return make_token(lex, if_interp, start, end);
+        return make_string_token(lex, if_interp, start, end);
     }
 
-    // peek is '"'
+    // peek is '"' - include any trailing { in the string
     advance(lex); // consume closing quote
-    return make_token(lex, if_end, start, end);
+    return make_string_token(lex, if_end, start, end);
 }
 
 /**
@@ -511,12 +579,14 @@ static Token lex_string(Lexer* lex) {
     assert(lex->current != NULL);
     const char* start = lex->current;  // After opening quote
 
-    while (!is_at_end(lex) && peek(lex) != '"' && peek(lex) != '{') {
+    while (!is_at_end(lex) && peek(lex) != '"') {
         if (peek(lex) == '\\') {
             advance(lex);  // consume backslash
             if (!is_at_end(lex)) advance(lex);  // consume escaped char
             continue;
         }
+        /* Unescaped { starts interpolation, but only if not followed by " */
+        if (peek(lex) == '{' && peek_next(lex) != '"') break;
         advance(lex);
     }
 
@@ -526,17 +596,18 @@ static Token lex_string(Lexer* lex) {
 
     const char* end = lex->current;
 
-    if (peek(lex) == '{') {
-        // String with interpolation: "Hello, {
+    /* Only start interpolation if { is not followed by closing quote */
+    if (peek(lex) == '{' && peek_next(lex) != '"') {
+        // String with interpolation: "Hello, {name}"
         advance(lex); // consume '{'
         lex->interp_depth++;
         lex->interp_brace_depth = 0;
-        return make_token(lex, TOKEN_STRING_BEGIN, start, end);
+        return make_string_token(lex, TOKEN_STRING_BEGIN, start, end);
     }
 
-    // Regular string (no interpolation)
+    // Regular string (no interpolation) - include any trailing { in the string
     advance(lex);  // Closing quote
-    return make_token(lex, TOKEN_STRING, start, end);
+    return make_string_token(lex, TOKEN_STRING, start, end);
 }
 
 /**

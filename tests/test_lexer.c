@@ -330,7 +330,8 @@ void test_lex_string_escape(void) {
 
     Token t1 = lexer_next(lex);
     ASSERT_EQ(t1.type, TOKEN_STRING);
-    ASSERT_STR_EQ(string_cstr(t1.text), "hello\\nworld");
+    /* Escape sequences are processed: \n becomes actual newline */
+    ASSERT_STR_EQ(string_cstr(t1.text), "hello\nworld");
 
     arena_destroy(arena);
 }
@@ -341,7 +342,8 @@ void test_lex_string_escaped_quote(void) {
 
     Token t1 = lexer_next(lex);
     ASSERT_EQ(t1.type, TOKEN_STRING);
-    ASSERT_STR_EQ(string_cstr(t1.text), "say \\\"hi\\\"");
+    /* Escape sequences are processed: \" becomes actual quote */
+    ASSERT_STR_EQ(string_cstr(t1.text), "say \"hi\"");
 
     arena_destroy(arena);
 }
@@ -352,7 +354,78 @@ void test_lex_string_escaped_brace(void) {
 
     Token t1 = lexer_next(lex);
     ASSERT_EQ(t1.type, TOKEN_STRING);
-    ASSERT_STR_EQ(string_cstr(t1.text), "\\{not interp}");
+    /* Escape sequences are processed: \{ becomes literal { without starting interpolation */
+    ASSERT_STR_EQ(string_cstr(t1.text), "{not interp}");
+
+    arena_destroy(arena);
+}
+
+void test_lex_string_escaped_brace_only(void) {
+    Arena* arena = arena_create(4096);
+    /* Test string containing only an escaped brace */
+    Lexer* lex = lexer_new(arena, "\"\\{\"");
+
+    Token t1 = lexer_next(lex);
+    ASSERT_EQ(t1.type, TOKEN_STRING);
+    ASSERT_STR_EQ(string_cstr(t1.text), "{");
+
+    arena_destroy(arena);
+}
+
+void test_lex_string_escaped_closing_brace(void) {
+    Arena* arena = arena_create(4096);
+    /* Test escaping closing brace */
+    Lexer* lex = lexer_new(arena, "\"\\{hello\\}\"");
+
+    Token t1 = lexer_next(lex);
+    ASSERT_EQ(t1.type, TOKEN_STRING);
+    ASSERT_STR_EQ(string_cstr(t1.text), "{hello}");
+
+    arena_destroy(arena);
+}
+
+void test_lex_string_mixed_escapes(void) {
+    Arena* arena = arena_create(4096);
+    /* Test mix of escape sequences */
+    Lexer* lex = lexer_new(arena, "\"line1\\nline2\\t\\{brace\\}\"");
+
+    Token t1 = lexer_next(lex);
+    ASSERT_EQ(t1.type, TOKEN_STRING);
+    ASSERT_STR_EQ(string_cstr(t1.text), "line1\nline2\t{brace}");
+
+    arena_destroy(arena);
+}
+
+void test_lex_string_trailing_brace(void) {
+    Arena* arena = arena_create(4096);
+    /* Test { at end of string - should NOT start interpolation */
+    Lexer* lex = lexer_new(arena, "\"dfsdfs {\"");
+
+    Token t1 = lexer_next(lex);
+    ASSERT_EQ(t1.type, TOKEN_STRING);
+    ASSERT_STR_EQ(string_cstr(t1.text), "dfsdfs {");
+
+    arena_destroy(arena);
+}
+
+void test_lex_string_trailing_brace_interp(void) {
+    Arena* arena = arena_create(4096);
+    /* Test { at end of interpolated string - the trailing { should be literal */
+    Lexer* lex = lexer_new(arena, "\"hello {name} world {\"");
+
+    Token t1 = lexer_next(lex);
+    ASSERT_EQ(t1.type, TOKEN_STRING_BEGIN);
+    ASSERT_STR_EQ(string_cstr(t1.text), "hello ");
+
+    /* Next should be identifier 'name' */
+    Token t2 = lexer_next(lex);
+    ASSERT_EQ(t2.type, TOKEN_IDENT);
+    ASSERT_STR_EQ(string_cstr(t2.text), "name");
+
+    /* Then STRING_END with " world {" - the trailing { is literal, not new interp */
+    Token t3 = lexer_next(lex);
+    ASSERT_EQ(t3.type, TOKEN_STRING_END);
+    ASSERT_STR_EQ(string_cstr(t3.text), " world {");
 
     arena_destroy(arena);
 }
@@ -727,6 +800,11 @@ void run_lexer_tests(void) {
     TEST_RUN(test_lex_string_escape);
     TEST_RUN(test_lex_string_escaped_quote);
     TEST_RUN(test_lex_string_escaped_brace);
+    TEST_RUN(test_lex_string_escaped_brace_only);
+    TEST_RUN(test_lex_string_escaped_closing_brace);
+    TEST_RUN(test_lex_string_mixed_escapes);
+    TEST_RUN(test_lex_string_trailing_brace);
+    TEST_RUN(test_lex_string_trailing_brace_interp);
     TEST_RUN(test_lex_hex_literal);
     TEST_RUN(test_lex_binary_literal);
     TEST_RUN(test_lex_octal_literal);
