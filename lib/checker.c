@@ -192,7 +192,7 @@ static bool is_builtin_module(const char* name) {
         strcmp(name, "Tui.Term") == 0 ||
         strcmp(name, "Tui.Progress") == 0 ||
         strcmp(name, "Tui.Spinner") == 0 ||
-        strcmp(name, "Prompt") == 0) {
+        strcmp(name, "Tui.Prompt") == 0) {
         return true;
     }
     /* Tui submodules */
@@ -988,34 +988,34 @@ static Type* lookup_module_function(Checker* checker, const char* module, const 
         }
     }
 
-    /* ===== Prompt module ===== */
-    if (strcmp(module, "Prompt") == 0) {
-        /* Prompt.input(String) -> String - read line from user */
+    /* ===== Tui.Prompt module ===== */
+    if (strcmp(module, "Tui.Prompt") == 0) {
+        /* Tui.Prompt.input(String) -> String - read line from user */
         if (strcmp(func, "input") == 0) {
             params = TypeVec_new(arena);
             TypeVec_push(arena, params, type_string(arena));
             return type_fn(arena, params, type_string(arena));
         }
-        /* Prompt.confirm(String) -> Bool - yes/no question */
+        /* Tui.Prompt.confirm(String) -> Bool - yes/no question */
         if (strcmp(func, "confirm") == 0) {
             params = TypeVec_new(arena);
             TypeVec_push(arena, params, type_string(arena));
             return type_fn(arena, params, type_bool(arena));
         }
-        /* Prompt.select(String, List(String)) -> Int - select from choices */
+        /* Tui.Prompt.select(String, List(String)) -> Int - select from choices */
         if (strcmp(func, "select") == 0) {
             params = TypeVec_new(arena);
             TypeVec_push(arena, params, type_string(arena));
             TypeVec_push(arena, params, type_list(arena, type_string(arena)));
             return type_fn(arena, params, type_int(arena));
         }
-        /* Prompt.password(String) -> String - hidden input */
+        /* Tui.Prompt.password(String) -> String - hidden input */
         if (strcmp(func, "password") == 0) {
             params = TypeVec_new(arena);
             TypeVec_push(arena, params, type_string(arena));
             return type_fn(arena, params, type_string(arena));
         }
-        /* Prompt.int(String, Int, Int) -> Int - validated int input */
+        /* Tui.Prompt.int(String, Int, Int) -> Int - validated int input */
         if (strcmp(func, "int") == 0) {
             params = TypeVec_new(arena);
             TypeVec_push(arena, params, type_string(arena));

@@ -150,7 +150,8 @@ static bool is_builtin_module(const char* name) {
         strcmp(name, "Tui.Status") == 0 ||
         strcmp(name, "Tui.Live") == 0 ||
         strcmp(name, "Tui.Progress") == 0 ||
-        strcmp(name, "Tui.Spinner") == 0) {
+        strcmp(name, "Tui.Spinner") == 0 ||
+        strcmp(name, "Tui.Prompt") == 0) {
         return true;
     }
     return false;
@@ -333,8 +334,8 @@ static PrintType get_print_type(Codegen* cg, Expr* expr) {
                     if (strcmp(module, "Spinner") == 0 && strcmp(func, "render") == 0) {
                         return PRINT_STRING;
                     }
-                    /* Prompt.input() and Prompt.password() return String */
-                    if (strcmp(module, "Prompt") == 0 && 
+                    /* Tui.Prompt.input() and Tui.Prompt.password() return String */
+                    if (strcmp(module, "Tui.Prompt") == 0 && 
                         (strcmp(func, "input") == 0 || strcmp(func, "password") == 0)) {
                         return PRINT_STRING;
                     }
@@ -509,8 +510,8 @@ static char qbe_type_for_expr(Codegen* cg, Expr* expr) {
                     if (strcmp(module, "Spinner") == 0) {
                         return 'l';
                     }
-                    /* Prompt module: input/password return String (l), confirm returns Bool (w), select/int return Int (w) */
-                    if (strcmp(module, "Prompt") == 0) {
+                    /* Tui.Prompt module: input/password return String (l), confirm returns Bool (w), select/int return Int (w) */
+                    if (strcmp(module, "Tui.Prompt") == 0) {
                         if (strcmp(func, "input") == 0 || strcmp(func, "password") == 0) {
                             return 'l';
                         }
@@ -1766,23 +1767,23 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                         }
                     }
 
-                    /* ===== Prompt module ===== */
-                    if (strcmp(module, "Prompt") == 0) {
-                        /* Prompt.input(prompt) -> String */
+                    /* ===== Tui.Prompt module ===== */
+                    if (strcmp(module, "Tui.Prompt") == 0) {
+                        /* Tui.Prompt.input(prompt) -> String */
                         if (strcmp(func, "input") == 0 && call->args->len == 1) {
                             String* prompt = codegen_expr(cg, call->args->data[0].value);
                             emit(cg, "    %s =l call $fern_prompt_input(l %s)\n",
                                 string_cstr(result), string_cstr(prompt));
                             return result;
                         }
-                        /* Prompt.confirm(prompt) -> Bool */
+                        /* Tui.Prompt.confirm(prompt) -> Bool */
                         if (strcmp(func, "confirm") == 0 && call->args->len == 1) {
                             String* prompt = codegen_expr(cg, call->args->data[0].value);
                             emit(cg, "    %s =w call $fern_prompt_confirm(l %s)\n",
                                 string_cstr(result), string_cstr(prompt));
                             return result;
                         }
-                        /* Prompt.select(prompt, choices) -> Int */
+                        /* Tui.Prompt.select(prompt, choices) -> Int */
                         if (strcmp(func, "select") == 0 && call->args->len == 2) {
                             String* prompt = codegen_expr(cg, call->args->data[0].value);
                             String* choices = codegen_expr(cg, call->args->data[1].value);
@@ -1790,14 +1791,14 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                                 string_cstr(result), string_cstr(prompt), string_cstr(choices));
                             return result;
                         }
-                        /* Prompt.password(prompt) -> String */
+                        /* Tui.Prompt.password(prompt) -> String */
                         if (strcmp(func, "password") == 0 && call->args->len == 1) {
                             String* prompt = codegen_expr(cg, call->args->data[0].value);
                             emit(cg, "    %s =l call $fern_prompt_password(l %s)\n",
                                 string_cstr(result), string_cstr(prompt));
                             return result;
                         }
-                        /* Prompt.int(prompt, min, max) -> Int */
+                        /* Tui.Prompt.int(prompt, min, max) -> Int */
                         if (strcmp(func, "int") == 0 && call->args->len == 3) {
                             String* prompt = codegen_expr(cg, call->args->data[0].value);
                             String* min = codegen_expr(cg, call->args->data[1].value);
