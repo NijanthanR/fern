@@ -395,6 +395,88 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
             return tmp;
         }
         
+        case EXPR_INTERP_STRING: {
+            /* String interpolation: "Hello, {name}!" 
+             * Parts is a vector alternating string literals and expressions.
+             * We convert each part to a string and concatenate them all.
+             */
+            InterpStringExpr* interp = &expr->data.interp_string;
+            assert(interp->parts != NULL);
+            
+            if (interp->parts->len == 0) {
+                /* Empty interpolated string - return empty string */
+                String* label = fresh_string_label(cg);
+                String* tmp = fresh_temp(cg);
+                emit_data(cg, "data %s = { b \"\", b 0 }\n", string_cstr(label));
+                emit(cg, "    %s =l copy %s\n", string_cstr(tmp), string_cstr(label));
+                return tmp;
+            }
+            
+            /* Process first part */
+            Expr* first = interp->parts->data[0];
+            String* result;
+            
+            if (first->type == EXPR_STRING_LIT) {
+                result = codegen_expr(cg, first);
+            } else {
+                /* Convert expression to string based on its type */
+                String* val = codegen_expr(cg, first);
+                PrintType pt = get_print_type(cg, first);
+                result = fresh_temp(cg);
+                switch (pt) {
+                    case PRINT_STRING:
+                        emit(cg, "    %s =l copy %s\n", string_cstr(result), string_cstr(val));
+                        break;
+                    case PRINT_BOOL:
+                        emit(cg, "    %s =l call $fern_bool_to_str(w %s)\n", 
+                            string_cstr(result), string_cstr(val));
+                        break;
+                    case PRINT_INT:
+                    default:
+                        emit(cg, "    %s =l call $fern_int_to_str(w %s)\n", 
+                            string_cstr(result), string_cstr(val));
+                        break;
+                }
+            }
+            
+            /* Concatenate remaining parts */
+            for (size_t i = 1; i < interp->parts->len; i++) {
+                Expr* part = interp->parts->data[i];
+                String* part_str;
+                
+                if (part->type == EXPR_STRING_LIT) {
+                    part_str = codegen_expr(cg, part);
+                } else {
+                    /* Convert expression to string */
+                    String* val = codegen_expr(cg, part);
+                    PrintType pt = get_print_type(cg, part);
+                    part_str = fresh_temp(cg);
+                    switch (pt) {
+                        case PRINT_STRING:
+                            emit(cg, "    %s =l copy %s\n", string_cstr(part_str), string_cstr(val));
+                            break;
+                        case PRINT_BOOL:
+                            emit(cg, "    %s =l call $fern_bool_to_str(w %s)\n", 
+                                string_cstr(part_str), string_cstr(val));
+                            break;
+                        case PRINT_INT:
+                        default:
+                            emit(cg, "    %s =l call $fern_int_to_str(w %s)\n", 
+                                string_cstr(part_str), string_cstr(val));
+                            break;
+                    }
+                }
+                
+                /* Concatenate result with this part */
+                String* new_result = fresh_temp(cg);
+                emit(cg, "    %s =l call $fern_str_concat(l %s, l %s)\n",
+                    string_cstr(new_result), string_cstr(result), string_cstr(part_str));
+                result = new_result;
+            }
+            
+            return result;
+        }
+        
         case EXPR_BINARY: {
             BinaryExpr* bin = &expr->data.binary;
             String* left = codegen_expr(cg, bin->left);

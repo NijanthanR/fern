@@ -52,6 +52,20 @@ void fern_println_bool(int64_t b);
 /* ========== String Functions ========== */
 
 /**
+ * Convert an integer to a string.
+ * @param n The integer to convert.
+ * @return Newly allocated string (caller must free).
+ */
+char* fern_int_to_str(int64_t n);
+
+/**
+ * Convert a boolean to a string.
+ * @param b The boolean (0 = false, non-zero = true).
+ * @return Newly allocated string (caller must free).
+ */
+char* fern_bool_to_str(int64_t b);
+
+/**
  * Get the length of a string.
  * @param s The null-terminated string.
  * @return The length in bytes.
