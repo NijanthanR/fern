@@ -259,7 +259,7 @@ static bool can_start_block_expr(Parser* parser) {
            t == TOKEN_IF || t == TOKEN_MATCH || t == TOKEN_NOT ||
            t == TOKEN_MINUS || t == TOKEN_LET || t == TOKEN_RETURN ||
            t == TOKEN_DEFER || t == TOKEN_BREAK || t == TOKEN_CONTINUE ||
-           t == TOKEN_FOR;
+           t == TOKEN_FOR || t == TOKEN_WITH;
     /* Notably EXCLUDES: TOKEN_FN, TOKEN_TYPE, TOKEN_TRAIT, TOKEN_IMPL, TOKEN_PUB */
 }
 

@@ -1317,6 +1317,19 @@ void test_check_fn_param_type_mismatch(void) {
     arena_destroy(arena);
 }
 
+void test_check_with_accesses_outer_scope(void) {
+    Arena* arena = arena_create(4096);
+    
+    // Function parameters should be visible inside with expressions
+    // fn test(s: String): with content <- File.read(s) do 0
+    bool ok = check_stmt_ok(arena, 
+        "fn test(s: String): with content <- File.read(s) do 0");
+    
+    ASSERT_TRUE(ok);
+    
+    arena_destroy(arena);
+}
+
 /* ========== Type Definition Tests ========== */
 
 void test_check_type_def_simple(void) {
@@ -1730,6 +1743,7 @@ void run_checker_tests(void) {
     TEST_RUN(test_check_with_simple);
     TEST_RUN(test_check_with_multiple_bindings);
     TEST_RUN(test_check_with_requires_result);
+    TEST_RUN(test_check_with_accesses_outer_scope);
     
     // Lambda expressions
     TEST_RUN(test_check_lambda_simple);
