@@ -21,6 +21,9 @@
 /* Maximum number of tracked wide (64-bit) variables */
 #define MAX_WIDE_VARS 256
 
+/* Maximum number of tracked functions that return tuples (pointers) */
+#define MAX_TUPLE_FUNCS 128
+
 struct Codegen {
     Arena* arena;
     String* output;      /* Accumulated QBE IR (functions) */
@@ -36,6 +39,10 @@ struct Codegen {
     /* Track variables that are 64-bit (pointers: lists, strings) */
     String* wide_vars[MAX_WIDE_VARS];
     int wide_var_count;
+    
+    /* Track functions that return tuples (pointers) */
+    String* tuple_return_funcs[MAX_TUPLE_FUNCS];
+    int tuple_func_count;
 };
 
 /* ========== Helper Functions ========== */
@@ -198,6 +205,35 @@ static void clear_wide_vars(Codegen* cg) {
     /* FERN_STYLE: allow(assertion-density) - simple reset function */
     assert(cg != NULL);
     cg->wide_var_count = 0;
+}
+
+/**
+ * Register a function that returns a tuple (pointer type).
+ * @param cg The codegen context.
+ * @param name The function name.
+ */
+static void register_tuple_return_func(Codegen* cg, String* name) {
+    assert(cg != NULL);
+    assert(name != NULL);
+    assert(cg->tuple_func_count < MAX_TUPLE_FUNCS);
+    cg->tuple_return_funcs[cg->tuple_func_count++] = name;
+}
+
+/**
+ * Check if a function returns a tuple (pointer type).
+ * @param cg The codegen context.
+ * @param name The function name.
+ * @return True if the function returns a tuple.
+ */
+static bool is_tuple_return_func(Codegen* cg, const char* name) {
+    assert(cg != NULL);
+    assert(name != NULL);
+    for (int i = 0; i < cg->tuple_func_count; i++) {
+        if (strcmp(string_cstr(cg->tuple_return_funcs[i]), name) == 0) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /**
@@ -387,6 +423,7 @@ static char qbe_type_for_expr(Codegen* cg, Expr* expr) {
         case EXPR_LIST:
         case EXPR_STRING_LIT:
         case EXPR_INTERP_STRING:
+        case EXPR_TUPLE:
             return 'l';
         
         /* Word types (32-bit) */
@@ -404,6 +441,13 @@ static char qbe_type_for_expr(Codegen* cg, Expr* expr) {
         /* Check if function call returns pointer type */
         case EXPR_CALL: {
             CallExpr* call = &expr->data.call;
+            /* Check direct function calls (user-defined functions) */
+            if (call->func->type == EXPR_IDENT) {
+                const char* func_name = string_cstr(call->func->data.ident.name);
+                if (cg != NULL && is_tuple_return_func(cg, func_name)) {
+                    return 'l';
+                }
+            }
             /* Check module.function calls */
             if (call->func->type == EXPR_DOT) {
                 DotExpr* dot = &call->func->data.dot;
@@ -571,6 +615,7 @@ Codegen* codegen_new(Arena* arena) {
     cg->string_counter = 0;
     cg->defer_count = 0;
     cg->wide_var_count = 0;
+    cg->tuple_func_count = 0;
     return cg;
 }
 
@@ -878,14 +923,19 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
             /* Then branch */
             emit(cg, "%s\n", string_cstr(then_label));
             String* then_val = codegen_expr(cg, if_expr->then_branch);
-            emit(cg, "    %s =w copy %s\n", string_cstr(result), string_cstr(then_val));
+            char then_type = qbe_type_for_expr(cg, if_expr->then_branch);
+            emit(cg, "    %s =%c copy %s\n", string_cstr(result), then_type, string_cstr(then_val));
+            if (then_type == 'l') {
+                register_wide_var(cg, result);
+            }
             emit(cg, "    jmp %s\n", string_cstr(end_label));
             
             /* Else branch */
             emit(cg, "%s\n", string_cstr(else_label));
             if (if_expr->else_branch) {
                 String* else_val = codegen_expr(cg, if_expr->else_branch);
-                emit(cg, "    %s =w copy %s\n", string_cstr(result), string_cstr(else_val));
+                char else_type = qbe_type_for_expr(cg, if_expr->else_branch);
+                emit(cg, "    %s =%c copy %s\n", string_cstr(result), else_type, string_cstr(else_val));
             } else {
                 emit(cg, "    %s =w copy 0\n", string_cstr(result));
             }
@@ -2142,9 +2192,14 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
             /* Generate call */
             /* For now, assume func is a simple identifier */
             if (call->func->type == EXPR_IDENT) {
-                emit(cg, "    %s =w call $%s(", 
-                    string_cstr(result), 
-                    string_cstr(call->func->data.ident.name));
+                const char* func_name = string_cstr(call->func->data.ident.name);
+                /* Check if function returns a tuple (pointer type) */
+                char ret_type = is_tuple_return_func(cg, func_name) ? 'l' : 'w';
+                if (ret_type == 'l') {
+                    register_wide_var(cg, result);
+                }
+                emit(cg, "    %s =%c call $%s(", 
+                    string_cstr(result), ret_type, func_name);
                 for (size_t i = 0; i < call->args->len; i++) {
                     if (i > 0) emit(cg, ", ");
                     emit(cg, "w %s", string_cstr(arg_temps[i]));
@@ -2159,16 +2214,36 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
         
         case EXPR_TUPLE: {
             TupleExpr* tuple = &expr->data.tuple;
+            size_t num_elements = tuple->elements->len;
             
-            /* Generate code for each element */
-            for (size_t i = 0; i < tuple->elements->len; i++) {
-                codegen_expr(cg, tuple->elements->data[i]);
+            /* Allocate tuple on heap: 8 bytes per element (64-bit aligned) */
+            String* tuple_ptr = fresh_temp(cg);
+            size_t tuple_size = num_elements * 8;
+            emit(cg, "    %s =l call $fern_alloc(l %zu)\n", string_cstr(tuple_ptr), tuple_size);
+            register_wide_var(cg, tuple_ptr);
+            
+            /* Store each element at its offset */
+            for (size_t i = 0; i < num_elements; i++) {
+                Expr* elem_expr = tuple->elements->data[i];
+                String* elem = codegen_expr(cg, elem_expr);
+                char elem_type = qbe_type_for_expr(cg, elem_expr);
+                
+                String* addr = fresh_temp(cg);
+                size_t offset = i * 8;
+                emit(cg, "    %s =l add %s, %zu\n", string_cstr(addr), string_cstr(tuple_ptr), offset);
+                
+                /* Store based on element type */
+                if (elem_type == 'l') {
+                    emit(cg, "    storel %s, %s\n", string_cstr(elem), string_cstr(addr));
+                } else {
+                    /* Store word as 64-bit for uniform access */
+                    String* extended = fresh_temp(cg);
+                    emit(cg, "    %s =l extsw %s\n", string_cstr(extended), string_cstr(elem));
+                    emit(cg, "    storel %s, %s\n", string_cstr(extended), string_cstr(addr));
+                }
             }
             
-            /* For now, return a placeholder - full tuple support needs stack allocation */
-            String* tmp = fresh_temp(cg);
-            emit(cg, "    %s =w copy 0  # tuple placeholder\n", string_cstr(tmp));
-            return tmp;
+            return tuple_ptr;
         }
         
         case EXPR_LIST: {
@@ -2572,15 +2647,40 @@ static void codegen_fn_def(Codegen* cg, FunctionDef* fn) {
     bool is_main = (strcmp(fn_name, "main") == 0);
     bool is_main_unit = is_main && (fn->return_type == NULL);
     
+    /* Determine return type: tuples, strings, lists return 'l' (pointer), others return 'w' */
+    char ret_type = 'w';
+    if (fn->return_type != NULL) {
+        if (fn->return_type->kind == TYPEEXPR_TUPLE) {
+            ret_type = 'l';
+        } else if (fn->return_type->kind == TYPEEXPR_NAMED) {
+            const char* type_name = string_cstr(fn->return_type->data.named.name);
+            /* String and List are pointer types */
+            if (strcmp(type_name, "String") == 0 || strcmp(type_name, "List") == 0) {
+                ret_type = 'l';
+            }
+        }
+    }
+    
     /* Function header - rename main to fern_main so C runtime can provide entry point */
     const char* emit_name = is_main ? "fern_main" : fn_name;
-    emit(cg, "export function w $%s(", emit_name);
+    emit(cg, "export function %c $%s(", ret_type, emit_name);
     
     /* Parameters */
     if (fn->params) {
         for (size_t i = 0; i < fn->params->len; i++) {
             if (i > 0) emit(cg, ", ");
-            emit(cg, "w %%%s", string_cstr(fn->params->data[i].name));
+            /* Determine parameter type: String and List are pointers (l), others are words (w) */
+            char param_type = 'w';
+            Parameter* param = &fn->params->data[i];
+            if (param->type_ann != NULL && param->type_ann->kind == TYPEEXPR_NAMED) {
+                const char* type_name = string_cstr(param->type_ann->data.named.name);
+                if (strcmp(type_name, "String") == 0 || strcmp(type_name, "List") == 0) {
+                    param_type = 'l';
+                    /* Register as wide var so uses within function body use correct type */
+                    register_wide_var(cg, param->name);
+                }
+            }
+            emit(cg, "%c %%%s", param_type, string_cstr(param->name));
         }
     }
     
@@ -2683,6 +2783,29 @@ void codegen_program(Codegen* cg, StmtVec* stmts) {
     
     if (!stmts) return;
     
+    /* First pass: register all functions that return pointers so call sites know the return type */
+    for (size_t i = 0; i < stmts->len; i++) {
+        Stmt* stmt = stmts->data[i];
+        if (stmt->type == STMT_FN) {
+            FunctionDef* fn = &stmt->data.fn;
+            if (fn->return_type != NULL) {
+                bool returns_pointer = false;
+                if (fn->return_type->kind == TYPEEXPR_TUPLE) {
+                    returns_pointer = true;
+                } else if (fn->return_type->kind == TYPEEXPR_NAMED) {
+                    const char* type_name = string_cstr(fn->return_type->data.named.name);
+                    if (strcmp(type_name, "String") == 0 || strcmp(type_name, "List") == 0) {
+                        returns_pointer = true;
+                    }
+                }
+                if (returns_pointer) {
+                    register_tuple_return_func(cg, fn->name);
+                }
+            }
+        }
+    }
+    
+    /* Second pass: generate code */
     for (size_t i = 0; i < stmts->len; i++) {
         codegen_stmt(cg, stmts->data[i]);
     }
