@@ -1,63 +1,104 @@
 # TUI Demo - showcasing Fern's terminal UI capabilities
-# This demonstrates Panel, Table, and Style modules
+# This demonstrates Tui.Panel, Tui.Table, and Tui.Style modules
 
 fn main():
-    # Create a welcome panel
-    let welcome = Panel.new("Welcome to Fern TUI Demo!")
-    let welcome = Panel.title(welcome, "Fern")
-    let welcome = Panel.subtitle(welcome, "A friendly language")
-    let welcome = Panel.border(welcome, "rounded")
-    println(Panel.render(welcome))
-    
+    # Create a welcome panel with cyan colored border (like Rich)
+    let welcome = Tui.Panel.new("Welcome to Fern TUI Demo!")
+    let welcome = Tui.Panel.title(welcome, "Fern")
+    let welcome = Tui.Panel.subtitle(welcome, "A friendly language")
+    let welcome = Tui.Panel.border(welcome, "rounded")
+    let welcome = Tui.Panel.border_color(welcome, "cyan")
+    println(Tui.Panel.render(welcome))
+
     # Show styled text
     println("")
-    println(Style.bold("Text Styling Examples:"))
-    println("  " + Style.red("Red text"))
-    println("  " + Style.green("Green text"))
-    println("  " + Style.blue("Blue text"))
-    println("  " + Style.yellow("Yellow text"))
-    println("  " + Style.cyan("Cyan text"))
-    println("  " + Style.magenta("Magenta text"))
+    println(Tui.Style.bold("Text Styling Examples:"))
+    println("  " + Tui.Style.red("Red text"))
+    println("  " + Tui.Style.green("Green text"))
+    println("  " + Tui.Style.blue("Blue text"))
+    println("  " + Tui.Style.yellow("Yellow text"))
+    println("  " + Tui.Style.cyan("Cyan text"))
+    println("  " + Tui.Style.magenta("Magenta text"))
     println("")
-    println("  " + Style.bold("Bold text"))
-    println("  " + Style.dim("Dim text"))
-    println("  " + Style.italic("Italic text"))
-    println("  " + Style.underline("Underlined text"))
+    println("  " + Tui.Style.bold("Bold text"))
+    println("  " + Tui.Style.dim("Dim text"))
+    println("  " + Tui.Style.italic("Italic text"))
+    println("  " + Tui.Style.underline("Underlined text"))
     println("")
-    
-    # Show system info in a panel
+
+    # Show system info in a panel with green border
     let user = System.user()
     let home = System.home()
     let cwd = System.cwd()
     let hostname = System.hostname()
     let info = "User: " + user + "\nHome: " + home + "\nCWD: " + cwd + "\nHost: " + hostname
-    let info_panel = Panel.new(info)
-    let info_panel = Panel.title(info_panel, "System Info")
-    let info_panel = Panel.border(info_panel, "double")
-    println(Panel.render(info_panel))
-    
+    let info_panel = Tui.Panel.new(info)
+    let info_panel = Tui.Panel.title(info_panel, "System Info")
+    let info_panel = Tui.Panel.border(info_panel, "double")
+    let info_panel = Tui.Panel.border_color(info_panel, "green")
+    println(Tui.Panel.render(info_panel))
+
     # Create a table with system info
-    let table = Table.new()
-    let table = Table.title(table, "Environment")
-    let table = Table.add_column(table, "Variable")
-    let table = Table.add_column(table, "Value")
-    let table = Table.border(table, "rounded")
-    
+    let table = Tui.Table.new()
+    let table = Tui.Table.title(table, "Environment")
+    let table = Tui.Table.add_column(table, "Variable")
+    let table = Tui.Table.add_column(table, "Value")
+    let table = Tui.Table.border(table, "rounded")
+
     let row1 = ["USER", System.getenv("USER")]
-    let table = Table.add_row(table, row1)
-    
+    let table = Tui.Table.add_row(table, row1)
+
     let row2 = ["SHELL", System.getenv("SHELL")]
-    let table = Table.add_row(table, row2)
-    
+    let table = Tui.Table.add_row(table, row2)
+
     let row3 = ["TERM", System.getenv("TERM")]
-    let table = Table.add_row(table, row3)
-    
+    let table = Tui.Table.add_row(table, row3)
+
     println("")
-    println(Table.render(table))
-    
+    println(Tui.Table.render(table))
+
+    # Create a simple table without headers
+    println("")
+    println(Tui.Style.bold("Table without header:"))
+    let simple = Tui.Table.new()
+    let simple = Tui.Table.add_column(simple, "Key")
+    let simple = Tui.Table.add_column(simple, "Value")
+    let simple = Tui.Table.show_header(simple, 0)
+    let simple = Tui.Table.border(simple, "rounded")
+    let r1 = ["Name", "Fern"]
+    let simple = Tui.Table.add_row(simple, r1)
+    let r2 = ["Version", "0.1.0"]
+    let simple = Tui.Table.add_row(simple, r2)
+    let r3 = ["Type", "Programming Language"]
+    let simple = Tui.Table.add_row(simple, r3)
+    println(Tui.Table.render(simple))
+
+    # Status badges demo
+    println("")
+    println(Tui.Style.bold("Status Badges:"))
+    println(Tui.Status.warn("Fetching latest model pricing from LiteLLM..."))
+    println(Tui.Status.ok("All systems operational"))
+    println(Tui.Status.info("Press Ctrl+C to cancel"))
+    println(Tui.Status.error("Connection failed"))
+    println(Tui.Status.debug("Verbose logging enabled"))
+
+    # Live update demo (spinner simulation)
+    println("")
+    println(Tui.Style.bold("Live Updates:"))
+    Tui.Live.print("· Spinning... ")
+    Tui.Live.sleep(500)
+    Tui.Live.update("· Spinning... (1s)")
+    Tui.Live.sleep(500)
+    Tui.Live.update("· Spinning... (1.5s)")
+    Tui.Live.sleep(500)
+    Tui.Live.update("· Spinning... (2s)")
+    Tui.Live.sleep(500)
+    Tui.Live.update("* Completed in 2s")
+    Tui.Live.done()
+
     # Colorful goodbye
     println("")
-    let goodbye = Style.bold(Style.green("Demo complete!"))
+    let goodbye = Tui.Style.bold(Tui.Style.green("Demo complete!"))
     println(goodbye)
-    
+
     0
