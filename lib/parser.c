@@ -815,6 +815,14 @@ static Pattern* parse_pattern(Parser* parser) {
             return pattern_constructor(parser->arena, ident_tok.text, args, ident_tok.loc);
         }
 
+        // Nullary constructor patterns: None (without parentheses)
+        // These are constructor patterns with zero arguments
+        const char* name = string_cstr(ident_tok.text);
+        if (strcmp(name, "None") == 0) {
+            PatternVec* empty_args = PatternVec_new(parser->arena);
+            return pattern_constructor(parser->arena, ident_tok.text, empty_args, ident_tok.loc);
+        }
+
         return pattern_ident(parser->arena, ident_tok.text, ident_tok.loc);
     }
 

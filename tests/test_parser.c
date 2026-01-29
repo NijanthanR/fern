@@ -1961,8 +1961,10 @@ void test_parse_match_constructor(void) {
     ASSERT_EQ(expr->data.match_expr.arms->data[0].pattern->data.constructor.args->len, 1);
     // Sub-pattern is an identifier
     ASSERT_EQ(expr->data.match_expr.arms->data[0].pattern->data.constructor.args->data[0]->type, PATTERN_IDENT);
-    // Second arm: None — plain identifier pattern
-    ASSERT_EQ(expr->data.match_expr.arms->data[1].pattern->type, PATTERN_IDENT);
+    // Second arm: None — nullary constructor pattern (zero args)
+    ASSERT_EQ(expr->data.match_expr.arms->data[1].pattern->type, PATTERN_CONSTRUCTOR);
+    ASSERT_STR_EQ(string_cstr(expr->data.match_expr.arms->data[1].pattern->data.constructor.name), "None");
+    ASSERT_EQ(expr->data.match_expr.arms->data[1].pattern->data.constructor.args->len, 0);
 
     arena_destroy(arena);
 }
