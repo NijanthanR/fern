@@ -13,7 +13,7 @@ fn sum_list(xs: List(Int)) -> Int:
 fn count_elements(xs: List(Int)) -> Int:
     list_len(xs)
 
-fn main() -> Int:
+fn main():
     # Create some data
     let scores = [85, 92, 78, 95, 88]
 
@@ -52,5 +52,3 @@ fn main() -> Int:
     let filename = "report.csv"
     println(bool_to_int(str_ends_with(filename, ".csv")))
     println(bool_to_int(str_contains(filename, "report")))
-
-    0

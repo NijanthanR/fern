@@ -7,10 +7,9 @@ fn factorial(n: Int) -> Int:
     else:
         n * factorial(n - 1)
 
-fn main() -> Int:
+fn main():
     # Calculate factorials
     println(factorial(0))
     println(factorial(1))
     println(factorial(5))
     println(factorial(10))
-    0

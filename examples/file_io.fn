@@ -4,7 +4,7 @@
 fn bool_to_int(b: Bool) -> Int:
     if b: 1 else: 0
 
-fn main() -> Int:
+fn main():
     # Test file_exists on non-existent file
     let exists_before = file_exists("/tmp/fern_test_file.txt")
     println(bool_to_int(exists_before))
@@ -50,5 +50,3 @@ fn main() -> Int:
     # Try to read non-existent file (should fail)
     let read_missing = read_file("/tmp/nonexistent_file_12345.txt")
     println(bool_to_int(is_ok(read_missing)))
-
-    0

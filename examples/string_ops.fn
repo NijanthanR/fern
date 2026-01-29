@@ -4,7 +4,7 @@
 fn bool_to_int(b: Bool) -> Int:
     if b: 1 else: 0
 
-fn main() -> Int:
+fn main():
     # String length
     let greeting = "Hello, World!"
     let len = str_len(greeting)
@@ -26,5 +26,3 @@ fn main() -> Int:
     # str_eq returns true for equal, false for not equal
     println(bool_to_int(str_eq(a, b)))
     println(bool_to_int(str_eq(a, c)))
-
-    0

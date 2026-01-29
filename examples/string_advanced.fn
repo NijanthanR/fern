@@ -4,7 +4,7 @@
 fn bool_to_int(b: Bool) -> Int:
     if b: 1 else: 0
 
-fn main() -> Int:
+fn main():
     # Test str_starts_with and str_ends_with
     let filename = "document.txt"
     println(bool_to_int(str_starts_with(filename, "doc")))
@@ -52,5 +52,3 @@ fn main() -> Int:
     println(str_len(trimmed))
     println(str_len(trim_start))
     println(str_len(trim_end))
-
-    0

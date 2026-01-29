@@ -1,7 +1,7 @@
 # List operations example
 # Demonstrates list creation, access, and built-in functions
 
-fn main() -> Int:
+fn main():
     # Create a list
     let numbers = [10, 20, 30, 40, 50]
 
@@ -18,6 +18,3 @@ fn main() -> Int:
 
     let last = list_get(numbers, 4)
     println(last)
-
-    # Return success
-    0

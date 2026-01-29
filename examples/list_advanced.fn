@@ -4,7 +4,7 @@
 fn bool_to_int(b: Bool) -> Int:
     if b: 1 else: 0
 
-fn main() -> Int:
+fn main():
     # Create a list
     let numbers = [1, 2, 3, 4, 5]
     println(list_len(numbers))
@@ -49,5 +49,3 @@ fn main() -> Int:
     let with_40 = list_push(nums, 40)
     let reversed_nums = list_reverse(with_40)
     println(list_head(reversed_nums))
-
-    0

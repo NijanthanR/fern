@@ -18,7 +18,7 @@ fn clamp(value: Int, lo: Int, hi: Int) -> Int:
     else: if value > hi: hi
     else: value
 
-fn main() -> Int:
+fn main():
     # Test abs
     println(abs(5))
     println(abs(0 - 5))
@@ -31,5 +31,3 @@ fn main() -> Int:
     println(clamp(5, 0, 10))
     println(clamp(0 - 5, 0, 10))
     println(clamp(15, 0, 10))
-
-    0
