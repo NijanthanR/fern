@@ -2595,6 +2595,38 @@ let size = File.size("data.txt")           # Result(Int, Int)
 let deleted = File.delete("temp.txt")      # Result(Int, Int)
 ```
 
+### System Module
+
+Functions for system-level operations like command-line arguments and process control:
+
+```fern
+# Command-line arguments
+let count = System.args_count()            # Number of arguments (including program name)
+let program = System.arg(0)                # Program name (first argument)
+let first_arg = System.arg(1)              # First user argument
+let all_args = System.args()               # List(String) of all arguments
+
+# Process control
+System.exit(0)                             # Exit with success code
+System.exit(1)                             # Exit with error code
+```
+
+Example CLI tool:
+
+```fern
+fn main():
+    let count = System.args_count()
+    
+    if count < 2:
+        println("Usage: program <name>")
+        let _ = System.exit(1)
+        1
+    else:
+        let name = System.arg(1)
+        println("Hello, {name}!")
+        0
+```
+
 ### I/O Functions
 
 Basic print functions (always available):

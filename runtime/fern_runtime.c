@@ -946,6 +946,94 @@ int64_t fern_list_all(FernList* list, int64_t (*pred)(int64_t)) {
     return 1;
 }
 
+/* ========== System Functions (argc/argv access) ========== */
+
+/* Global storage for command-line arguments */
+static int g_argc = 0;
+static char** g_argv = NULL;
+
+/**
+ * Set command-line arguments (called from C main wrapper).
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ */
+void fern_set_args(int argc, char** argv) {
+    assert(argc >= 0);
+    assert(argv != NULL || argc == 0);
+    g_argc = argc;
+    g_argv = argv;
+}
+
+/**
+ * Get command-line argument count.
+ * @return Number of arguments (including program name).
+ */
+int64_t fern_args_count(void) {
+    return (int64_t)g_argc;
+}
+
+/**
+ * Get command-line argument at index.
+ * @param index The index (0 = program name).
+ * @return The argument string, or empty string if out of bounds.
+ */
+char* fern_arg(int64_t index) {
+    assert(g_argv != NULL || g_argc == 0);
+    if (index < 0 || index >= (int64_t)g_argc) {
+        /* Return empty string for out-of-bounds access */
+        char* empty = malloc(1);
+        assert(empty != NULL);
+        empty[0] = '\0';
+        return empty;
+    }
+    /* Return a copy of the argument string */
+    size_t len = strlen(g_argv[index]);
+    char* result = malloc(len + 1);
+    assert(result != NULL);
+    memcpy(result, g_argv[index], len + 1);
+    return result;
+}
+
+/**
+ * Get all command-line arguments as a string list.
+ * @return FernStringList containing all arguments.
+ */
+FernStringList* fern_args(void) {
+    assert(g_argv != NULL || g_argc == 0);
+    
+    FernStringList* list = malloc(sizeof(FernStringList));
+    assert(list != NULL);
+    list->len = g_argc;
+    list->cap = g_argc > 0 ? g_argc : 1;
+    list->data = malloc((size_t)list->cap * sizeof(char*));
+    assert(list->data != NULL);
+    
+    for (int i = 0; i < g_argc; i++) {
+        size_t len = strlen(g_argv[i]);
+        list->data[i] = malloc(len + 1);
+        assert(list->data[i] != NULL);
+        memcpy(list->data[i], g_argv[i], len + 1);
+    }
+    
+    return list;
+}
+
+/**
+ * Exit program immediately with given code.
+ * @param code Exit code.
+ */
+void fern_exit(int64_t code) {
+    exit((int)code);
+}
+
+/* C entry point - calls user's fern_main */
+extern int fern_main(void);
+
+int main(int argc, char** argv) {
+    fern_set_args(argc, argv);
+    return fern_main();
+}
+
 /* ========== Memory Functions ========== */
 
 /**

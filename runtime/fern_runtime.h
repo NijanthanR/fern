@@ -505,6 +505,40 @@ int64_t fern_option_map(int64_t option, int64_t (*fn)(int64_t));
  */
 int64_t fern_option_unwrap_or(int64_t option, int64_t default_val);
 
+/* ========== System Functions (argc/argv access) ========== */
+
+/**
+ * Set command-line arguments (called from C main wrapper).
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ */
+void fern_set_args(int argc, char** argv);
+
+/**
+ * Get command-line argument count.
+ * @return Number of arguments (including program name).
+ */
+int64_t fern_args_count(void);
+
+/**
+ * Get command-line argument at index.
+ * @param index The index (0 = program name).
+ * @return The argument string, or empty string if out of bounds.
+ */
+char* fern_arg(int64_t index);
+
+/**
+ * Get all command-line arguments as a string list.
+ * @return FernStringList containing all arguments.
+ */
+FernStringList* fern_args(void);
+
+/**
+ * Exit program immediately with given code.
+ * @param code Exit code.
+ */
+void fern_exit(int64_t code);
+
 /* ========== Memory Functions ========== */
 
 /**

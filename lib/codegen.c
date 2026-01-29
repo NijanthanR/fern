@@ -302,6 +302,13 @@ static char qbe_type_for_expr(Expr* expr) {
                             return 'l';
                         }
                     }
+                    /* System module functions returning pointers */
+                    if (strcmp(module, "System") == 0) {
+                        if (strcmp(func, "args") == 0 ||
+                            strcmp(func, "arg") == 0) {
+                            return 'l';
+                        }
+                    }
                 }
             }
             if (call->func->type == EXPR_IDENT) {
@@ -969,6 +976,34 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                             return result;
                         }
                     }
+
+                    /* ===== System module ===== */
+                    if (strcmp(module, "System") == 0) {
+                        /* System.args() -> List(String) */
+                        if (strcmp(func, "args") == 0 && call->args->len == 0) {
+                            emit(cg, "    %s =l call $fern_args()\n", string_cstr(result));
+                            return result;
+                        }
+                        /* System.args_count() -> Int */
+                        if (strcmp(func, "args_count") == 0 && call->args->len == 0) {
+                            emit(cg, "    %s =w call $fern_args_count()\n", string_cstr(result));
+                            return result;
+                        }
+                        /* System.arg(index) -> String */
+                        if (strcmp(func, "arg") == 0 && call->args->len == 1) {
+                            String* idx = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    %s =l call $fern_arg(w %s)\n",
+                                string_cstr(result), string_cstr(idx));
+                            return result;
+                        }
+                        /* System.exit(code) -> Unit */
+                        if (strcmp(func, "exit") == 0 && call->args->len == 1) {
+                            String* code = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    call $fern_exit(w %s)\n", string_cstr(code));
+                            emit(cg, "    %s =w copy 0\n", string_cstr(result));
+                            return result;
+                        }
+                    }
                 }
             }
             
@@ -1611,11 +1646,13 @@ static void codegen_fn_def(Codegen* cg, FunctionDef* fn) {
     clear_defers(cg);
     
     /* Check if this is main() with no return type (Unit return) */
-    bool is_main_unit = (strcmp(string_cstr(fn->name), "main") == 0) 
-                        && (fn->return_type == NULL);
+    const char* fn_name = string_cstr(fn->name);
+    bool is_main = (strcmp(fn_name, "main") == 0);
+    bool is_main_unit = is_main && (fn->return_type == NULL);
     
-    /* Function header */
-    emit(cg, "export function w $%s(", string_cstr(fn->name));
+    /* Function header - rename main to fern_main so C runtime can provide entry point */
+    const char* emit_name = is_main ? "fern_main" : fn_name;
+    emit(cg, "export function w $%s(", emit_name);
     
     /* Parameters */
     if (fn->params) {

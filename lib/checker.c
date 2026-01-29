@@ -143,6 +143,7 @@ static bool is_builtin_module(const char* name) {
     return strcmp(name, "String") == 0 ||
            strcmp(name, "List") == 0 ||
            strcmp(name, "File") == 0 ||
+           strcmp(name, "System") == 0 ||
            strcmp(name, "Result") == 0 ||
            strcmp(name, "Option") == 0;
 }
@@ -430,6 +431,32 @@ static Type* lookup_module_function(Checker* checker, const char* module, const 
             TypeVec_push(arena, result_args, type_int(arena));
             result_type = type_con(arena, string_new(arena, "Result"), result_args);
             return type_fn(arena, params, result_type);
+        }
+    }
+
+    /* ===== System module ===== */
+    if (strcmp(module, "System") == 0) {
+        /* System.args() -> List(String) */
+        if (strcmp(func, "args") == 0) {
+            params = TypeVec_new(arena);
+            return type_fn(arena, params, type_list(arena, type_string(arena)));
+        }
+        /* System.args_count() -> Int */
+        if (strcmp(func, "args_count") == 0) {
+            params = TypeVec_new(arena);
+            return type_fn(arena, params, type_int(arena));
+        }
+        /* System.arg(Int) -> String */
+        if (strcmp(func, "arg") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_int(arena));
+            return type_fn(arena, params, type_string(arena));
+        }
+        /* System.exit(Int) -> Unit */
+        if (strcmp(func, "exit") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_int(arena));
+            return type_fn(arena, params, type_unit(arena));
         }
     }
 
