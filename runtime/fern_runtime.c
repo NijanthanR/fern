@@ -2017,3 +2017,332 @@ void fern_regex_captures_free(FernRegexCaptures* captures) {
         free(captures);
     }
 }
+
+/* ========== TUI: Term Module ========== */
+
+#include <sys/ioctl.h>
+#include <termios.h>
+
+/**
+ * Get terminal dimensions.
+ * @return FernTermSize with columns and rows.
+ */
+FernTermSize* fern_term_size(void) {
+    FernTermSize* size = malloc(sizeof(FernTermSize));
+    if (!size) return NULL;
+    
+    struct winsize ws;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0) {
+        size->cols = ws.ws_col;
+        size->rows = ws.ws_row;
+    } else {
+        /* Default fallback */
+        size->cols = 80;
+        size->rows = 24;
+    }
+    return size;
+}
+
+/**
+ * Check if stdout is a TTY.
+ * @return 1 if TTY, 0 otherwise.
+ */
+int64_t fern_term_is_tty(void) {
+    return isatty(STDOUT_FILENO) ? 1 : 0;
+}
+
+/**
+ * Get color support level.
+ * Checks COLORTERM, TERM, and NO_COLOR environment variables.
+ * @return 0 (no color), 16 (basic), 256 (extended), 16777216 (truecolor).
+ */
+int64_t fern_term_color_support(void) {
+    /* NO_COLOR takes precedence */
+    const char* no_color = getenv("NO_COLOR");
+    if (no_color && no_color[0] != '\0') {
+        return 0;
+    }
+    
+    /* Not a TTY means no color */
+    if (!isatty(STDOUT_FILENO)) {
+        return 0;
+    }
+    
+    /* Check for truecolor support */
+    const char* colorterm = getenv("COLORTERM");
+    if (colorterm) {
+        if (strcmp(colorterm, "truecolor") == 0 || strcmp(colorterm, "24bit") == 0) {
+            return 16777216;
+        }
+    }
+    
+    /* Check TERM for 256-color support */
+    const char* term = getenv("TERM");
+    if (term) {
+        if (strstr(term, "256color") || strstr(term, "256")) {
+            return 256;
+        }
+        if (strstr(term, "color") || strstr(term, "xterm") || 
+            strstr(term, "screen") || strstr(term, "vt100")) {
+            return 16;
+        }
+    }
+    
+    /* Default to basic 16 colors if TTY */
+    return 16;
+}
+
+/* ========== TUI: Style Module ========== */
+
+/* ANSI escape code constants */
+#define ANSI_RESET "\x1b[0m"
+#define ANSI_BOLD "\x1b[1m"
+#define ANSI_DIM "\x1b[2m"
+#define ANSI_ITALIC "\x1b[3m"
+#define ANSI_UNDERLINE "\x1b[4m"
+#define ANSI_BLINK "\x1b[5m"
+#define ANSI_REVERSE "\x1b[7m"
+#define ANSI_STRIKETHROUGH "\x1b[9m"
+
+/* Foreground colors */
+#define ANSI_FG_BLACK "\x1b[30m"
+#define ANSI_FG_RED "\x1b[31m"
+#define ANSI_FG_GREEN "\x1b[32m"
+#define ANSI_FG_YELLOW "\x1b[33m"
+#define ANSI_FG_BLUE "\x1b[34m"
+#define ANSI_FG_MAGENTA "\x1b[35m"
+#define ANSI_FG_CYAN "\x1b[36m"
+#define ANSI_FG_WHITE "\x1b[37m"
+
+/* Bright foreground colors */
+#define ANSI_FG_BRIGHT_BLACK "\x1b[90m"
+#define ANSI_FG_BRIGHT_RED "\x1b[91m"
+#define ANSI_FG_BRIGHT_GREEN "\x1b[92m"
+#define ANSI_FG_BRIGHT_YELLOW "\x1b[93m"
+#define ANSI_FG_BRIGHT_BLUE "\x1b[94m"
+#define ANSI_FG_BRIGHT_MAGENTA "\x1b[95m"
+#define ANSI_FG_BRIGHT_CYAN "\x1b[96m"
+#define ANSI_FG_BRIGHT_WHITE "\x1b[97m"
+
+/* Background colors */
+#define ANSI_BG_BLACK "\x1b[40m"
+#define ANSI_BG_RED "\x1b[41m"
+#define ANSI_BG_GREEN "\x1b[42m"
+#define ANSI_BG_YELLOW "\x1b[43m"
+#define ANSI_BG_BLUE "\x1b[44m"
+#define ANSI_BG_MAGENTA "\x1b[45m"
+#define ANSI_BG_CYAN "\x1b[46m"
+#define ANSI_BG_WHITE "\x1b[47m"
+
+/**
+ * Helper to wrap text with ANSI escape codes.
+ * @param prefix The ANSI escape sequence to apply.
+ * @param text The text to wrap.
+ * @return New string with escape codes.
+ */
+static char* style_wrap(const char* prefix, const char* text) {
+    if (!text) return NULL;
+    size_t prefix_len = strlen(prefix);
+    size_t text_len = strlen(text);
+    size_t reset_len = strlen(ANSI_RESET);
+    
+    char* result = malloc(prefix_len + text_len + reset_len + 1);
+    if (!result) return NULL;
+    
+    memcpy(result, prefix, prefix_len);
+    memcpy(result + prefix_len, text, text_len);
+    memcpy(result + prefix_len + text_len, ANSI_RESET, reset_len);
+    result[prefix_len + text_len + reset_len] = '\0';
+    
+    return result;
+}
+
+/* Basic colors (foreground) */
+char* fern_style_black(const char* text) { return style_wrap(ANSI_FG_BLACK, text); }
+char* fern_style_red(const char* text) { return style_wrap(ANSI_FG_RED, text); }
+char* fern_style_green(const char* text) { return style_wrap(ANSI_FG_GREEN, text); }
+char* fern_style_yellow(const char* text) { return style_wrap(ANSI_FG_YELLOW, text); }
+char* fern_style_blue(const char* text) { return style_wrap(ANSI_FG_BLUE, text); }
+char* fern_style_magenta(const char* text) { return style_wrap(ANSI_FG_MAGENTA, text); }
+char* fern_style_cyan(const char* text) { return style_wrap(ANSI_FG_CYAN, text); }
+char* fern_style_white(const char* text) { return style_wrap(ANSI_FG_WHITE, text); }
+
+/* Bright colors (foreground) */
+char* fern_style_bright_black(const char* text) { return style_wrap(ANSI_FG_BRIGHT_BLACK, text); }
+char* fern_style_bright_red(const char* text) { return style_wrap(ANSI_FG_BRIGHT_RED, text); }
+char* fern_style_bright_green(const char* text) { return style_wrap(ANSI_FG_BRIGHT_GREEN, text); }
+char* fern_style_bright_yellow(const char* text) { return style_wrap(ANSI_FG_BRIGHT_YELLOW, text); }
+char* fern_style_bright_blue(const char* text) { return style_wrap(ANSI_FG_BRIGHT_BLUE, text); }
+char* fern_style_bright_magenta(const char* text) { return style_wrap(ANSI_FG_BRIGHT_MAGENTA, text); }
+char* fern_style_bright_cyan(const char* text) { return style_wrap(ANSI_FG_BRIGHT_CYAN, text); }
+char* fern_style_bright_white(const char* text) { return style_wrap(ANSI_FG_BRIGHT_WHITE, text); }
+
+/* Background colors */
+char* fern_style_on_black(const char* text) { return style_wrap(ANSI_BG_BLACK, text); }
+char* fern_style_on_red(const char* text) { return style_wrap(ANSI_BG_RED, text); }
+char* fern_style_on_green(const char* text) { return style_wrap(ANSI_BG_GREEN, text); }
+char* fern_style_on_yellow(const char* text) { return style_wrap(ANSI_BG_YELLOW, text); }
+char* fern_style_on_blue(const char* text) { return style_wrap(ANSI_BG_BLUE, text); }
+char* fern_style_on_magenta(const char* text) { return style_wrap(ANSI_BG_MAGENTA, text); }
+char* fern_style_on_cyan(const char* text) { return style_wrap(ANSI_BG_CYAN, text); }
+char* fern_style_on_white(const char* text) { return style_wrap(ANSI_BG_WHITE, text); }
+
+/* Text attributes */
+char* fern_style_bold(const char* text) { return style_wrap(ANSI_BOLD, text); }
+char* fern_style_dim(const char* text) { return style_wrap(ANSI_DIM, text); }
+char* fern_style_italic(const char* text) { return style_wrap(ANSI_ITALIC, text); }
+char* fern_style_underline(const char* text) { return style_wrap(ANSI_UNDERLINE, text); }
+char* fern_style_blink(const char* text) { return style_wrap(ANSI_BLINK, text); }
+char* fern_style_reverse(const char* text) { return style_wrap(ANSI_REVERSE, text); }
+char* fern_style_strikethrough(const char* text) { return style_wrap(ANSI_STRIKETHROUGH, text); }
+
+/**
+ * Apply 256-color foreground.
+ * @param text The text to style.
+ * @param color_code Color index 0-255.
+ * @return Styled string.
+ */
+char* fern_style_color(const char* text, int64_t color_code) {
+    if (!text) return NULL;
+    if (color_code < 0) color_code = 0;
+    if (color_code > 255) color_code = 255;
+    
+    char prefix[20];
+    snprintf(prefix, sizeof(prefix), "\x1b[38;5;%ldm", (long)color_code);
+    return style_wrap(prefix, text);
+}
+
+/**
+ * Apply 256-color background.
+ * @param text The text to style.
+ * @param color_code Color index 0-255.
+ * @return Styled string.
+ */
+char* fern_style_on_color(const char* text, int64_t color_code) {
+    if (!text) return NULL;
+    if (color_code < 0) color_code = 0;
+    if (color_code > 255) color_code = 255;
+    
+    char prefix[20];
+    snprintf(prefix, sizeof(prefix), "\x1b[48;5;%ldm", (long)color_code);
+    return style_wrap(prefix, text);
+}
+
+/**
+ * Apply RGB foreground color.
+ * @param text The text to style.
+ * @param r Red component 0-255.
+ * @param g Green component 0-255.
+ * @param b Blue component 0-255.
+ * @return Styled string.
+ */
+char* fern_style_rgb(const char* text, int64_t r, int64_t g, int64_t b) {
+    if (!text) return NULL;
+    r = (r < 0) ? 0 : (r > 255) ? 255 : r;
+    g = (g < 0) ? 0 : (g > 255) ? 255 : g;
+    b = (b < 0) ? 0 : (b > 255) ? 255 : b;
+    
+    char prefix[30];
+    snprintf(prefix, sizeof(prefix), "\x1b[38;2;%ld;%ld;%ldm", (long)r, (long)g, (long)b);
+    return style_wrap(prefix, text);
+}
+
+/**
+ * Apply RGB background color.
+ * @param text The text to style.
+ * @param r Red component 0-255.
+ * @param g Green component 0-255.
+ * @param b Blue component 0-255.
+ * @return Styled string.
+ */
+char* fern_style_on_rgb(const char* text, int64_t r, int64_t g, int64_t b) {
+    if (!text) return NULL;
+    r = (r < 0) ? 0 : (r > 255) ? 255 : r;
+    g = (g < 0) ? 0 : (g > 255) ? 255 : g;
+    b = (b < 0) ? 0 : (b > 255) ? 255 : b;
+    
+    char prefix[30];
+    snprintf(prefix, sizeof(prefix), "\x1b[48;2;%ld;%ld;%ldm", (long)r, (long)g, (long)b);
+    return style_wrap(prefix, text);
+}
+
+/**
+ * Parse hex color string to RGB.
+ * @param hex Hex color string like "#ff8800" or "ff8800".
+ * @param r Output red component.
+ * @param g Output green component.
+ * @param b Output blue component.
+ * @return 1 on success, 0 on failure.
+ */
+static int parse_hex_color(const char* hex, int* r, int* g, int* b) {
+    if (!hex) return 0;
+    
+    /* Skip leading # if present */
+    if (hex[0] == '#') hex++;
+    
+    if (strlen(hex) != 6) return 0;
+    
+    unsigned int rv, gv, bv;
+    if (sscanf(hex, "%2x%2x%2x", &rv, &gv, &bv) != 3) return 0;
+    
+    *r = (int)rv;
+    *g = (int)gv;
+    *b = (int)bv;
+    return 1;
+}
+
+/**
+ * Apply hex foreground color.
+ * @param text The text to style.
+ * @param hex_color Hex color string like "#ff8800".
+ * @return Styled string.
+ */
+char* fern_style_hex(const char* text, const char* hex_color) {
+    int r, g, b;
+    if (!parse_hex_color(hex_color, &r, &g, &b)) {
+        /* Invalid hex, return unstyled copy */
+        return strdup(text ? text : "");
+    }
+    return fern_style_rgb(text, r, g, b);
+}
+
+/**
+ * Apply hex background color.
+ * @param text The text to style.
+ * @param hex_color Hex color string like "#ff8800".
+ * @return Styled string.
+ */
+char* fern_style_on_hex(const char* text, const char* hex_color) {
+    int r, g, b;
+    if (!parse_hex_color(hex_color, &r, &g, &b)) {
+        /* Invalid hex, return unstyled copy */
+        return strdup(text ? text : "");
+    }
+    return fern_style_on_rgb(text, r, g, b);
+}
+
+/**
+ * Strip ANSI escape codes from text.
+ * @param text The text to strip.
+ * @return New string with escape codes removed.
+ */
+char* fern_style_reset(const char* text) {
+    if (!text) return NULL;
+    
+    size_t len = strlen(text);
+    char* result = malloc(len + 1);
+    if (!result) return NULL;
+    
+    size_t j = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (text[i] == '\x1b') {
+            /* Skip escape sequence: \x1b[...m */
+            while (i < len && text[i] != 'm') i++;
+        } else {
+            result[j++] = text[i];
+        }
+    }
+    result[j] = '\0';
+    
+    return result;
+}

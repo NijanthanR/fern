@@ -235,6 +235,10 @@ static PrintType get_print_type(Codegen* cg, Expr* expr) {
                             return PRINT_STRING;
                         }
                     }
+                    /* Style module functions all return String */
+                    if (strcmp(module, "Style") == 0) {
+                        return PRINT_STRING;
+                    }
                 }
             }
             if (call->func->type == EXPR_IDENT) {
@@ -342,6 +346,16 @@ static char qbe_type_for_expr(Expr* expr) {
                             strcmp(func, "captures") == 0) {
                             return 'l';
                         }
+                    }
+                    /* Term module functions returning pointers */
+                    if (strcmp(module, "Term") == 0) {
+                        if (strcmp(func, "size") == 0) {
+                            return 'l';
+                        }
+                    }
+                    /* Style module functions all return String (pointer) */
+                    if (strcmp(module, "Style") == 0) {
+                        return 'l';
                     }
                 }
             }
@@ -1164,6 +1178,108 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                             String* pattern = codegen_expr(cg, call->args->data[1].value);
                             emit(cg, "    %s =l call $fern_regex_captures(l %s, l %s)\n",
                                 string_cstr(result), string_cstr(s), string_cstr(pattern));
+                            return result;
+                        }
+                    }
+
+                    /* ===== Term module ===== */
+                    if (strcmp(module, "Term") == 0) {
+                        /* Term.size() -> (cols, rows) as struct pointer */
+                        if (strcmp(func, "size") == 0 && call->args->len == 0) {
+                            emit(cg, "    %s =l call $fern_term_size()\n", string_cstr(result));
+                            return result;
+                        }
+                        /* Term.is_tty() -> Bool */
+                        if (strcmp(func, "is_tty") == 0 && call->args->len == 0) {
+                            emit(cg, "    %s =w call $fern_term_is_tty()\n", string_cstr(result));
+                            return result;
+                        }
+                        /* Term.color_support() -> Int */
+                        if (strcmp(func, "color_support") == 0 && call->args->len == 0) {
+                            emit(cg, "    %s =w call $fern_term_color_support()\n", string_cstr(result));
+                            return result;
+                        }
+                    }
+
+                    /* ===== Style module ===== */
+                    if (strcmp(module, "Style") == 0) {
+                        /* Single-argument style functions: Style.red(text), Style.bold(text), etc. */
+                        if (call->args->len == 1) {
+                            String* text = codegen_expr(cg, call->args->data[0].value);
+                            const char* fn_name = NULL;
+                            if (strcmp(func, "black") == 0) fn_name = "fern_style_black";
+                            else if (strcmp(func, "red") == 0) fn_name = "fern_style_red";
+                            else if (strcmp(func, "green") == 0) fn_name = "fern_style_green";
+                            else if (strcmp(func, "yellow") == 0) fn_name = "fern_style_yellow";
+                            else if (strcmp(func, "blue") == 0) fn_name = "fern_style_blue";
+                            else if (strcmp(func, "magenta") == 0) fn_name = "fern_style_magenta";
+                            else if (strcmp(func, "cyan") == 0) fn_name = "fern_style_cyan";
+                            else if (strcmp(func, "white") == 0) fn_name = "fern_style_white";
+                            else if (strcmp(func, "bright_black") == 0) fn_name = "fern_style_bright_black";
+                            else if (strcmp(func, "bright_red") == 0) fn_name = "fern_style_bright_red";
+                            else if (strcmp(func, "bright_green") == 0) fn_name = "fern_style_bright_green";
+                            else if (strcmp(func, "bright_yellow") == 0) fn_name = "fern_style_bright_yellow";
+                            else if (strcmp(func, "bright_blue") == 0) fn_name = "fern_style_bright_blue";
+                            else if (strcmp(func, "bright_magenta") == 0) fn_name = "fern_style_bright_magenta";
+                            else if (strcmp(func, "bright_cyan") == 0) fn_name = "fern_style_bright_cyan";
+                            else if (strcmp(func, "bright_white") == 0) fn_name = "fern_style_bright_white";
+                            else if (strcmp(func, "on_black") == 0) fn_name = "fern_style_on_black";
+                            else if (strcmp(func, "on_red") == 0) fn_name = "fern_style_on_red";
+                            else if (strcmp(func, "on_green") == 0) fn_name = "fern_style_on_green";
+                            else if (strcmp(func, "on_yellow") == 0) fn_name = "fern_style_on_yellow";
+                            else if (strcmp(func, "on_blue") == 0) fn_name = "fern_style_on_blue";
+                            else if (strcmp(func, "on_magenta") == 0) fn_name = "fern_style_on_magenta";
+                            else if (strcmp(func, "on_cyan") == 0) fn_name = "fern_style_on_cyan";
+                            else if (strcmp(func, "on_white") == 0) fn_name = "fern_style_on_white";
+                            else if (strcmp(func, "bold") == 0) fn_name = "fern_style_bold";
+                            else if (strcmp(func, "dim") == 0) fn_name = "fern_style_dim";
+                            else if (strcmp(func, "italic") == 0) fn_name = "fern_style_italic";
+                            else if (strcmp(func, "underline") == 0) fn_name = "fern_style_underline";
+                            else if (strcmp(func, "blink") == 0) fn_name = "fern_style_blink";
+                            else if (strcmp(func, "reverse") == 0) fn_name = "fern_style_reverse";
+                            else if (strcmp(func, "strikethrough") == 0) fn_name = "fern_style_strikethrough";
+                            else if (strcmp(func, "reset") == 0) fn_name = "fern_style_reset";
+                            
+                            if (fn_name) {
+                                emit(cg, "    %s =l call $%s(l %s)\n",
+                                    string_cstr(result), fn_name, string_cstr(text));
+                                return result;
+                            }
+                        }
+                        /* Style.color(text, code) and Style.on_color(text, code) */
+                        if (call->args->len == 2 && 
+                            (strcmp(func, "color") == 0 || strcmp(func, "on_color") == 0)) {
+                            String* text = codegen_expr(cg, call->args->data[0].value);
+                            String* code = codegen_expr(cg, call->args->data[1].value);
+                            const char* fn_name = strcmp(func, "color") == 0 ? 
+                                "fern_style_color" : "fern_style_on_color";
+                            emit(cg, "    %s =l call $%s(l %s, w %s)\n",
+                                string_cstr(result), fn_name, string_cstr(text), string_cstr(code));
+                            return result;
+                        }
+                        /* Style.rgb(text, r, g, b) and Style.on_rgb(text, r, g, b) */
+                        if (call->args->len == 4 && 
+                            (strcmp(func, "rgb") == 0 || strcmp(func, "on_rgb") == 0)) {
+                            String* text = codegen_expr(cg, call->args->data[0].value);
+                            String* r = codegen_expr(cg, call->args->data[1].value);
+                            String* g = codegen_expr(cg, call->args->data[2].value);
+                            String* b = codegen_expr(cg, call->args->data[3].value);
+                            const char* fn_name = strcmp(func, "rgb") == 0 ? 
+                                "fern_style_rgb" : "fern_style_on_rgb";
+                            emit(cg, "    %s =l call $%s(l %s, w %s, w %s, w %s)\n",
+                                string_cstr(result), fn_name, string_cstr(text), 
+                                string_cstr(r), string_cstr(g), string_cstr(b));
+                            return result;
+                        }
+                        /* Style.hex(text, hex_color) and Style.on_hex(text, hex_color) */
+                        if (call->args->len == 2 && 
+                            (strcmp(func, "hex") == 0 || strcmp(func, "on_hex") == 0)) {
+                            String* text = codegen_expr(cg, call->args->data[0].value);
+                            String* hex = codegen_expr(cg, call->args->data[1].value);
+                            const char* fn_name = strcmp(func, "hex") == 0 ? 
+                                "fern_style_hex" : "fern_style_on_hex";
+                            emit(cg, "    %s =l call $%s(l %s, l %s)\n",
+                                string_cstr(result), fn_name, string_cstr(text), string_cstr(hex));
                             return result;
                         }
                     }

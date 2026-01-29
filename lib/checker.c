@@ -146,7 +146,9 @@ static bool is_builtin_module(const char* name) {
            strcmp(name, "System") == 0 ||
            strcmp(name, "Regex") == 0 ||
            strcmp(name, "Result") == 0 ||
-           strcmp(name, "Option") == 0;
+           strcmp(name, "Option") == 0 ||
+           strcmp(name, "Term") == 0 ||
+           strcmp(name, "Style") == 0;
 }
 
 /**
@@ -594,6 +596,76 @@ static Type* lookup_module_function(Checker* checker, const char* module, const 
             TypeVec_push(arena, match_elems, type_int(arena));
             TypeVec_push(arena, match_elems, type_string(arena));
             return type_fn(arena, params, type_list(arena, type_tuple(arena, match_elems)));
+        }
+    }
+
+    /* ===== Term module ===== */
+    if (strcmp(module, "Term") == 0) {
+        /* Term.size() -> (Int, Int) */
+        if (strcmp(func, "size") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec* tuple_elems = TypeVec_new(arena);
+            TypeVec_push(arena, tuple_elems, type_int(arena));
+            TypeVec_push(arena, tuple_elems, type_int(arena));
+            return type_fn(arena, params, type_tuple(arena, tuple_elems));
+        }
+        /* Term.is_tty() -> Bool */
+        if (strcmp(func, "is_tty") == 0) {
+            params = TypeVec_new(arena);
+            return type_fn(arena, params, type_bool(arena));
+        }
+        /* Term.color_support() -> Int */
+        if (strcmp(func, "color_support") == 0) {
+            params = TypeVec_new(arena);
+            return type_fn(arena, params, type_int(arena));
+        }
+    }
+
+    /* ===== Style module ===== */
+    if (strcmp(module, "Style") == 0) {
+        /* All basic color functions: Style.red(String) -> String, etc. */
+        if (strcmp(func, "black") == 0 || strcmp(func, "red") == 0 ||
+            strcmp(func, "green") == 0 || strcmp(func, "yellow") == 0 ||
+            strcmp(func, "blue") == 0 || strcmp(func, "magenta") == 0 ||
+            strcmp(func, "cyan") == 0 || strcmp(func, "white") == 0 ||
+            strcmp(func, "bright_black") == 0 || strcmp(func, "bright_red") == 0 ||
+            strcmp(func, "bright_green") == 0 || strcmp(func, "bright_yellow") == 0 ||
+            strcmp(func, "bright_blue") == 0 || strcmp(func, "bright_magenta") == 0 ||
+            strcmp(func, "bright_cyan") == 0 || strcmp(func, "bright_white") == 0 ||
+            strcmp(func, "on_black") == 0 || strcmp(func, "on_red") == 0 ||
+            strcmp(func, "on_green") == 0 || strcmp(func, "on_yellow") == 0 ||
+            strcmp(func, "on_blue") == 0 || strcmp(func, "on_magenta") == 0 ||
+            strcmp(func, "on_cyan") == 0 || strcmp(func, "on_white") == 0 ||
+            strcmp(func, "bold") == 0 || strcmp(func, "dim") == 0 ||
+            strcmp(func, "italic") == 0 || strcmp(func, "underline") == 0 ||
+            strcmp(func, "blink") == 0 || strcmp(func, "reverse") == 0 ||
+            strcmp(func, "strikethrough") == 0 || strcmp(func, "reset") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, type_string(arena));
+        }
+        /* Style.color(String, Int) -> String */
+        if (strcmp(func, "color") == 0 || strcmp(func, "on_color") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            TypeVec_push(arena, params, type_int(arena));
+            return type_fn(arena, params, type_string(arena));
+        }
+        /* Style.rgb(String, Int, Int, Int) -> String */
+        if (strcmp(func, "rgb") == 0 || strcmp(func, "on_rgb") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            TypeVec_push(arena, params, type_int(arena));
+            TypeVec_push(arena, params, type_int(arena));
+            TypeVec_push(arena, params, type_int(arena));
+            return type_fn(arena, params, type_string(arena));
+        }
+        /* Style.hex(String, String) -> String */
+        if (strcmp(func, "hex") == 0 || strcmp(func, "on_hex") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, type_string(arena));
         }
     }
 

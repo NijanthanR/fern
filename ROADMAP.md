@@ -977,7 +977,188 @@ After fern-style, consider rewriting in Fern:
 
 ---
 
-## Milestone 10: Polish & Optimization
+## Milestone 10: TUI Library (Rich-inspired)
+
+**Goal:** Built-in terminal UI library for beautiful CLI applications
+
+**Why:** Makes Fern excellent for CLI tools. Enables rewriting the style checker in Fern.
+
+**Inspiration:** Python's Rich library, but with Fern's functional, pipe-based API.
+
+### Phase 1: Core (MVP for style checker)
+
+**Status:** 🚧 In Progress
+
+**Modules to implement:**
+
+#### Term Module - Terminal Control
+```fern
+let (cols, rows) = Term.size()      # Terminal dimensions
+let is_tty = Term.is_tty()          # Check if stdout is a terminal  
+let colors = Term.color_support()    # 0, 16, 256, or 16777216 (truecolor)
+```
+
+#### Style Module - Colors & Text Attributes
+```fern
+# Basic colors
+Style.red("error")
+Style.green("success")
+Style.yellow("warning")
+Style.cyan("info")
+Style.dim("subtle")
+Style.bold("important")
+
+# Composition via pipes
+"Error!" |> Style.bold |> Style.red
+
+# 256-color and RGB
+Style.color("text", 196)            # 256-color palette
+Style.rgb("text", 255, 128, 0)      # True color
+Style.hex("text", "#ff8000")        # Hex color
+```
+
+#### Panel Module - Bordered Boxes
+```fern
+Panel.new("Hello, World!")
+    |> Panel.title("My Panel")
+    |> Panel.border(Box.rounded)
+    |> Panel.render()
+```
+
+#### Table Module - Data Tables
+```fern
+Table.new()
+    |> Table.add_column("Name")
+    |> Table.add_column("Status")
+    |> Table.add_row(["build", Style.green("OK")])
+    |> Table.add_row(["tests", Style.red("FAIL")])
+    |> Table.render()
+```
+
+**Runtime functions needed (~400 lines C):**
+- [ ] `fern_term_size()` → (Int, Int)
+- [ ] `fern_term_is_tty()` → Bool
+- [ ] `fern_term_color_support()` → Int
+- [ ] `fern_style_*()` functions for all colors/attributes
+- [ ] `fern_panel_*()` functions for panel rendering
+- [ ] `fern_table_*()` functions for table rendering
+
+**Type checker additions:**
+- [ ] Term module (size, is_tty, color_support)
+- [ ] Style module (~25 functions)
+- [ ] Panel module (~10 functions)
+- [ ] Table module (~15 functions)
+
+**Success Criteria:**
+- [ ] Can print colored, styled text
+- [ ] Can render bordered panels with titles
+- [ ] Can render formatted tables
+- [ ] Style checker can be partially ported
+
+### Phase 2: Progress & Interaction
+
+**Status:** Planned
+
+**Modules to implement:**
+
+#### Progress Module - Progress Bars
+```fern
+for item in Progress.track(items, description: "Processing"):
+    process(item)
+
+# Or manual control
+let bar = Progress.new()
+    |> Progress.add_task("Downloading", total: 1000)
+    |> Progress.start()
+Progress.advance(bar, 10)
+Progress.stop(bar)
+```
+
+#### Spinner Module - Activity Indicators
+```fern
+let spin = Spinner.new(Spinner.dots, "Loading...")
+Spinner.start(spin)
+# ... work ...
+Spinner.succeed(spin, "Done!")
+```
+
+#### Prompt Module - User Input
+```fern
+let name = Prompt.ask("What is your name?")
+let ok = Prompt.confirm("Continue?")
+let choice = Prompt.select("Pick one:", ["A", "B", "C"])
+```
+
+**Runtime functions needed (~400 lines C):**
+- [ ] Progress bar rendering with cursor control
+- [ ] Spinner animation (requires terminal raw mode)
+- [ ] Input reading with line editing
+- [ ] Terminal cursor control (move, hide, show)
+
+**Success Criteria:**
+- [ ] Can show progress bars for long operations
+- [ ] Can show spinners for indeterminate progress
+- [ ] Can prompt for user input interactively
+
+### Phase 3: Advanced
+
+**Status:** Planned
+
+**Modules to implement:**
+
+#### Tree Module - Hierarchical Display
+```fern
+Tree.new("Root")
+    |> Tree.add("Child 1")
+    |> Tree.add("Child 2", children: [
+        Tree.leaf("Grandchild A"),
+        Tree.leaf("Grandchild B")
+    ])
+    |> Tree.render()
+```
+
+#### Live Module - Dynamic Updates
+```fern
+let display = Live.new(render_dashboard())
+    |> Live.refresh_rate(4)
+    |> Live.start()
+# ... updates happen automatically ...
+Live.stop(display)
+```
+
+#### Log Module - Styled Logging
+```fern
+Log.info("Starting application")
+Log.success("Build complete")  
+Log.warning("Deprecated function used")
+Log.error("Connection failed")
+```
+
+**Runtime functions needed (~200 lines C):**
+- [ ] Tree rendering with Unicode box-drawing
+- [ ] Live display with screen refresh
+- [ ] Log formatting with icons and colors
+
+**Success Criteria:**
+- [ ] Can display tree structures
+- [ ] Can update display content in-place
+- [ ] Can log with consistent, beautiful formatting
+- [ ] Full Rich feature parity for common use cases
+
+### Implementation Notes
+
+All TUI functionality uses ANSI escape sequences:
+- Colors: `\x1b[31m` (red), `\x1b[1m` (bold), etc.
+- Cursor: `\x1b[H` (home), `\x1b[2J` (clear), etc.
+- Terminal size: `ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws)`
+- Raw mode: `tcgetattr`/`tcsetattr` with `ICANON`/`ECHO` disabled
+- Unicode: Box-drawing characters are UTF-8 encoded
+
+Estimated total: ~1000 lines of C runtime code across all phases.
+
+---
+
+## Milestone 11: Polish & Optimization
 
 **Goal:** Production-ready compiler
 

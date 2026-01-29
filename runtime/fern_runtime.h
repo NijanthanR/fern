@@ -757,4 +757,93 @@ void fern_regex_match_free(FernRegexMatch* match);
  */
 void fern_regex_captures_free(FernRegexCaptures* captures);
 
+/* ========== TUI: Term Module ========== */
+
+/**
+ * Terminal size result.
+ */
+typedef struct FernTermSize {
+    int64_t cols;
+    int64_t rows;
+} FernTermSize;
+
+/**
+ * Get terminal dimensions.
+ * @return FernTermSize with columns and rows.
+ */
+FernTermSize* fern_term_size(void);
+
+/**
+ * Check if stdout is a TTY.
+ * @return 1 if TTY, 0 otherwise.
+ */
+int64_t fern_term_is_tty(void);
+
+/**
+ * Get color support level.
+ * @return 0 (no color), 16 (basic), 256 (extended), 16777216 (truecolor).
+ */
+int64_t fern_term_color_support(void);
+
+/* ========== TUI: Style Module ========== */
+
+/**
+ * Apply ANSI style to text.
+ * All style functions return a new string with ANSI codes applied.
+ */
+
+/* Basic colors (foreground) */
+char* fern_style_black(const char* text);
+char* fern_style_red(const char* text);
+char* fern_style_green(const char* text);
+char* fern_style_yellow(const char* text);
+char* fern_style_blue(const char* text);
+char* fern_style_magenta(const char* text);
+char* fern_style_cyan(const char* text);
+char* fern_style_white(const char* text);
+
+/* Bright colors (foreground) */
+char* fern_style_bright_black(const char* text);
+char* fern_style_bright_red(const char* text);
+char* fern_style_bright_green(const char* text);
+char* fern_style_bright_yellow(const char* text);
+char* fern_style_bright_blue(const char* text);
+char* fern_style_bright_magenta(const char* text);
+char* fern_style_bright_cyan(const char* text);
+char* fern_style_bright_white(const char* text);
+
+/* Background colors */
+char* fern_style_on_black(const char* text);
+char* fern_style_on_red(const char* text);
+char* fern_style_on_green(const char* text);
+char* fern_style_on_yellow(const char* text);
+char* fern_style_on_blue(const char* text);
+char* fern_style_on_magenta(const char* text);
+char* fern_style_on_cyan(const char* text);
+char* fern_style_on_white(const char* text);
+
+/* Text attributes */
+char* fern_style_bold(const char* text);
+char* fern_style_dim(const char* text);
+char* fern_style_italic(const char* text);
+char* fern_style_underline(const char* text);
+char* fern_style_blink(const char* text);
+char* fern_style_reverse(const char* text);
+char* fern_style_strikethrough(const char* text);
+
+/* 256-color palette */
+char* fern_style_color(const char* text, int64_t color_code);
+char* fern_style_on_color(const char* text, int64_t color_code);
+
+/* True color (RGB) */
+char* fern_style_rgb(const char* text, int64_t r, int64_t g, int64_t b);
+char* fern_style_on_rgb(const char* text, int64_t r, int64_t g, int64_t b);
+
+/* Hex color */
+char* fern_style_hex(const char* text, const char* hex_color);
+char* fern_style_on_hex(const char* text, const char* hex_color);
+
+/* Reset/strip styling */
+char* fern_style_reset(const char* text);
+
 #endif /* FERN_RUNTIME_H */
