@@ -308,17 +308,8 @@ static PrintType get_print_type(Codegen* cg, Expr* expr) {
             return PRINT_INT;
         
         case EXPR_DOT: {
-            /* Field access - check if it's a string field (e.g., exec result.1, result.2) */
-            DotExpr* dot = &expr->data.dot;
-            const char* field = string_cstr(dot->field);
-            /* For exec results: field 0 is int, fields 1,2 are strings */
-            if (field[0] >= '0' && field[0] <= '9') {
-                int idx = atoi(field);
-                if (idx >= 1) {
-                    /* Fields 1+ are strings (stdout, stderr) */
-                    return PRINT_STRING;
-                }
-            }
+            /* Field access - without type info, default to PRINT_INT
+             * User can use type annotation or explicit conversion for strings */
             return PRINT_INT;
         }
         
@@ -484,6 +475,24 @@ static char qbe_type_for_expr(Codegen* cg, Expr* expr) {
                             return 'l';
                         }
                     }
+                    /* List module functions returning pointers */
+                    if (strcmp(module, "List") == 0) {
+                        /* Functions returning List (pointer) */
+                        if (strcmp(func, "new") == 0 ||
+                            strcmp(func, "push") == 0 ||
+                            strcmp(func, "concat") == 0 ||
+                            strcmp(func, "reverse") == 0 ||
+                            strcmp(func, "tail") == 0 ||
+                            strcmp(func, "filter") == 0 ||
+                            strcmp(func, "map") == 0) {
+                            return 'l';
+                        }
+                        /* Functions returning element (pointer for string lists) */
+                        if (strcmp(func, "head") == 0 ||
+                            strcmp(func, "get") == 0) {
+                            return 'l';  /* List elements are pointers (strings, etc.) */
+                        }
+                    }
                     /* File module functions returning Result or List (pointer) */
                     if (strcmp(module, "File") == 0) {
                         if (strcmp(func, "read") == 0 ||
@@ -576,11 +585,45 @@ static char qbe_type_for_expr(Codegen* cg, Expr* expr) {
         case EXPR_BINARY: {
             BinaryExpr* bin = &expr->data.binary;
             if (bin->op == BINOP_ADD) {
-                char left_type = qbe_type_for_expr(cg, bin->left);
-                char right_type = qbe_type_for_expr(cg, bin->right);
-                if (left_type == 'l' || right_type == 'l') {
+                /* Check if either operand is actually a string type
+                 * (not just 64-bit - tuple field access returns 'l' but may be Int) */
+                PrintType left_pt = get_print_type(cg, bin->left);
+                PrintType right_pt = get_print_type(cg, bin->right);
+                if (left_pt == PRINT_STRING || right_pt == PRINT_STRING) {
                     return 'l';  /* String concatenation returns pointer */
                 }
+            }
+            return 'w';
+        }
+        
+        /* Block expressions: check the final expression's type */
+        case EXPR_BLOCK:
+            if (expr->data.block.final_expr) {
+                return qbe_type_for_expr(cg, expr->data.block.final_expr);
+            }
+            return 'w';
+        
+        /* If expressions: check the then branch's type */
+        case EXPR_IF:
+            if (expr->data.if_expr.then_branch) {
+                return qbe_type_for_expr(cg, expr->data.if_expr.then_branch);
+            }
+            return 'w';
+        
+        /* Match expressions: check the first arm's body type */
+        case EXPR_MATCH:
+            if (expr->data.match_expr.arms && expr->data.match_expr.arms->len > 0) {
+                return qbe_type_for_expr(cg, expr->data.match_expr.arms->data[0].body);
+            }
+            return 'w';
+        
+        /* Dot expressions: tuple field access loads 64-bit values */
+        case EXPR_DOT: {
+            DotExpr* dot = &expr->data.dot;
+            const char* field = string_cstr(dot->field);
+            /* Numeric field access (tuple.0, tuple.1, etc.) always loads as 64-bit */
+            if (field[0] >= '0' && field[0] <= '9') {
+                return 'l';
             }
             return 'w';
         }
@@ -588,9 +631,6 @@ static char qbe_type_for_expr(Codegen* cg, Expr* expr) {
         /* For other exprs, we'd need type info - default to word */
         /* TODO: track types through codegen for proper handling */
         case EXPR_UNARY:
-        case EXPR_IF:
-        case EXPR_MATCH:
-        case EXPR_BLOCK:
         default:
             return 'w';
     }
@@ -759,19 +799,20 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                 /* Convert expression to string based on its type */
                 String* val = codegen_expr(cg, first);
                 PrintType pt = get_print_type(cg, first);
+                char val_type = qbe_type_for_expr(cg, first);
                 result = fresh_temp(cg);
                 switch (pt) {
                     case PRINT_STRING:
                         emit(cg, "    %s =l copy %s\n", string_cstr(result), string_cstr(val));
                         break;
                     case PRINT_BOOL:
-                        emit(cg, "    %s =l call $fern_bool_to_str(w %s)\n", 
-                            string_cstr(result), string_cstr(val));
+                        emit(cg, "    %s =l call $fern_bool_to_str(%c %s)\n", 
+                            string_cstr(result), val_type, string_cstr(val));
                         break;
                     case PRINT_INT:
                     default:
-                        emit(cg, "    %s =l call $fern_int_to_str(w %s)\n", 
-                            string_cstr(result), string_cstr(val));
+                        emit(cg, "    %s =l call $fern_int_to_str(%c %s)\n", 
+                            string_cstr(result), val_type, string_cstr(val));
                         break;
                 }
             }
@@ -787,19 +828,20 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                     /* Convert expression to string */
                     String* val = codegen_expr(cg, part);
                     PrintType pt = get_print_type(cg, part);
+                    char val_type = qbe_type_for_expr(cg, part);
                     part_str = fresh_temp(cg);
                     switch (pt) {
                         case PRINT_STRING:
                             emit(cg, "    %s =l copy %s\n", string_cstr(part_str), string_cstr(val));
                             break;
                         case PRINT_BOOL:
-                            emit(cg, "    %s =l call $fern_bool_to_str(w %s)\n", 
-                                string_cstr(part_str), string_cstr(val));
+                            emit(cg, "    %s =l call $fern_bool_to_str(%c %s)\n", 
+                                string_cstr(part_str), val_type, string_cstr(val));
                             break;
                         case PRINT_INT:
                         default:
-                            emit(cg, "    %s =l call $fern_int_to_str(w %s)\n", 
-                                string_cstr(part_str), string_cstr(val));
+                            emit(cg, "    %s =l call $fern_int_to_str(%c %s)\n", 
+                                string_cstr(part_str), val_type, string_cstr(val));
                             break;
                     }
                 }
@@ -818,12 +860,14 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
             BinaryExpr* bin = &expr->data.binary;
             String* tmp = fresh_temp(cg);
             
-            /* Check if this is string concatenation (+ with string operands) */
+            /* Check if this is string concatenation (+ with string operands)
+             * Use get_print_type to check for actual string types, not just 64-bit values
+             * (tuple field access returns 'l' but may not be a string) */
             if (bin->op == BINOP_ADD) {
-                char left_type = qbe_type_for_expr(cg, bin->left);
-                char right_type = qbe_type_for_expr(cg, bin->right);
-                /* If either operand is a string (pointer), use string concat */
-                if (left_type == 'l' || right_type == 'l') {
+                PrintType left_pt = get_print_type(cg, bin->left);
+                PrintType right_pt = get_print_type(cg, bin->right);
+                /* If either operand is a string, use string concat */
+                if (left_pt == PRINT_STRING || right_pt == PRINT_STRING) {
                     String* left = codegen_expr(cg, bin->left);
                     String* right = codegen_expr(cg, bin->right);
                     emit(cg, "    %s =l call $fern_str_concat(l %s, l %s)\n",
@@ -849,6 +893,8 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                 case BINOP_LE:  op = "cslew"; break;
                 case BINOP_GT:  op = "csgtw"; break;
                 case BINOP_GE:  op = "csgew"; break;
+                case BINOP_AND: op = "and"; break;  /* Bitwise/logical AND (eager) */
+                case BINOP_OR:  op = "or"; break;   /* Bitwise/logical OR (eager) */
                 default:
                     /* TODO: Handle other operators */
                     emit(cg, "    # TODO: unhandled binary op %d\n", bin->op);
@@ -983,15 +1029,103 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                         break;
                     }
                     
+                    case PATTERN_CONSTRUCTOR: {
+                        /* Constructor pattern: Some(x), Ok(value), Err(msg), None, etc. */
+                        ConstructorPattern* ctor = &arm->pattern->data.constructor;
+                        const char* ctor_name = string_cstr(ctor->name);
+                        
+                        /* Option types: Some/None - packed 64-bit value */
+                        if (strcmp(ctor_name, "Some") == 0) {
+                            /* Check tag == 1 (Some) */
+                            String* tag = fresh_temp(cg);
+                            String* cmp = fresh_temp(cg);
+                            emit(cg, "    %s =l and %s, 4294967295\n", string_cstr(tag), string_cstr(scrutinee));
+                            emit(cg, "    %s =w ceql %s, 1\n", string_cstr(cmp), string_cstr(tag));
+                            emit(cg, "    jnz %s, %s, %s\n",
+                                string_cstr(cmp), string_cstr(arm_body_label), string_cstr(next_arm_label));
+                        } else if (strcmp(ctor_name, "None") == 0) {
+                            /* Check tag == 0 (None) */
+                            String* tag = fresh_temp(cg);
+                            String* cmp = fresh_temp(cg);
+                            emit(cg, "    %s =l and %s, 4294967295\n", string_cstr(tag), string_cstr(scrutinee));
+                            emit(cg, "    %s =w ceql %s, 0\n", string_cstr(cmp), string_cstr(tag));
+                            emit(cg, "    jnz %s, %s, %s\n",
+                                string_cstr(cmp), string_cstr(arm_body_label), string_cstr(next_arm_label));
+                        }
+                        /* Result types: Ok/Err - heap-allocated struct pointer */
+                        else if (strcmp(ctor_name, "Ok") == 0) {
+                            /* Check tag == 0 (Ok) at offset 0 */
+                            String* tag = fresh_temp(cg);
+                            String* cmp = fresh_temp(cg);
+                            emit(cg, "    %s =w loadw %s\n", string_cstr(tag), string_cstr(scrutinee));
+                            emit(cg, "    %s =w ceqw %s, 0\n", string_cstr(cmp), string_cstr(tag));
+                            emit(cg, "    jnz %s, %s, %s\n",
+                                string_cstr(cmp), string_cstr(arm_body_label), string_cstr(next_arm_label));
+                        } else if (strcmp(ctor_name, "Err") == 0) {
+                            /* Check tag == 1 (Err) at offset 0 */
+                            String* tag = fresh_temp(cg);
+                            String* cmp = fresh_temp(cg);
+                            emit(cg, "    %s =w loadw %s\n", string_cstr(tag), string_cstr(scrutinee));
+                            emit(cg, "    %s =w ceqw %s, 1\n", string_cstr(cmp), string_cstr(tag));
+                            emit(cg, "    jnz %s, %s, %s\n",
+                                string_cstr(cmp), string_cstr(arm_body_label), string_cstr(next_arm_label));
+                        } else {
+                            /* Unknown constructor - treat as always matching for now */
+                            emit(cg, "    # TODO: constructor %s\n", ctor_name);
+                            emit(cg, "    jmp %s\n", string_cstr(arm_body_label));
+                        }
+                        break;
+                    }
+                    
                     default:
                         emit(cg, "    # TODO: pattern type %d\n", arm->pattern->type);
                         emit(cg, "    jmp %s\n", string_cstr(arm_body_label));
                 }
                 
-                /* Arm body */
+                /* Arm body - emit label first */
                 emit(cg, "%s\n", string_cstr(arm_body_label));
+                
+                /* For constructor patterns, bind the extracted value AFTER the label */
+                if (arm->pattern->type == PATTERN_CONSTRUCTOR) {
+                    ConstructorPattern* ctor = &arm->pattern->data.constructor;
+                    const char* ctor_name = string_cstr(ctor->name);
+                    
+                    if (strcmp(ctor_name, "Some") == 0 && ctor->args && ctor->args->len > 0) {
+                        Pattern* inner = ctor->args->data[0];
+                        if (inner->type == PATTERN_IDENT) {
+                            String* val = fresh_temp(cg);
+                            emit(cg, "    %s =l shr %s, 32\n", string_cstr(val), string_cstr(scrutinee));
+                            emit(cg, "    %%%s =w copy %s\n", string_cstr(inner->data.ident), string_cstr(val));
+                        }
+                    } else if (strcmp(ctor_name, "Ok") == 0 && ctor->args && ctor->args->len > 0) {
+                        Pattern* inner = ctor->args->data[0];
+                        if (inner->type == PATTERN_IDENT) {
+                            String* val_ptr = fresh_temp(cg);
+                            String* val = fresh_temp(cg);
+                            emit(cg, "    %s =l add %s, 8\n", string_cstr(val_ptr), string_cstr(scrutinee));
+                            emit(cg, "    %s =l loadl %s\n", string_cstr(val), string_cstr(val_ptr));
+                            emit(cg, "    %%%s =l copy %s\n", string_cstr(inner->data.ident), string_cstr(val));
+                            register_wide_var(cg, inner->data.ident);
+                        }
+                    } else if (strcmp(ctor_name, "Err") == 0 && ctor->args && ctor->args->len > 0) {
+                        Pattern* inner = ctor->args->data[0];
+                        if (inner->type == PATTERN_IDENT) {
+                            String* val_ptr = fresh_temp(cg);
+                            String* val = fresh_temp(cg);
+                            emit(cg, "    %s =l add %s, 8\n", string_cstr(val_ptr), string_cstr(scrutinee));
+                            emit(cg, "    %s =l loadl %s\n", string_cstr(val), string_cstr(val_ptr));
+                            emit(cg, "    %%%s =l copy %s\n", string_cstr(inner->data.ident), string_cstr(val));
+                            register_wide_var(cg, inner->data.ident);
+                        }
+                    }
+                }
+                
                 String* arm_val = codegen_expr(cg, arm->body);
-                emit(cg, "    %s =w copy %s\n", string_cstr(result), string_cstr(arm_val));
+                char arm_type = qbe_type_for_expr(cg, arm->body);
+                emit(cg, "    %s =%c copy %s\n", string_cstr(result), arm_type, string_cstr(arm_val));
+                if (arm_type == 'l') {
+                    register_wide_var(cg, result);
+                }
                 emit(cg, "    jmp %s\n", string_cstr(end_label));
                 
                 /* Next arm label */
@@ -999,7 +1133,8 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
             }
             
             /* If we fall through all arms, return 0 (should not happen with exhaustive matching) */
-            emit(cg, "    %s =w copy 0\n", string_cstr(result));
+            char result_type = qbe_type_for_expr(cg, expr);
+            emit(cg, "    %s =%c copy 0\n", string_cstr(result), result_type);
             emit(cg, "    jmp %s\n", string_cstr(end_label));
             
             emit(cg, "%s\n", string_cstr(end_label));
@@ -1199,8 +1334,9 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                         if (strcmp(func, "push") == 0 && call->args->len == 2) {
                             String* list = codegen_expr(cg, call->args->data[0].value);
                             String* elem = codegen_expr(cg, call->args->data[1].value);
-                            emit(cg, "    %s =l call $fern_list_push(l %s, w %s)\n",
-                                string_cstr(result), string_cstr(list), string_cstr(elem));
+                            char elem_type = qbe_type_for_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_list_push(l %s, %c %s)\n",
+                                string_cstr(result), string_cstr(list), elem_type, string_cstr(elem));
                             return result;
                         }
                         /* List.reverse(list) -> List */
@@ -1218,11 +1354,12 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                                 string_cstr(result), string_cstr(a), string_cstr(b));
                             return result;
                         }
-                        /* List.head(list) -> elem */
+                        /* List.head(list) -> elem (returns pointer type for list elements) */
                         if (strcmp(func, "head") == 0 && call->args->len == 1) {
                             String* list = codegen_expr(cg, call->args->data[0].value);
-                            emit(cg, "    %s =w call $fern_list_head(l %s)\n",
+                            emit(cg, "    %s =l call $fern_list_head(l %s)\n",
                                 string_cstr(result), string_cstr(list));
+                            register_wide_var(cg, result);
                             return result;
                         }
                         /* List.tail(list) -> List */
@@ -1890,16 +2027,17 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                     Expr* arg = call->args->data[0].value;
                     String* val = codegen_expr(cg, arg);
                     PrintType pt = get_print_type(cg, arg);
+                    char val_type = qbe_type_for_expr(cg, arg);
                     switch (pt) {
                         case PRINT_STRING:
                             emit(cg, "    call $fern_print_str(l %s)\n", string_cstr(val));
                             break;
                         case PRINT_BOOL:
-                            emit(cg, "    call $fern_print_bool(w %s)\n", string_cstr(val));
+                            emit(cg, "    call $fern_print_bool(%c %s)\n", val_type, string_cstr(val));
                             break;
                         case PRINT_INT:
                         default:
-                            emit(cg, "    call $fern_print_int(w %s)\n", string_cstr(val));
+                            emit(cg, "    call $fern_print_int(%c %s)\n", val_type, string_cstr(val));
                             break;
                     }
                     emit(cg, "    %s =w copy 0\n", string_cstr(result));
@@ -1911,16 +2049,17 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                     Expr* arg = call->args->data[0].value;
                     String* val = codegen_expr(cg, arg);
                     PrintType pt = get_print_type(cg, arg);
+                    char val_type = qbe_type_for_expr(cg, arg);
                     switch (pt) {
                         case PRINT_STRING:
                             emit(cg, "    call $fern_println_str(l %s)\n", string_cstr(val));
                             break;
                         case PRINT_BOOL:
-                            emit(cg, "    call $fern_println_bool(w %s)\n", string_cstr(val));
+                            emit(cg, "    call $fern_println_bool(%c %s)\n", val_type, string_cstr(val));
                             break;
                         case PRINT_INT:
                         default:
-                            emit(cg, "    call $fern_println_int(w %s)\n", string_cstr(val));
+                            emit(cg, "    call $fern_println_int(%c %s)\n", val_type, string_cstr(val));
                             break;
                     }
                     emit(cg, "    %s =w copy 0\n", string_cstr(result));
@@ -2083,8 +2222,9 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                 if (strcmp(fn_name, "list_push") == 0 && call->args->len == 2) {
                     String* list = codegen_expr(cg, call->args->data[0].value);
                     String* elem = codegen_expr(cg, call->args->data[1].value);
-                    emit(cg, "    %s =l call $fern_list_push(l %s, w %s)\n",
-                        string_cstr(result), string_cstr(list), string_cstr(elem));
+                    char elem_type = qbe_type_for_expr(cg, call->args->data[1].value);
+                    emit(cg, "    %s =l call $fern_list_push(l %s, %c %s)\n",
+                        string_cstr(result), string_cstr(list), elem_type, string_cstr(elem));
                     return result;
                 }
 
@@ -2105,11 +2245,12 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                     return result;
                 }
 
-                /* Handle list_head(list) -> elem */
+                /* Handle list_head(list) -> elem (returns pointer type) */
                 if (strcmp(fn_name, "list_head") == 0 && call->args->len == 1) {
                     String* list = codegen_expr(cg, call->args->data[0].value);
-                    emit(cg, "    %s =w call $fern_list_head(l %s)\n",
+                    emit(cg, "    %s =l call $fern_list_head(l %s)\n",
                         string_cstr(result), string_cstr(list));
+                    register_wide_var(cg, result);
                     return result;
                 }
 
@@ -2618,15 +2759,11 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                 String* addr = fresh_temp(cg);
                 emit(cg, "    %s =l add %s, %d\n", string_cstr(addr), string_cstr(obj), offset);
                 
-                /* For exec results: field 0 is int64, fields 1,2 are pointers */
-                if (idx == 0) {
-                    /* Load as word (though stored as 64-bit, we use as int) */
-                    emit(cg, "    %s =w loadw %s\n", string_cstr(result), string_cstr(addr));
-                } else {
-                    /* Load as pointer */
-                    emit(cg, "    %s =l loadl %s\n", string_cstr(result), string_cstr(addr));
-                    register_wide_var(cg, result);
-                }
+                /* All tuple elements are stored as 64-bit values, load as long
+                 * The let binding will handle type conversion based on annotation
+                 * NOTE: Don't register as wide_var - the result is just 64-bit data,
+                 * it may be an Int or a pointer depending on the actual type */
+                emit(cg, "    %s =l loadl %s\n", string_cstr(result), string_cstr(addr));
             } else {
                 /* Named field access - not yet implemented for user types */
                 emit(cg, "    # TODO: named field access .%s\n", field);
@@ -2653,8 +2790,9 @@ static void codegen_fn_def(Codegen* cg, FunctionDef* fn) {
     assert(cg != NULL);
     assert(fn != NULL);
     
-    /* Clear defer stack at function start */
+    /* Clear defer stack and wide vars at function start */
     clear_defers(cg);
+    cg->wide_var_count = 0;
     
     /* Check if this is main() with no return type (Unit return) */
     const char* fn_name = string_cstr(fn->name);
@@ -2683,15 +2821,23 @@ static void codegen_fn_def(Codegen* cg, FunctionDef* fn) {
     if (fn->params) {
         for (size_t i = 0; i < fn->params->len; i++) {
             if (i > 0) emit(cg, ", ");
-            /* Determine parameter type: String and List are pointers (l), others are words (w) */
+            /* Determine parameter type: String, List, and tuples are pointers (l), others are words (w) */
             char param_type = 'w';
             Parameter* param = &fn->params->data[i];
-            if (param->type_ann != NULL && param->type_ann->kind == TYPEEXPR_NAMED) {
-                const char* type_name = string_cstr(param->type_ann->data.named.name);
-                if (strcmp(type_name, "String") == 0 || strcmp(type_name, "List") == 0) {
+            if (param->type_ann != NULL) {
+                if (param->type_ann->kind == TYPEEXPR_TUPLE) {
+                    /* Tuples are heap-allocated pointers */
                     param_type = 'l';
-                    /* Register as wide var so uses within function body use correct type */
                     register_wide_var(cg, param->name);
+                } else if (param->type_ann->kind == TYPEEXPR_NAMED) {
+                    const char* type_name = string_cstr(param->type_ann->data.named.name);
+                    /* String, List are heap pointers; Option is packed 64-bit; Result is heap pointer */
+                    if (strcmp(type_name, "String") == 0 || strcmp(type_name, "List") == 0 ||
+                        strcmp(type_name, "Option") == 0 || strcmp(type_name, "Result") == 0) {
+                        param_type = 'l';
+                        /* Register as wide var so uses within function body use correct type */
+                        register_wide_var(cg, param->name);
+                    }
                 }
             }
             emit(cg, "%c %%%s", param_type, string_cstr(param->name));
@@ -2731,13 +2877,78 @@ void codegen_stmt(Codegen* cg, Stmt* stmt) {
             LetStmt* let = &stmt->data.let;
             String* val = codegen_expr(cg, let->value);
             
-            /* Determine QBE type based on the value expression */
-            char type_spec = qbe_type_for_expr(cg, let->value);
+            /* Determine QBE type - prefer type annotation if available, otherwise infer from value */
+            char type_spec = 'w';
+            if (let->type_ann != NULL) {
+                /* Use type annotation to determine QBE type */
+                if (let->type_ann->kind == TYPEEXPR_NAMED) {
+                    const char* type_name = string_cstr(let->type_ann->data.named.name);
+                    if (strcmp(type_name, "String") == 0 || strcmp(type_name, "List") == 0) {
+                        type_spec = 'l';
+                    }
+                } else if (let->type_ann->kind == TYPEEXPR_TUPLE) {
+                    type_spec = 'l';
+                }
+            } else {
+                /* Fall back to inferring from value expression */
+                type_spec = qbe_type_for_expr(cg, let->value);
+            }
             
             /* For simple identifier patterns, just copy to a named local */
             if (let->pattern->type == PATTERN_IDENT) {
-                /* Register wide variables for later reference */
-                if (type_spec == 'l') {
+                /* Only register as wide_var if we KNOW it's a pointer type
+                 * (String, List, Option, Result, Tuple). Check:
+                 * 1. Type annotation indicates pointer type
+                 * 2. Value expression is a literal of pointer type (tuple, list, string)
+                 * 3. Value is a function call known to return pointer type
+                 * DON'T register for tuple field access without annotation - could be Int */
+                bool is_pointer_type = false;
+                if (let->type_ann != NULL) {
+                    if (let->type_ann->kind == TYPEEXPR_TUPLE) {
+                        is_pointer_type = true;
+                    } else if (let->type_ann->kind == TYPEEXPR_NAMED) {
+                        const char* type_name = string_cstr(let->type_ann->data.named.name);
+                        if (strcmp(type_name, "String") == 0 ||
+                            strcmp(type_name, "List") == 0 ||
+                            strcmp(type_name, "Option") == 0 ||
+                            strcmp(type_name, "Result") == 0) {
+                            is_pointer_type = true;
+                        }
+                    }
+                } else {
+                    /* No type annotation - check value expression type */
+                    ExprType vt = let->value->type;
+                    if (vt == EXPR_TUPLE || vt == EXPR_LIST || 
+                        vt == EXPR_STRING_LIT || vt == EXPR_INTERP_STRING) {
+                        is_pointer_type = true;
+                    }
+                    /* Also check for function calls that return pointer types */
+                    if (vt == EXPR_CALL) {
+                        /* Use qbe_type_for_expr which knows about pointer-returning functions */
+                        if (qbe_type_for_expr(cg, let->value) == 'l') {
+                            is_pointer_type = true;
+                        }
+                    }
+                    /* Identifiers: check if the source is a wide var */
+                    if (vt == EXPR_IDENT) {
+                        if (is_wide_var(cg, let->value->data.ident.name)) {
+                            is_pointer_type = true;
+                        }
+                    }
+                    /* Binary expressions: check if string concatenation */
+                    if (vt == EXPR_BINARY) {
+                        if (get_print_type(cg, let->value) == PRINT_STRING) {
+                            is_pointer_type = true;
+                        }
+                    }
+                    /* Match expressions: check if result is a string/pointer type */
+                    if (vt == EXPR_MATCH || vt == EXPR_IF || vt == EXPR_BLOCK) {
+                        if (qbe_type_for_expr(cg, let->value) == 'l') {
+                            is_pointer_type = true;
+                        }
+                    }
+                }
+                if (is_pointer_type) {
                     register_wide_var(cg, let->pattern->data.ident);
                 }
                 emit(cg, "    %%%s =%c copy %s\n", 
