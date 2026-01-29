@@ -84,6 +84,78 @@ static String* fresh_label(Codegen* cg) {
     return string_new(cg->arena, buf);
 }
 
+/* ========== Module Path Helpers ========== */
+
+/**
+ * Try to build a module path from a dot expression.
+ * For example: Tui.Panel -> "Tui.Panel", String -> "String"
+ * Returns NULL if the expression is not a valid module path.
+ * @param arena Arena for string allocation.
+ * @param expr The expression to check.
+ * @return Module path string or NULL.
+ */
+static String* try_build_module_path(Arena* arena, Expr* expr) {
+    assert(arena != NULL);
+    assert(expr != NULL);
+    
+    if (expr->type == EXPR_IDENT) {
+        /* Simple identifier: "String", "Tui", etc. */
+        return expr->data.ident.name;
+    }
+    
+    if (expr->type == EXPR_DOT) {
+        /* Nested dot: try to build path from left side, then append right */
+        String* left_path = try_build_module_path(arena, expr->data.dot.object);
+        if (left_path == NULL) return NULL;
+        
+        /* Build "Left.Right" */
+        const char* left_str = string_cstr(left_path);
+        const char* right_str = string_cstr(expr->data.dot.field);
+        size_t left_len = strlen(left_str);
+        size_t right_len = strlen(right_str);
+        
+        char* buf = arena_alloc(arena, left_len + 1 + right_len + 1);
+        memcpy(buf, left_str, left_len);
+        buf[left_len] = '.';
+        memcpy(buf + left_len + 1, right_str, right_len);
+        buf[left_len + 1 + right_len] = '\0';
+        
+        return string_new(arena, buf);
+    }
+    
+    return NULL;
+}
+
+/**
+ * Check if a name is a built-in module (for codegen).
+ * @param name The name to check.
+ * @return True if the name is a built-in module.
+ */
+static bool is_builtin_module(const char* name) {
+    assert(name != NULL);
+    assert(strlen(name) < 256);  /* Module names have reasonable length */
+    /* Top-level modules */
+    if (strcmp(name, "String") == 0 ||
+        strcmp(name, "List") == 0 ||
+        strcmp(name, "File") == 0 ||
+        strcmp(name, "System") == 0 ||
+        strcmp(name, "Regex") == 0 ||
+        strcmp(name, "Tui.Term") == 0) {
+        return true;
+    }
+    /* Tui submodules */
+    if (strcmp(name, "Tui.Panel") == 0 ||
+        strcmp(name, "Tui.Table") == 0 ||
+        strcmp(name, "Tui.Style") == 0 ||
+        strcmp(name, "Tui.Status") == 0 ||
+        strcmp(name, "Tui.Live") == 0 ||
+        strcmp(name, "Tui.Progress") == 0 ||
+        strcmp(name, "Tui.Spinner") == 0) {
+        return true;
+    }
+    return false;
+}
+
 /* ========== QBE Type Helpers ========== */
 
 /**
@@ -218,8 +290,10 @@ static PrintType get_print_type(Codegen* cg, Expr* expr) {
             /* Check for module.function calls that return strings */
             if (call->func->type == EXPR_DOT) {
                 DotExpr* dot = &call->func->data.dot;
-                if (dot->object->type == EXPR_IDENT) {
-                    const char* module = string_cstr(dot->object->data.ident.name);
+                /* Try to build module path for nested modules like Tui.Style */
+                String* module_path = try_build_module_path(cg->arena, dot->object);
+                if (module_path != NULL) {
+                    const char* module = string_cstr(module_path);
                     const char* func = string_cstr(dot->field);
                     /* String module functions that return String */
                     if (strcmp(module, "String") == 0) {
@@ -235,16 +309,20 @@ static PrintType get_print_type(Codegen* cg, Expr* expr) {
                             return PRINT_STRING;
                         }
                     }
-                    /* Style module functions all return String */
-                    if (strcmp(module, "Style") == 0) {
+                    /* Tui.Style module functions all return String */
+                    if (strcmp(module, "Tui.Style") == 0) {
                         return PRINT_STRING;
                     }
-                    /* Panel.render() returns String */
-                    if (strcmp(module, "Panel") == 0 && strcmp(func, "render") == 0) {
+                    /* Tui.Status module functions all return String */
+                    if (strcmp(module, "Tui.Status") == 0) {
                         return PRINT_STRING;
                     }
-                    /* Table.render() returns String */
-                    if (strcmp(module, "Table") == 0 && strcmp(func, "render") == 0) {
+                    /* Tui.Panel.render() returns String */
+                    if (strcmp(module, "Tui.Panel") == 0 && strcmp(func, "render") == 0) {
+                        return PRINT_STRING;
+                    }
+                    /* Tui.Table.render() returns String */
+                    if (strcmp(module, "Tui.Table") == 0 && strcmp(func, "render") == 0) {
                         return PRINT_STRING;
                     }
                     /* Progress.render() returns String */
@@ -328,8 +406,10 @@ static char qbe_type_for_expr(Codegen* cg, Expr* expr) {
             /* Check module.function calls */
             if (call->func->type == EXPR_DOT) {
                 DotExpr* dot = &call->func->data.dot;
-                if (dot->object->type == EXPR_IDENT) {
-                    const char* module = string_cstr(dot->object->data.ident.name);
+                /* Try to build module path for nested modules like Tui.Style */
+                String* module_path = try_build_module_path(cg ? cg->arena : NULL, dot->object);
+                if (module_path != NULL) {
+                    const char* module = string_cstr(module_path);
                     const char* func = string_cstr(dot->field);
                     /* String module functions returning String or pointer types */
                     if (strcmp(module, "String") == 0) {
@@ -395,23 +475,31 @@ static char qbe_type_for_expr(Codegen* cg, Expr* expr) {
                             return 'l';
                         }
                     }
-                    /* Term module functions returning pointers */
-                    if (strcmp(module, "Term") == 0) {
+                    /* Tui.Term module functions returning pointers */
+                    if (strcmp(module, "Tui.Term") == 0) {
                         if (strcmp(func, "size") == 0) {
                             return 'l';
                         }
                     }
-                    /* Style module functions all return String (pointer) */
-                    if (strcmp(module, "Style") == 0) {
+                    /* Tui.Style module functions all return String (pointer) */
+                    if (strcmp(module, "Tui.Style") == 0) {
                         return 'l';
                     }
-                    /* Panel module functions return Panel or String (pointers) */
-                    if (strcmp(module, "Panel") == 0) {
+                    /* Tui.Status module functions all return String (pointer) */
+                    if (strcmp(module, "Tui.Status") == 0) {
                         return 'l';
                     }
-                    /* Table module functions return Table or String (pointers) */
-                    if (strcmp(module, "Table") == 0) {
+                    /* Tui.Panel module functions return Panel or String (pointers) */
+                    if (strcmp(module, "Tui.Panel") == 0) {
                         return 'l';
+                    }
+                    /* Tui.Table module functions return Table or String (pointers) */
+                    if (strcmp(module, "Tui.Table") == 0) {
+                        return 'l';
+                    }
+                    /* Tui.Live module functions return Unit (w) */
+                    if (strcmp(module, "Tui.Live") == 0) {
+                        return 'w';
                     }
                     /* Progress module functions return Progress or String (pointers) */
                     if (strcmp(module, "Progress") == 0) {
@@ -871,11 +959,13 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
             CallExpr* call = &expr->data.call;
             String* result = fresh_temp(cg);
             
-            /* Check for module.function calls (e.g., String.len, List.get) */
+            /* Check for module.function calls (e.g., String.len, Tui.Panel.new) */
             if (call->func->type == EXPR_DOT) {
                 DotExpr* dot = &call->func->data.dot;
-                if (dot->object->type == EXPR_IDENT) {
-                    const char* module = string_cstr(dot->object->data.ident.name);
+                /* Try to build module path for nested modules like Tui.Panel */
+                String* module_path = try_build_module_path(cg->arena, dot->object);
+                if (module_path != NULL && is_builtin_module(string_cstr(module_path))) {
+                    const char* module = string_cstr(module_path);
                     const char* func = string_cstr(dot->field);
                     
                     /* ===== String module ===== */
@@ -1307,27 +1397,27 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                         }
                     }
 
-                    /* ===== Term module ===== */
-                    if (strcmp(module, "Term") == 0) {
-                        /* Term.size() -> (cols, rows) as struct pointer */
+                    /* ===== Tui.Term module ===== */
+                    if (strcmp(module, "Tui.Term") == 0) {
+                        /* Tui.Term.size() -> (cols, rows) as struct pointer */
                         if (strcmp(func, "size") == 0 && call->args->len == 0) {
                             emit(cg, "    %s =l call $fern_term_size()\n", string_cstr(result));
                             return result;
                         }
-                        /* Term.is_tty() -> Bool */
+                        /* Tui.Term.is_tty() -> Bool */
                         if (strcmp(func, "is_tty") == 0 && call->args->len == 0) {
                             emit(cg, "    %s =w call $fern_term_is_tty()\n", string_cstr(result));
                             return result;
                         }
-                        /* Term.color_support() -> Int */
+                        /* Tui.Term.color_support() -> Int */
                         if (strcmp(func, "color_support") == 0 && call->args->len == 0) {
                             emit(cg, "    %s =w call $fern_term_color_support()\n", string_cstr(result));
                             return result;
                         }
                     }
 
-                    /* ===== Style module ===== */
-                    if (strcmp(module, "Style") == 0) {
+                    /* ===== Tui.Style module ===== */
+                    if (strcmp(module, "Tui.Style") == 0) {
                         /* Single-argument style functions: Style.red(text), Style.bold(text), etc. */
                         if (call->args->len == 1) {
                             String* text = codegen_expr(cg, call->args->data[0].value);
@@ -1409,8 +1499,65 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                         }
                     }
 
-                    /* ===== Panel module ===== */
-                    if (strcmp(module, "Panel") == 0) {
+                    /* ===== Tui.Status module (badges) ===== */
+                    if (strcmp(module, "Tui.Status") == 0) {
+                        /* Status.warn(msg), Status.ok(msg), etc. */
+                        if (call->args->len == 1) {
+                            String* msg = codegen_expr(cg, call->args->data[0].value);
+                            const char* fn_name = NULL;
+                            if (strcmp(func, "warn") == 0) fn_name = "fern_status_warn";
+                            else if (strcmp(func, "ok") == 0) fn_name = "fern_status_ok";
+                            else if (strcmp(func, "info") == 0) fn_name = "fern_status_info";
+                            else if (strcmp(func, "error") == 0) fn_name = "fern_status_error";
+                            else if (strcmp(func, "debug") == 0) fn_name = "fern_status_debug";
+                            
+                            if (fn_name) {
+                                emit(cg, "    %s =l call $%s(l %s)\n",
+                                    string_cstr(result), fn_name, string_cstr(msg));
+                                return result;
+                            }
+                        }
+                    }
+
+                    /* ===== Tui.Live module (same-line updates) ===== */
+                    if (strcmp(module, "Tui.Live") == 0) {
+                        /* Live.print(text) -> Unit */
+                        if (strcmp(func, "print") == 0 && call->args->len == 1) {
+                            String* text = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    call $fern_live_print(l %s)\n", string_cstr(text));
+                            emit(cg, "    %s =w copy 0\n", string_cstr(result));
+                            return result;
+                        }
+                        /* Live.clear_line() -> Unit */
+                        if (strcmp(func, "clear_line") == 0 && call->args->len == 0) {
+                            emit(cg, "    call $fern_live_clear_line()\n");
+                            emit(cg, "    %s =w copy 0\n", string_cstr(result));
+                            return result;
+                        }
+                        /* Live.update(text) -> Unit */
+                        if (strcmp(func, "update") == 0 && call->args->len == 1) {
+                            String* text = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    call $fern_live_update(l %s)\n", string_cstr(text));
+                            emit(cg, "    %s =w copy 0\n", string_cstr(result));
+                            return result;
+                        }
+                        /* Live.done() -> Unit */
+                        if (strcmp(func, "done") == 0 && call->args->len == 0) {
+                            emit(cg, "    call $fern_live_done()\n");
+                            emit(cg, "    %s =w copy 0\n", string_cstr(result));
+                            return result;
+                        }
+                        /* Live.sleep(ms) -> Unit */
+                        if (strcmp(func, "sleep") == 0 && call->args->len == 1) {
+                            String* ms = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    call $fern_sleep_ms(w %s)\n", string_cstr(ms));
+                            emit(cg, "    %s =w copy 0\n", string_cstr(result));
+                            return result;
+                        }
+                    }
+
+                    /* ===== Tui.Panel module ===== */
+                    if (strcmp(module, "Tui.Panel") == 0) {
                         /* Panel.new(content) -> Panel */
                         if (strcmp(func, "new") == 0 && call->args->len == 1) {
                             String* content = codegen_expr(cg, call->args->data[0].value);
@@ -1458,6 +1605,14 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                                 string_cstr(result), string_cstr(panel), string_cstr(padding));
                             return result;
                         }
+                        /* Panel.border_color(panel, color) -> Panel */
+                        if (strcmp(func, "border_color") == 0 && call->args->len == 2) {
+                            String* panel = codegen_expr(cg, call->args->data[0].value);
+                            String* color = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_panel_border_color(l %s, l %s)\n",
+                                string_cstr(result), string_cstr(panel), string_cstr(color));
+                            return result;
+                        }
                         /* Panel.render(panel) -> String */
                         if (strcmp(func, "render") == 0 && call->args->len == 1) {
                             String* panel = codegen_expr(cg, call->args->data[0].value);
@@ -1467,8 +1622,8 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                         }
                     }
 
-                    /* ===== Table module ===== */
-                    if (strcmp(module, "Table") == 0) {
+                    /* ===== Tui.Table module ===== */
+                    if (strcmp(module, "Tui.Table") == 0) {
                         /* Table.new() -> Table */
                         if (strcmp(func, "new") == 0 && call->args->len == 0) {
                             emit(cg, "    %s =l call $fern_table_new()\n", string_cstr(result));
@@ -1506,6 +1661,14 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                                 string_cstr(result), string_cstr(table), string_cstr(style));
                             return result;
                         }
+                        /* Table.show_header(table, show) -> Table */
+                        if (strcmp(func, "show_header") == 0 && call->args->len == 2) {
+                            String* table = codegen_expr(cg, call->args->data[0].value);
+                            String* show = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_table_show_header(l %s, w %s)\n",
+                                string_cstr(result), string_cstr(table), string_cstr(show));
+                            return result;
+                        }
                         /* Table.render(table) -> String */
                         if (strcmp(func, "render") == 0 && call->args->len == 1) {
                             String* table = codegen_expr(cg, call->args->data[0].value);
@@ -1515,8 +1678,8 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                         }
                     }
 
-                    /* ===== Progress module ===== */
-                    if (strcmp(module, "Progress") == 0) {
+                    /* ===== Tui.Progress module ===== */
+                    if (strcmp(module, "Tui.Progress") == 0) {
                         /* Progress.new(total) -> Progress */
                         if (strcmp(func, "new") == 0 && call->args->len == 1) {
                             String* total = codegen_expr(cg, call->args->data[0].value);
@@ -1564,8 +1727,8 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                         }
                     }
 
-                    /* ===== Spinner module ===== */
-                    if (strcmp(module, "Spinner") == 0) {
+                    /* ===== Tui.Spinner module ===== */
+                    if (strcmp(module, "Tui.Spinner") == 0) {
                         /* Spinner.new() -> Spinner */
                         if (strcmp(func, "new") == 0 && call->args->len == 0) {
                             emit(cg, "    %s =l call $fern_spinner_new()\n", string_cstr(result));

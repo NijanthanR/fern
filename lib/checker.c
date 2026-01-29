@@ -133,27 +133,77 @@ static Type* error_type_at(Checker* checker, SourceLoc loc, const char* fmt, ...
 /* ========== Built-in Module System ========== */
 
 /**
+ * Try to build a module path from a dot expression.
+ * For example: Tui.Panel -> "Tui.Panel", String -> "String"
+ * Returns NULL if the expression is not a valid module path.
+ * @param arena Arena for string allocation.
+ * @param expr The expression to check.
+ * @return Module path string or NULL.
+ */
+static String* try_build_module_path(Arena* arena, Expr* expr) {
+    assert(arena != NULL);
+    assert(expr != NULL);
+    
+    if (expr->type == EXPR_IDENT) {
+        /* Simple identifier: "String", "Tui", etc. */
+        return expr->data.ident.name;
+    }
+    
+    if (expr->type == EXPR_DOT) {
+        /* Nested dot: try to build path from left side, then append right */
+        String* left_path = try_build_module_path(arena, expr->data.dot.object);
+        if (left_path == NULL) return NULL;
+        
+        /* Build "Left.Right" */
+        const char* left_str = string_cstr(left_path);
+        const char* right_str = string_cstr(expr->data.dot.field);
+        size_t left_len = strlen(left_str);
+        size_t right_len = strlen(right_str);
+        
+        char* buf = arena_alloc(arena, left_len + 1 + right_len + 1);
+        memcpy(buf, left_str, left_len);
+        buf[left_len] = '.';
+        memcpy(buf + left_len + 1, right_str, right_len);
+        buf[left_len + 1 + right_len] = '\0';
+        
+        return string_new(arena, buf);
+    }
+    
+    return NULL;
+}
+
+/**
  * Check if a name is a built-in module.
+ * Supports nested modules like "Tui.Panel".
  * @param name The name to check.
  * @return True if the name is a built-in module.
  */
 static bool is_builtin_module(const char* name) {
     assert(name != NULL);
     assert(name[0] != '\0');  /* Name must be non-empty */
-    return strcmp(name, "String") == 0 ||
-           strcmp(name, "List") == 0 ||
-           strcmp(name, "File") == 0 ||
-           strcmp(name, "System") == 0 ||
-           strcmp(name, "Regex") == 0 ||
-           strcmp(name, "Result") == 0 ||
-           strcmp(name, "Option") == 0 ||
-           strcmp(name, "Term") == 0 ||
-           strcmp(name, "Panel") == 0 ||
-           strcmp(name, "Table") == 0 ||
-           strcmp(name, "Style") == 0 ||
-           strcmp(name, "Progress") == 0 ||
-           strcmp(name, "Spinner") == 0 ||
-           strcmp(name, "Prompt") == 0;
+    /* Top-level modules */
+    if (strcmp(name, "String") == 0 ||
+        strcmp(name, "List") == 0 ||
+        strcmp(name, "File") == 0 ||
+        strcmp(name, "System") == 0 ||
+        strcmp(name, "Regex") == 0 ||
+        strcmp(name, "Result") == 0 ||
+        strcmp(name, "Option") == 0 ||
+        strcmp(name, "Tui.Term") == 0 ||
+        strcmp(name, "Tui.Progress") == 0 ||
+        strcmp(name, "Tui.Spinner") == 0 ||
+        strcmp(name, "Prompt") == 0) {
+        return true;
+    }
+    /* Tui submodules */
+    if (strcmp(name, "Tui.Panel") == 0 ||
+        strcmp(name, "Tui.Table") == 0 ||
+        strcmp(name, "Tui.Style") == 0 ||
+        strcmp(name, "Tui.Status") == 0 ||
+        strcmp(name, "Tui.Live") == 0) {
+        return true;
+    }
+    return false;
 }
 
 /**
@@ -630,9 +680,9 @@ static Type* lookup_module_function(Checker* checker, const char* module, const 
         }
     }
 
-    /* ===== Term module ===== */
-    if (strcmp(module, "Term") == 0) {
-        /* Term.size() -> (Int, Int) */
+    /* ===== Tui.Term module ===== */
+    if (strcmp(module, "Tui.Term") == 0) {
+        /* Tui.Term.size() -> (Int, Int) */
         if (strcmp(func, "size") == 0) {
             params = TypeVec_new(arena);
             TypeVec* tuple_elems = TypeVec_new(arena);
@@ -640,20 +690,20 @@ static Type* lookup_module_function(Checker* checker, const char* module, const 
             TypeVec_push(arena, tuple_elems, type_int(arena));
             return type_fn(arena, params, type_tuple(arena, tuple_elems));
         }
-        /* Term.is_tty() -> Bool */
+        /* Tui.Term.is_tty() -> Bool */
         if (strcmp(func, "is_tty") == 0) {
             params = TypeVec_new(arena);
             return type_fn(arena, params, type_bool(arena));
         }
-        /* Term.color_support() -> Int */
+        /* Tui.Term.color_support() -> Int */
         if (strcmp(func, "color_support") == 0) {
             params = TypeVec_new(arena);
             return type_fn(arena, params, type_int(arena));
         }
     }
 
-    /* ===== Style module ===== */
-    if (strcmp(module, "Style") == 0) {
+    /* ===== Tui.Style module ===== */
+    if (strcmp(module, "Tui.Style") == 0) {
         /* All basic color functions: Style.red(String) -> String, etc. */
         if (strcmp(func, "black") == 0 || strcmp(func, "red") == 0 ||
             strcmp(func, "green") == 0 || strcmp(func, "yellow") == 0 ||
@@ -700,8 +750,56 @@ static Type* lookup_module_function(Checker* checker, const char* module, const 
         }
     }
 
-    /* ===== Panel module ===== */
-    if (strcmp(module, "Panel") == 0) {
+    /* ===== Tui.Status module (badges) ===== */
+    if (strcmp(module, "Tui.Status") == 0) {
+        /* Status.warn(String) -> String */
+        /* Status.ok(String) -> String */
+        /* Status.info(String) -> String */
+        /* Status.error(String) -> String */
+        /* Status.debug(String) -> String */
+        if (strcmp(func, "warn") == 0 || strcmp(func, "ok") == 0 ||
+            strcmp(func, "info") == 0 || strcmp(func, "error") == 0 ||
+            strcmp(func, "debug") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, type_string(arena));
+        }
+    }
+
+    /* ===== Tui.Live module (same-line updates) ===== */
+    if (strcmp(module, "Tui.Live") == 0) {
+        /* Live.print(String) -> Unit - print without newline */
+        if (strcmp(func, "print") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, type_unit(arena));
+        }
+        /* Live.clear_line() -> Unit - clear current line */
+        if (strcmp(func, "clear_line") == 0) {
+            params = TypeVec_new(arena);
+            return type_fn(arena, params, type_unit(arena));
+        }
+        /* Live.update(String) -> Unit - clear line and print */
+        if (strcmp(func, "update") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, type_unit(arena));
+        }
+        /* Live.done() -> Unit - finish with newline */
+        if (strcmp(func, "done") == 0) {
+            params = TypeVec_new(arena);
+            return type_fn(arena, params, type_unit(arena));
+        }
+        /* Live.sleep(Int) -> Unit - sleep for milliseconds */
+        if (strcmp(func, "sleep") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_int(arena));
+            return type_fn(arena, params, type_unit(arena));
+        }
+    }
+
+    /* ===== Tui.Panel module ===== */
+    if (strcmp(module, "Tui.Panel") == 0) {
         Type* panel_type = type_con(arena, string_new(arena, "Panel"), NULL);
         /* Panel.new(String) -> Panel - create panel with content */
         if (strcmp(func, "new") == 0) {
@@ -744,6 +842,13 @@ static Type* lookup_module_function(Checker* checker, const char* module, const 
             TypeVec_push(arena, params, type_int(arena));
             return type_fn(arena, params, panel_type);
         }
+        /* Panel.border_color(Panel, String) -> Panel - set border color */
+        if (strcmp(func, "border_color") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, panel_type);
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, panel_type);
+        }
         /* Panel.render(Panel) -> String - render to string */
         if (strcmp(func, "render") == 0) {
             params = TypeVec_new(arena);
@@ -752,8 +857,8 @@ static Type* lookup_module_function(Checker* checker, const char* module, const 
         }
     }
 
-    /* ===== Table module ===== */
-    if (strcmp(module, "Table") == 0) {
+    /* ===== Tui.Table module ===== */
+    if (strcmp(module, "Tui.Table") == 0) {
         Type* table_type = type_con(arena, string_new(arena, "Table"), NULL);
         /* Table.new() -> Table - create empty table */
         if (strcmp(func, "new") == 0) {
@@ -788,6 +893,13 @@ static Type* lookup_module_function(Checker* checker, const char* module, const 
             TypeVec_push(arena, params, type_string(arena));
             return type_fn(arena, params, table_type);
         }
+        /* Table.show_header(Table, Int) -> Table - show/hide header row */
+        if (strcmp(func, "show_header") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, table_type);
+            TypeVec_push(arena, params, type_int(arena));
+            return type_fn(arena, params, table_type);
+        }
         /* Table.render(Table) -> String - render to string */
         if (strcmp(func, "render") == 0) {
             params = TypeVec_new(arena);
@@ -796,8 +908,8 @@ static Type* lookup_module_function(Checker* checker, const char* module, const 
         }
     }
 
-    /* ===== Progress module ===== */
-    if (strcmp(module, "Progress") == 0) {
+    /* ===== Tui.Progress module ===== */
+    if (strcmp(module, "Tui.Progress") == 0) {
         Type* progress_type = type_con(arena, string_new(arena, "Progress"), NULL);
         /* Progress.new(Int) -> Progress - create progress bar with total */
         if (strcmp(func, "new") == 0) {
@@ -840,8 +952,8 @@ static Type* lookup_module_function(Checker* checker, const char* module, const 
         }
     }
 
-    /* ===== Spinner module ===== */
-    if (strcmp(module, "Spinner") == 0) {
+    /* ===== Tui.Spinner module ===== */
+    if (strcmp(module, "Tui.Spinner") == 0) {
         Type* spinner_type = type_con(arena, string_new(arena, "Spinner"), NULL);
         /* Spinner.new() -> Spinner */
         if (strcmp(func, "new") == 0) {
@@ -2359,15 +2471,17 @@ Type* checker_infer_expr(Checker* checker, Expr* expr) {
             
         case EXPR_DOT: {
             /* Dot expression: object.field
-             * For built-in modules: String.len, List.get, etc.
+             * For built-in modules: String.len, Tui.Panel.new, etc.
              * For tuples: returns the field type at the given index
              * For records: would look up field type (not yet implemented)
              */
             DotExpr* dot = &expr->data.dot;
             
-            /* Check for built-in module access: Module.function */
-            if (dot->object->type == EXPR_IDENT) {
-                const char* module_name = string_cstr(dot->object->data.ident.name);
+            /* Check for built-in module access: Module.function or Nested.Module.function */
+            /* Try to build a module path from the left side */
+            String* module_path = try_build_module_path(checker->arena, dot->object);
+            if (module_path != NULL) {
+                const char* module_name = string_cstr(module_path);
                 if (is_builtin_module(module_name)) {
                     const char* func_name = string_cstr(dot->field);
                     Type* fn_type = lookup_module_function(checker, module_name, func_name);
