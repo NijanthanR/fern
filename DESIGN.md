@@ -2518,6 +2518,99 @@ fn main():
 
 ---
 
+## Built-in Modules
+
+Fern provides built-in modules for common operations. These are always available without imports and use a `Module.function()` syntax for clarity and discoverability.
+
+### String Module
+
+Functions for string manipulation:
+
+```fern
+# Length and basic operations
+let len = String.len("hello")              # 5
+let upper = String.to_upper("hello")       # "HELLO"
+let lower = String.to_lower("HELLO")       # "hello"
+
+# Concatenation
+let full = String.concat("Hello", " World") # "Hello World"
+
+# Comparison
+let eq = String.eq("a", "a")               # true
+let starts = String.starts_with("hello.txt", "hello")  # true
+let ends = String.ends_with("hello.txt", ".txt")       # true
+let has = String.contains("hello world", "world")      # true
+
+# Slicing and trimming
+let sub = String.slice("hello", 0, 3)      # "hel"
+let trimmed = String.trim("  hello  ")     # "hello"
+let left = String.trim_start("  hello")    # "hello"
+let right = String.trim_end("hello  ")     # "hello"
+
+# Transformation
+let replaced = String.replace("hello", "l", "L")  # "heLLo"
+let repeated = String.repeat("-", 10)      # "----------"
+
+# Predicates
+let empty = String.is_empty("")            # true
+
+# Splitting
+let parts = String.split("a,b,c", ",")     # ["a", "b", "c"]
+let lines = String.lines("a\nb\nc")        # ["a", "b", "c"]
+```
+
+### List Module
+
+Functions for list operations:
+
+```fern
+# Length and access
+let len = List.len([1, 2, 3])              # 3
+let first = List.get([1, 2, 3], 0)         # 1
+let head = List.head([1, 2, 3])            # 1
+let tail = List.tail([1, 2, 3])            # [2, 3]
+
+# Modification (returns new list)
+let extended = List.push([1, 2], 3)        # [1, 2, 3]
+let reversed = List.reverse([1, 2, 3])     # [3, 2, 1]
+let combined = List.concat([1, 2], [3, 4]) # [1, 2, 3, 4]
+
+# Predicates
+let empty = List.is_empty([])              # true
+```
+
+### File Module
+
+Functions for file I/O operations (return `Result` types):
+
+```fern
+# Reading and writing
+let result = File.read("data.txt")         # Result(String, Int)
+let written = File.write("out.txt", "hi")  # Result(Int, Int)
+let appended = File.append("log.txt", "x") # Result(Int, Int)
+
+# File info
+let exists = File.exists("data.txt")       # Bool
+let size = File.size("data.txt")           # Result(Int, Int)
+let deleted = File.delete("temp.txt")      # Result(Int, Int)
+```
+
+### I/O Functions
+
+Basic print functions (always available):
+
+```fern
+print(42)              # Print without newline
+println("Hello")       # Print with newline
+
+# Polymorphic - accepts Int, String, Bool
+println(42)            # "42"
+println("hi")          # "hi"
+println(true)          # "true"
+```
+
+---
+
 ## Design Decisions
 
 ### Type System ✅ Decided
