@@ -1117,9 +1117,13 @@ static Expr* parse_primary_internal(Parser* parser) {
                 arm.body = body;
                 MatchArmVec_push(parser->arena, arms, arm);
             }
-        } while (match(parser, TOKEN_COMMA) || (!g_newline_seen && can_start_pattern(parser)));
-        /* Match arms continue with comma, or same-line pattern start.
-         * If we hit a newline without comma, we stop (the next line is not a match arm). */
+        } while (match(parser, TOKEN_COMMA) || 
+                 (!g_newline_seen && can_start_pattern(parser)) ||
+                 (g_newline_seen && g_dedent_seen == starting_dedent_count && can_start_pattern(parser)));
+        /* Match arms continue with:
+         * - comma (explicit separator), OR
+         * - same-line pattern (no newline), OR
+         * - newline + pattern at same indentation (no dedent since match started) */
         
         /* Consume any dedent caused by the match expression's indented arms.
          * This prevents the dedent from propagating to outer blocks (e.g., for loop body). */
