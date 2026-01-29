@@ -6,12 +6,14 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include "arena.h"
 #include "fern_string.h"
 #include "lexer.h"
 #include "parser.h"
 #include "checker.h"
 #include "codegen.h"
+#include "ast_print.h"
 
 /* ========== File Utilities ========== */
 
@@ -93,12 +95,26 @@ static String* get_basename(Arena* arena, const char* filename) {
  */
 static void print_usage(void) {
     // FERN_STYLE: allow(assertion-density) simple print function
-    fprintf(stderr, "Fern Compiler v0.0.1\n\n");
+    fprintf(stderr, "Fern Compiler v0.1.0\n\n");
     fprintf(stderr, "Usage:\n");
     fprintf(stderr, "  fern build <source.fn>   Compile to executable\n");
+    fprintf(stderr, "  fern run <source.fn>     Compile and run immediately\n");
     fprintf(stderr, "  fern check <source.fn>   Type check only\n");
     fprintf(stderr, "  fern emit <source.fn>    Emit QBE IR to stdout\n");
+    fprintf(stderr, "  fern lex <source.fn>     Show tokens (debug)\n");
+    fprintf(stderr, "  fern parse <source.fn>   Show AST (debug)\n");
+    fprintf(stderr, "\nOptions:\n");
+    fprintf(stderr, "  --help, -h               Show this help message\n");
+    fprintf(stderr, "  --version, -v            Show version information\n");
     fprintf(stderr, "\nBoth .fn and .🌿 file extensions are supported.\n");
+}
+
+/**
+ * Print version information.
+ */
+static void print_version(void) {
+    // FERN_STYLE: allow(assertion-density) simple print function
+    printf("fern 0.1.0\n");
 }
 
 /**
@@ -359,6 +375,137 @@ static int cmd_emit(Arena* arena, const char* filename) {
     return 0;
 }
 
+/**
+ * Run command: compile and execute immediately.
+ * @param arena The arena for allocations.
+ * @param filename The source file path.
+ * @return Exit code from the compiled program.
+ */
+static int cmd_run(Arena* arena, const char* filename) {
+    // FERN_STYLE: allow(assertion-density) command handler
+    
+    // Read source file
+    char* source = read_file(arena, filename);
+    if (!source) {
+        fprintf(stderr, "Error: Cannot read file '%s'\n", filename);
+        return 1;
+    }
+    
+    // Compile to QBE IR
+    Codegen* cg = compile_to_qbe(arena, source, filename);
+    if (!cg) {
+        return 1;
+    }
+    
+    // Write QBE IR to temp file
+    String* basename = get_basename(arena, filename);
+    char ssa_file[256];
+    snprintf(ssa_file, sizeof(ssa_file), "/tmp/fern_%s.ssa", string_cstr(basename));
+    
+    if (!codegen_write(cg, ssa_file)) {
+        fprintf(stderr, "Error: Cannot write QBE IR to '%s'\n", ssa_file);
+        return 1;
+    }
+    
+    // Run QBE and link to temp executable
+    char output_file[256];
+    snprintf(output_file, sizeof(output_file), "/tmp/fern_%s", string_cstr(basename));
+    
+    int ret = run_qbe_and_link(ssa_file, output_file);
+    
+    // Clean up SSA file
+    unlink(ssa_file);
+    
+    if (ret != 0) {
+        return ret;
+    }
+    
+    // Execute the compiled program
+    ret = system(output_file);
+    
+    // Clean up executable
+    unlink(output_file);
+    
+    // Extract actual exit code from system() return value
+    if (WIFEXITED(ret)) {
+        return WEXITSTATUS(ret);
+    }
+    return ret;
+}
+
+/**
+ * Lex command: show tokens (debug).
+ * @param arena The arena for allocations.
+ * @param filename The source file path.
+ * @return Exit code.
+ */
+static int cmd_lex(Arena* arena, const char* filename) {
+    // FERN_STYLE: allow(assertion-density) command handler
+    
+    // Read source file
+    char* source = read_file(arena, filename);
+    if (!source) {
+        fprintf(stderr, "Error: Cannot read file '%s'\n", filename);
+        return 1;
+    }
+    
+    // Tokenize and print
+    Lexer* lexer = lexer_new(arena, source);
+    Token tok;
+    int count = 0;
+    
+    printf("Tokens for %s:\n", filename);
+    printf("%-6s %-15s %s\n", "LINE", "TYPE", "VALUE");
+    printf("------ --------------- ----------------\n");
+    
+    do {
+        tok = lexer_next(lexer);
+        printf("%-6zu %-15s %s\n", 
+               tok.loc.line, 
+               token_type_name(tok.type),
+               tok.text ? string_cstr(tok.text) : "");
+        count++;
+    } while (tok.type != TOKEN_EOF);
+    
+    printf("\nTotal: %d tokens\n", count);
+    return 0;
+}
+
+/**
+ * Parse command: show AST (debug).
+ * @param arena The arena for allocations.
+ * @param filename The source file path.
+ * @return Exit code.
+ */
+static int cmd_parse(Arena* arena, const char* filename) {
+    // FERN_STYLE: allow(assertion-density) command handler
+    
+    // Read source file
+    char* source = read_file(arena, filename);
+    if (!source) {
+        fprintf(stderr, "Error: Cannot read file '%s'\n", filename);
+        return 1;
+    }
+    
+    // Parse
+    Parser* parser = parser_new(arena, source);
+    StmtVec* stmts = parse_stmts(parser);
+    
+    if (parser_had_error(parser)) {
+        fprintf(stderr, "Parse error in %s\n", filename);
+        return 1;
+    }
+    
+    // Print AST
+    printf("AST for %s:\n\n", filename);
+    for (size_t i = 0; i < stmts->len; i++) {
+        ast_print_stmt(stdout, stmts->data[i], 0);
+        printf("\n");
+    }
+    
+    return 0;
+}
+
 /* ========== Main Entry Point ========== */
 
 /**
@@ -372,6 +519,18 @@ int main(int argc, char** argv) {
     
     // Store executable path for runtime library lookup
     g_exe_path = argv[0];
+    
+    // Handle --help and --version flags
+    if (argc >= 2) {
+        if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
+            print_usage();
+            return 0;
+        }
+        if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-v") == 0) {
+            print_version();
+            return 0;
+        }
+    }
     
     if (argc < 3) {
         print_usage();
@@ -392,10 +551,16 @@ int main(int argc, char** argv) {
     
     if (strcmp(command, "build") == 0) {
         result = cmd_build(arena, filename);
+    } else if (strcmp(command, "run") == 0) {
+        result = cmd_run(arena, filename);
     } else if (strcmp(command, "check") == 0) {
         result = cmd_check(arena, filename);
     } else if (strcmp(command, "emit") == 0) {
         result = cmd_emit(arena, filename);
+    } else if (strcmp(command, "lex") == 0) {
+        result = cmd_lex(arena, filename);
+    } else if (strcmp(command, "parse") == 0) {
+        result = cmd_parse(arena, filename);
     } else {
         fprintf(stderr, "Unknown command: %s\n\n", command);
         print_usage();
