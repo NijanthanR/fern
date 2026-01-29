@@ -1009,6 +1009,14 @@ FernPanel* fern_panel_subtitle(FernPanel* panel, const char* subtitle);
 FernPanel* fern_panel_border(FernPanel* panel, int64_t style);
 
 /**
+ * Set panel border style by name.
+ * @param panel The panel.
+ * @param style Style name ("rounded", "square", "double", "heavy", "ascii", "none").
+ * @return The panel (for chaining).
+ */
+FernPanel* fern_panel_border_str(FernPanel* panel, const char* style);
+
+/**
  * Set panel width.
  * @param panel The panel.
  * @param width The width (0=auto, -1=expand to terminal).

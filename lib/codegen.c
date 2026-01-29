@@ -597,7 +597,7 @@ static char qbe_type_for_expr(Codegen* cg, Expr* expr) {
             return 'w';
         }
         
-        /* Binary expressions: check if string concatenation */
+        /* Binary expressions: check if string concatenation or pipe */
         case EXPR_BINARY: {
             BinaryExpr* bin = &expr->data.binary;
             if (bin->op == BINOP_ADD) {
@@ -607,6 +607,28 @@ static char qbe_type_for_expr(Codegen* cg, Expr* expr) {
                 PrintType right_pt = get_print_type(cg, bin->right);
                 if (left_pt == PRINT_STRING || right_pt == PRINT_STRING) {
                     return 'l';  /* String concatenation returns pointer */
+                }
+            }
+            /* Pipe expression: check the function being called to determine return type */
+            if (bin->op == BINOP_PIPE) {
+                /* The right side is a call expression - check what it returns */
+                if (bin->right->type == EXPR_CALL) {
+                    CallExpr* call = &bin->right->data.call;
+                    if (call->func->type == EXPR_DOT) {
+                        DotExpr* dot = &call->func->data.dot;
+                        String* module_path = try_build_module_path(cg->arena, dot->object);
+                        if (module_path != NULL) {
+                            const char* module = string_cstr(module_path);
+                            /* Tui.Panel functions return Panel (pointer) */
+                            if (strcmp(module, "Tui.Panel") == 0) {
+                                return 'l';
+                            }
+                            /* Tui.Table functions return Table (pointer) */
+                            if (strcmp(module, "Tui.Table") == 0) {
+                                return 'l';
+                            }
+                        }
+                    }
                 }
             }
             return 'w';
@@ -876,6 +898,118 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
         case EXPR_BINARY: {
             BinaryExpr* bin = &expr->data.binary;
             String* tmp = fresh_temp(cg);
+            
+            /* Handle pipe operator: left |> right(args) => right(left, args) */
+            if (bin->op == BINOP_PIPE) {
+                /* Right side must be a call expression (checker verified this) */
+                assert(bin->right->type == EXPR_CALL);
+                CallExpr* call = &bin->right->data.call;
+                
+                /* Generate code for the piped value first */
+                String* piped_val = codegen_expr(cg, bin->left);
+                
+                /* Create a modified call with the piped value as first argument */
+                /* We build the argument list manually: piped_val, then original args */
+                
+                /* Check for module.function calls (same as EXPR_CALL handling) */
+                if (call->func->type == EXPR_DOT) {
+                    DotExpr* dot = &call->func->data.dot;
+                    String* module_path = try_build_module_path(cg->arena, dot->object);
+                    if (module_path != NULL && is_builtin_module(string_cstr(module_path))) {
+                        const char* module = string_cstr(module_path);
+                        const char* func = string_cstr(dot->field);
+                        
+                        /* Handle Tui.Panel builder pattern */
+                        if (strcmp(module, "Tui.Panel") == 0) {
+                            /* All Tui.Panel functions take panel as first arg and return panel */
+                            if (strcmp(func, "title") == 0 && call->args->len == 1) {
+                                String* title = codegen_expr(cg, call->args->data[0].value);
+                                emit(cg, "    %s =l call $fern_panel_title(l %s, l %s)\n",
+                                    string_cstr(tmp), string_cstr(piped_val), string_cstr(title));
+                                register_wide_var(cg, tmp);
+                                return tmp;
+                            }
+                            if (strcmp(func, "subtitle") == 0 && call->args->len == 1) {
+                                String* subtitle = codegen_expr(cg, call->args->data[0].value);
+                                emit(cg, "    %s =l call $fern_panel_subtitle(l %s, l %s)\n",
+                                    string_cstr(tmp), string_cstr(piped_val), string_cstr(subtitle));
+                                register_wide_var(cg, tmp);
+                                return tmp;
+                            }
+                            if (strcmp(func, "border") == 0 && call->args->len == 1) {
+                                String* style = codegen_expr(cg, call->args->data[0].value);
+                                emit(cg, "    %s =l call $fern_panel_border_str(l %s, l %s)\n",
+                                    string_cstr(tmp), string_cstr(piped_val), string_cstr(style));
+                                register_wide_var(cg, tmp);
+                                return tmp;
+                            }
+                            if (strcmp(func, "border_color") == 0 && call->args->len == 1) {
+                                String* color = codegen_expr(cg, call->args->data[0].value);
+                                emit(cg, "    %s =l call $fern_panel_border_color(l %s, l %s)\n",
+                                    string_cstr(tmp), string_cstr(piped_val), string_cstr(color));
+                                register_wide_var(cg, tmp);
+                                return tmp;
+                            }
+                            if (strcmp(func, "padding") == 0 && call->args->len == 1) {
+                                String* pad = codegen_expr(cg, call->args->data[0].value);
+                                emit(cg, "    %s =l call $fern_panel_padding(l %s, w %s)\n",
+                                    string_cstr(tmp), string_cstr(piped_val), string_cstr(pad));
+                                register_wide_var(cg, tmp);
+                                return tmp;
+                            }
+                            if (strcmp(func, "width") == 0 && call->args->len == 1) {
+                                String* w = codegen_expr(cg, call->args->data[0].value);
+                                emit(cg, "    %s =l call $fern_panel_width(l %s, w %s)\n",
+                                    string_cstr(tmp), string_cstr(piped_val), string_cstr(w));
+                                register_wide_var(cg, tmp);
+                                return tmp;
+                            }
+                            if (strcmp(func, "render") == 0 && call->args->len == 0) {
+                                emit(cg, "    %s =l call $fern_panel_render(l %s)\n",
+                                    string_cstr(tmp), string_cstr(piped_val));
+                                register_wide_var(cg, tmp);
+                                return tmp;
+                            }
+                        }
+                        
+                        /* Handle Tui.Table builder pattern */
+                        if (strcmp(module, "Tui.Table") == 0) {
+                            if (strcmp(func, "add_row") == 0 && call->args->len == 1) {
+                                String* row = codegen_expr(cg, call->args->data[0].value);
+                                emit(cg, "    %s =l call $fern_table_add_row(l %s, l %s)\n",
+                                    string_cstr(tmp), string_cstr(piped_val), string_cstr(row));
+                                register_wide_var(cg, tmp);
+                                return tmp;
+                            }
+                            if (strcmp(func, "add_column") == 0 && call->args->len == 1) {
+                                String* header = codegen_expr(cg, call->args->data[0].value);
+                                emit(cg, "    %s =l call $fern_table_add_column(l %s, l %s)\n",
+                                    string_cstr(tmp), string_cstr(piped_val), string_cstr(header));
+                                register_wide_var(cg, tmp);
+                                return tmp;
+                            }
+                            if (strcmp(func, "border") == 0 && call->args->len == 1) {
+                                String* style = codegen_expr(cg, call->args->data[0].value);
+                                emit(cg, "    %s =l call $fern_table_border(l %s, l %s)\n",
+                                    string_cstr(tmp), string_cstr(piped_val), string_cstr(style));
+                                register_wide_var(cg, tmp);
+                                return tmp;
+                            }
+                            if (strcmp(func, "render") == 0 && call->args->len == 0) {
+                                emit(cg, "    %s =l call $fern_table_render(l %s)\n",
+                                    string_cstr(tmp), string_cstr(piped_val));
+                                register_wide_var(cg, tmp);
+                                return tmp;
+                            }
+                        }
+                    }
+                }
+                
+                /* Fallback: generic pipe - not yet supported */
+                emit(cg, "    # TODO: generic pipe operator not yet supported\n");
+                emit(cg, "    %s =w copy 0\n", string_cstr(tmp));
+                return tmp;
+            }
             
             /* Check if this is string concatenation (+ with string operands)
              * Use get_print_type to check for actual string types, not just 64-bit values
@@ -1814,7 +1948,7 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                         if (strcmp(func, "border") == 0 && call->args->len == 2) {
                             String* panel = codegen_expr(cg, call->args->data[0].value);
                             String* style = codegen_expr(cg, call->args->data[1].value);
-                            emit(cg, "    %s =l call $fern_panel_border(l %s, l %s)\n",
+                            emit(cg, "    %s =l call $fern_panel_border_str(l %s, l %s)\n",
                                 string_cstr(result), string_cstr(panel), string_cstr(style));
                             return result;
                         }
@@ -2978,9 +3112,9 @@ void codegen_stmt(Codegen* cg, Stmt* stmt) {
                             is_pointer_type = true;
                         }
                     }
-                    /* Binary expressions: check if string concatenation */
+                    /* Binary expressions: check if string concatenation or pipe returning pointer */
                     if (vt == EXPR_BINARY) {
-                        if (get_print_type(cg, let->value) == PRINT_STRING) {
+                        if (qbe_type_for_expr(cg, let->value) == 'l') {
                             is_pointer_type = true;
                         }
                     }

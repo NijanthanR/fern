@@ -2877,6 +2877,18 @@ FernPanel* fern_panel_border(FernPanel* panel, int64_t style) {
     return panel;
 }
 
+FernPanel* fern_panel_border_str(FernPanel* panel, const char* style) {
+    if (!panel || !style) return panel;
+    /* Convert style name to enum value */
+    if (strcmp(style, "rounded") == 0) panel->box_style = BOX_ROUNDED;
+    else if (strcmp(style, "square") == 0) panel->box_style = BOX_SQUARE;
+    else if (strcmp(style, "double") == 0) panel->box_style = BOX_DOUBLE;
+    else if (strcmp(style, "heavy") == 0) panel->box_style = BOX_HEAVY;
+    else if (strcmp(style, "ascii") == 0) panel->box_style = BOX_ASCII;
+    else if (strcmp(style, "none") == 0) panel->box_style = BOX_NONE;
+    return panel;
+}
+
 FernPanel* fern_panel_width(FernPanel* panel, int64_t width) {
     if (!panel) return NULL;
     panel->width = width;
