@@ -1114,12 +1114,25 @@ static Expr* parse_primary_internal(Parser* parser) {
         
         Expr* condition = parse_expression(parser);
         consume(parser, TOKEN_COLON, "Expected ':' after if condition");
-        Expr* then_branch = parse_indented_block_with_indent(parser, true);  /* Track dedent */
+        
+        /* Check if then branch is on same line (inline if) or indented block */
+        Expr* then_branch;
+        bool is_inline = !g_newline_seen;
+        if (is_inline) {
+            then_branch = parse_expression(parser);
+        } else {
+            then_branch = parse_indented_block_with_indent(parser, true);
+        }
         
         Expr* else_branch = NULL;
         if (match(parser, TOKEN_ELSE)) {
             consume(parser, TOKEN_COLON, "Expected ':' after else");
-            else_branch = parse_indented_block_with_indent(parser, true);  /* Track dedent */
+            /* For inline if, else is also inline; for block if, else is block */
+            if (is_inline) {
+                else_branch = parse_expression(parser);
+            } else {
+                else_branch = parse_indented_block_with_indent(parser, true);
+            }
         }
         
         return expr_if(parser->arena, condition, then_branch, else_branch, loc);
