@@ -339,46 +339,21 @@ fn check_function(filepath: String, func: (String, Int, Int, Int, String), viola
 
 # Check for unbounded loops: while(1), while(true), for(;;)
 fn has_unbounded_loop(body: String) -> Bool:
-    # Check various unbounded loop patterns
-    if String.contains(body, "while (1)"):
-        true
-    else:
-        if String.contains(body, "while(1)"):
-            true
-        else:
-            if String.contains(body, "while ( 1 )"):
-                true
-            else:
-                if String.contains(body, "while (true)"):
-                    true
-                else:
-                    if String.contains(body, "while(true)"):
-                        true
-                    else:
-                        if String.contains(body, "for (;;)"):
-                            true
-                        else:
-                            if String.contains(body, "for(;;)"):
-                                true
-                            else:
-                                false
+    String.contains(body, "while (1)") or
+    String.contains(body, "while(1)") or
+    String.contains(body, "while ( 1 )") or
+    String.contains(body, "while (true)") or
+    String.contains(body, "while(true)") or
+    String.contains(body, "for (;;)") or
+    String.contains(body, "for(;;)")
 
 # Check for raw char* parameters (not const)
 # Skip main's argc/argv which are OK
 fn has_raw_char_param(body: String) -> Bool:
-    # Look for "char *" or "char*" patterns
     let has_char_star = String.contains(body, "char *") or String.contains(body, "char*")
-    if not has_char_star:
-        false
-    else:
-        # If it contains "const char" it's probably OK
-        # Also skip if it's main's argv
-        let has_const = String.contains(body, "const char")
-        let has_argv = String.contains(body, "argv")
-        if has_const or has_argv:
-            false
-        else:
-            true
+    let has_const = String.contains(body, "const char")
+    let has_argv = String.contains(body, "argv")
+    has_char_star and not has_const and not has_argv
 
 # Create a violation record
 fn make_violation(file: String, line: Int, name: String, rule: String, msg: String) -> (String, Int, String, String, String):
