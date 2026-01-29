@@ -148,6 +148,8 @@ static bool is_builtin_module(const char* name) {
            strcmp(name, "Result") == 0 ||
            strcmp(name, "Option") == 0 ||
            strcmp(name, "Term") == 0 ||
+           strcmp(name, "Panel") == 0 ||
+           strcmp(name, "Table") == 0 ||
            strcmp(name, "Style") == 0;
 }
 
@@ -665,6 +667,102 @@ static Type* lookup_module_function(Checker* checker, const char* module, const 
             params = TypeVec_new(arena);
             TypeVec_push(arena, params, type_string(arena));
             TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, type_string(arena));
+        }
+    }
+
+    /* ===== Panel module ===== */
+    if (strcmp(module, "Panel") == 0) {
+        Type* panel_type = type_con(arena, string_new(arena, "Panel"), NULL);
+        /* Panel.new(String) -> Panel - create panel with content */
+        if (strcmp(func, "new") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, panel_type);
+        }
+        /* Panel.title(Panel, String) -> Panel - set title */
+        if (strcmp(func, "title") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, panel_type);
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, panel_type);
+        }
+        /* Panel.subtitle(Panel, String) -> Panel - set subtitle */
+        if (strcmp(func, "subtitle") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, panel_type);
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, panel_type);
+        }
+        /* Panel.border(Panel, String) -> Panel - set border style */
+        if (strcmp(func, "border") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, panel_type);
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, panel_type);
+        }
+        /* Panel.width(Panel, Int) -> Panel - set width */
+        if (strcmp(func, "width") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, panel_type);
+            TypeVec_push(arena, params, type_int(arena));
+            return type_fn(arena, params, panel_type);
+        }
+        /* Panel.padding(Panel, Int) -> Panel - set padding */
+        if (strcmp(func, "padding") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, panel_type);
+            TypeVec_push(arena, params, type_int(arena));
+            return type_fn(arena, params, panel_type);
+        }
+        /* Panel.render(Panel) -> String - render to string */
+        if (strcmp(func, "render") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, panel_type);
+            return type_fn(arena, params, type_string(arena));
+        }
+    }
+
+    /* ===== Table module ===== */
+    if (strcmp(module, "Table") == 0) {
+        Type* table_type = type_con(arena, string_new(arena, "Table"), NULL);
+        /* Table.new() -> Table - create empty table */
+        if (strcmp(func, "new") == 0) {
+            params = TypeVec_new(arena);
+            return type_fn(arena, params, table_type);
+        }
+        /* Table.add_column(Table, String) -> Table - add column header */
+        if (strcmp(func, "add_column") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, table_type);
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, table_type);
+        }
+        /* Table.add_row(Table, List(String)) -> Table - add row */
+        if (strcmp(func, "add_row") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, table_type);
+            TypeVec_push(arena, params, type_list(arena, type_string(arena)));
+            return type_fn(arena, params, table_type);
+        }
+        /* Table.title(Table, String) -> Table - set title */
+        if (strcmp(func, "title") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, table_type);
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, table_type);
+        }
+        /* Table.border(Table, String) -> Table - set border style */
+        if (strcmp(func, "border") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, table_type);
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, table_type);
+        }
+        /* Table.render(Table) -> String - render to string */
+        if (strcmp(func, "render") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, table_type);
             return type_fn(arena, params, type_string(arena));
         }
     }

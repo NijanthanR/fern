@@ -239,6 +239,14 @@ static PrintType get_print_type(Codegen* cg, Expr* expr) {
                     if (strcmp(module, "Style") == 0) {
                         return PRINT_STRING;
                     }
+                    /* Panel.render() returns String */
+                    if (strcmp(module, "Panel") == 0 && strcmp(func, "render") == 0) {
+                        return PRINT_STRING;
+                    }
+                    /* Table.render() returns String */
+                    if (strcmp(module, "Table") == 0 && strcmp(func, "render") == 0) {
+                        return PRINT_STRING;
+                    }
                 }
             }
             if (call->func->type == EXPR_IDENT) {
@@ -355,6 +363,14 @@ static char qbe_type_for_expr(Expr* expr) {
                     }
                     /* Style module functions all return String (pointer) */
                     if (strcmp(module, "Style") == 0) {
+                        return 'l';
+                    }
+                    /* Panel module functions return Panel or String (pointers) */
+                    if (strcmp(module, "Panel") == 0) {
+                        return 'l';
+                    }
+                    /* Table module functions return Table or String (pointers) */
+                    if (strcmp(module, "Table") == 0) {
                         return 'l';
                     }
                 }
@@ -1280,6 +1296,112 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                                 "fern_style_hex" : "fern_style_on_hex";
                             emit(cg, "    %s =l call $%s(l %s, l %s)\n",
                                 string_cstr(result), fn_name, string_cstr(text), string_cstr(hex));
+                            return result;
+                        }
+                    }
+
+                    /* ===== Panel module ===== */
+                    if (strcmp(module, "Panel") == 0) {
+                        /* Panel.new(content) -> Panel */
+                        if (strcmp(func, "new") == 0 && call->args->len == 1) {
+                            String* content = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    %s =l call $fern_panel_new(l %s)\n",
+                                string_cstr(result), string_cstr(content));
+                            return result;
+                        }
+                        /* Panel.title(panel, title) -> Panel */
+                        if (strcmp(func, "title") == 0 && call->args->len == 2) {
+                            String* panel = codegen_expr(cg, call->args->data[0].value);
+                            String* title = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_panel_title(l %s, l %s)\n",
+                                string_cstr(result), string_cstr(panel), string_cstr(title));
+                            return result;
+                        }
+                        /* Panel.subtitle(panel, subtitle) -> Panel */
+                        if (strcmp(func, "subtitle") == 0 && call->args->len == 2) {
+                            String* panel = codegen_expr(cg, call->args->data[0].value);
+                            String* subtitle = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_panel_subtitle(l %s, l %s)\n",
+                                string_cstr(result), string_cstr(panel), string_cstr(subtitle));
+                            return result;
+                        }
+                        /* Panel.border(panel, style) -> Panel */
+                        if (strcmp(func, "border") == 0 && call->args->len == 2) {
+                            String* panel = codegen_expr(cg, call->args->data[0].value);
+                            String* style = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_panel_border(l %s, l %s)\n",
+                                string_cstr(result), string_cstr(panel), string_cstr(style));
+                            return result;
+                        }
+                        /* Panel.width(panel, width) -> Panel */
+                        if (strcmp(func, "width") == 0 && call->args->len == 2) {
+                            String* panel = codegen_expr(cg, call->args->data[0].value);
+                            String* width = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_panel_width(l %s, w %s)\n",
+                                string_cstr(result), string_cstr(panel), string_cstr(width));
+                            return result;
+                        }
+                        /* Panel.padding(panel, padding) -> Panel */
+                        if (strcmp(func, "padding") == 0 && call->args->len == 2) {
+                            String* panel = codegen_expr(cg, call->args->data[0].value);
+                            String* padding = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_panel_padding(l %s, w %s)\n",
+                                string_cstr(result), string_cstr(panel), string_cstr(padding));
+                            return result;
+                        }
+                        /* Panel.render(panel) -> String */
+                        if (strcmp(func, "render") == 0 && call->args->len == 1) {
+                            String* panel = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    %s =l call $fern_panel_render(l %s)\n",
+                                string_cstr(result), string_cstr(panel));
+                            return result;
+                        }
+                    }
+
+                    /* ===== Table module ===== */
+                    if (strcmp(module, "Table") == 0) {
+                        /* Table.new() -> Table */
+                        if (strcmp(func, "new") == 0 && call->args->len == 0) {
+                            emit(cg, "    %s =l call $fern_table_new()\n", string_cstr(result));
+                            return result;
+                        }
+                        /* Table.add_column(table, header) -> Table */
+                        if (strcmp(func, "add_column") == 0 && call->args->len == 2) {
+                            String* table = codegen_expr(cg, call->args->data[0].value);
+                            String* header = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_table_add_column(l %s, l %s)\n",
+                                string_cstr(result), string_cstr(table), string_cstr(header));
+                            return result;
+                        }
+                        /* Table.add_row(table, cells) -> Table */
+                        if (strcmp(func, "add_row") == 0 && call->args->len == 2) {
+                            String* table = codegen_expr(cg, call->args->data[0].value);
+                            String* cells = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_table_add_row(l %s, l %s)\n",
+                                string_cstr(result), string_cstr(table), string_cstr(cells));
+                            return result;
+                        }
+                        /* Table.title(table, title) -> Table */
+                        if (strcmp(func, "title") == 0 && call->args->len == 2) {
+                            String* table = codegen_expr(cg, call->args->data[0].value);
+                            String* title = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_table_title(l %s, l %s)\n",
+                                string_cstr(result), string_cstr(table), string_cstr(title));
+                            return result;
+                        }
+                        /* Table.border(table, style) -> Table */
+                        if (strcmp(func, "border") == 0 && call->args->len == 2) {
+                            String* table = codegen_expr(cg, call->args->data[0].value);
+                            String* style = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_table_border(l %s, l %s)\n",
+                                string_cstr(result), string_cstr(table), string_cstr(style));
+                            return result;
+                        }
+                        /* Table.render(table) -> String */
+                        if (strcmp(func, "render") == 0 && call->args->len == 1) {
+                            String* table = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    %s =l call $fern_table_render(l %s)\n",
+                                string_cstr(result), string_cstr(table));
                             return result;
                         }
                     }

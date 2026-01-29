@@ -2346,3 +2346,488 @@ char* fern_style_reset(const char* text) {
     
     return result;
 }
+
+/* ========== TUI: Panel Module ========== */
+
+/* Box drawing characters for each style */
+typedef struct {
+    const char* top_left;
+    const char* top;
+    const char* top_right;
+    const char* left;
+    const char* right;
+    const char* bottom_left;
+    const char* bottom;
+    const char* bottom_right;
+} BoxChars;
+
+static const BoxChars BOX_CHARS[] = {
+    /* BOX_ROUNDED */  { "╭", "─", "╮", "│", "│", "╰", "─", "╯" },
+    /* BOX_SQUARE */   { "┌", "─", "┐", "│", "│", "└", "─", "┘" },
+    /* BOX_DOUBLE */   { "╔", "═", "╗", "║", "║", "╚", "═", "╝" },
+    /* BOX_HEAVY */    { "┏", "━", "┓", "┃", "┃", "┗", "━", "┛" },
+    /* BOX_ASCII */    { "+", "-", "+", "|", "|", "+", "-", "+" },
+    /* BOX_NONE */     { " ", " ", " ", " ", " ", " ", " ", " " },
+};
+
+/**
+ * Get display width of a string (ignoring ANSI codes).
+ * @param s The string.
+ * @return Display width in characters.
+ */
+static size_t display_width(const char* s) {
+    if (!s) return 0;
+    size_t width = 0;
+    size_t len = strlen(s);
+    for (size_t i = 0; i < len; i++) {
+        if (s[i] == '\x1b') {
+            /* Skip ANSI escape sequence */
+            while (i < len && s[i] != 'm') i++;
+        } else if ((unsigned char)s[i] >= 0x80) {
+            /* UTF-8 multi-byte: skip continuation bytes */
+            /* This is a simplification - assumes 1 display width per codepoint */
+            if ((unsigned char)s[i] >= 0xC0) width++;
+            /* Skip continuation bytes (0x80-0xBF) */
+        } else {
+            width++;
+        }
+    }
+    return width;
+}
+
+/**
+ * Repeat a string n times.
+ * @param s The string to repeat.
+ * @param n Number of repetitions.
+ * @return New string.
+ */
+static char* str_repeat(const char* s, size_t n) {
+    size_t slen = strlen(s);
+    char* result = malloc(slen * n + 1);
+    if (!result) return NULL;
+    result[0] = '\0';
+    for (size_t i = 0; i < n; i++) {
+        strcat(result, s);
+    }
+    return result;
+}
+
+/**
+ * Pad string to width (left-aligned).
+ * @param s The string.
+ * @param width Target width.
+ * @return Padded string.
+ */
+static char* pad_right(const char* s, size_t width) {
+    size_t dw = display_width(s);
+    if (dw >= width) return strdup(s);
+    
+    size_t padding = width - dw;
+    size_t slen = strlen(s);
+    char* result = malloc(slen + padding + 1);
+    if (!result) return NULL;
+    
+    strcpy(result, s);
+    for (size_t i = 0; i < padding; i++) {
+        result[slen + i] = ' ';
+    }
+    result[slen + padding] = '\0';
+    return result;
+}
+
+/**
+ * Center string within width.
+ * @param s The string.
+ * @param width Target width.
+ * @return Centered string.
+ */
+static char* center_text(const char* s, size_t width) {
+    size_t dw = display_width(s);
+    if (dw >= width) return strdup(s);
+    
+    size_t total_padding = width - dw;
+    size_t left_pad = total_padding / 2;
+    size_t right_pad = total_padding - left_pad;
+    size_t slen = strlen(s);
+    
+    char* result = malloc(left_pad + slen + right_pad + 1);
+    if (!result) return NULL;
+    
+    for (size_t i = 0; i < left_pad; i++) result[i] = ' ';
+    strcpy(result + left_pad, s);
+    for (size_t i = 0; i < right_pad; i++) result[left_pad + slen + i] = ' ';
+    result[left_pad + slen + right_pad] = '\0';
+    return result;
+}
+
+FernPanel* fern_panel_new(const char* content) {
+    FernPanel* panel = malloc(sizeof(FernPanel));
+    if (!panel) return NULL;
+    
+    panel->content = content ? strdup(content) : strdup("");
+    panel->title = NULL;
+    panel->subtitle = NULL;
+    panel->box_style = BOX_ROUNDED;
+    panel->width = 0;  /* Auto */
+    panel->padding_h = 1;
+    panel->padding_v = 0;
+    
+    return panel;
+}
+
+FernPanel* fern_panel_title(FernPanel* panel, const char* title) {
+    if (!panel) return NULL;
+    if (panel->title) free(panel->title);
+    panel->title = title ? strdup(title) : NULL;
+    return panel;
+}
+
+FernPanel* fern_panel_subtitle(FernPanel* panel, const char* subtitle) {
+    if (!panel) return NULL;
+    if (panel->subtitle) free(panel->subtitle);
+    panel->subtitle = subtitle ? strdup(subtitle) : NULL;
+    return panel;
+}
+
+FernPanel* fern_panel_border(FernPanel* panel, int64_t style) {
+    if (!panel) return NULL;
+    if (style >= 0 && style <= 5) {
+        panel->box_style = (FernBoxStyle)style;
+    }
+    return panel;
+}
+
+FernPanel* fern_panel_width(FernPanel* panel, int64_t width) {
+    if (!panel) return NULL;
+    panel->width = width;
+    return panel;
+}
+
+FernPanel* fern_panel_padding(FernPanel* panel, int64_t vertical, int64_t horizontal) {
+    if (!panel) return NULL;
+    panel->padding_v = vertical;
+    panel->padding_h = horizontal;
+    return panel;
+}
+
+char* fern_panel_render(FernPanel* panel) {
+    if (!panel) return strdup("");
+    
+    const BoxChars* box = &BOX_CHARS[panel->box_style];
+    
+    /* Calculate content width */
+    size_t content_width = display_width(panel->content);
+    size_t title_width = panel->title ? display_width(panel->title) + 2 : 0;  /* +2 for spaces */
+    size_t subtitle_width = panel->subtitle ? display_width(panel->subtitle) + 2 : 0;
+    
+    /* Determine panel width */
+    size_t inner_width = content_width;
+    if (title_width > inner_width) inner_width = title_width;
+    if (subtitle_width > inner_width) inner_width = subtitle_width;
+    inner_width += panel->padding_h * 2;
+    
+    if (panel->width > 0) {
+        inner_width = (size_t)panel->width - 2;  /* -2 for borders */
+    } else if (panel->width == -1) {
+        /* Expand to terminal width */
+        FernTermSize* size = fern_term_size();
+        if (size) {
+            inner_width = (size_t)size->cols - 2;
+            free(size);
+        }
+    }
+    
+    /* Build result string */
+    size_t result_cap = 4096;
+    char* result = malloc(result_cap);
+    if (!result) return strdup("");
+    result[0] = '\0';
+    
+    /* Top border with optional title */
+    strcat(result, box->top_left);
+    if (panel->title) {
+        size_t title_len = display_width(panel->title);
+        size_t side_len = (inner_width - title_len - 2) / 2;
+        char* side = str_repeat(box->top, side_len);
+        strcat(result, side);
+        strcat(result, " ");
+        strcat(result, panel->title);
+        strcat(result, " ");
+        free(side);
+        side = str_repeat(box->top, inner_width - side_len - title_len - 2);
+        strcat(result, side);
+        free(side);
+    } else {
+        char* top_line = str_repeat(box->top, inner_width);
+        strcat(result, top_line);
+        free(top_line);
+    }
+    strcat(result, box->top_right);
+    strcat(result, "\n");
+    
+    /* Vertical padding (top) */
+    for (int64_t i = 0; i < panel->padding_v; i++) {
+        strcat(result, box->left);
+        char* spaces = str_repeat(" ", inner_width);
+        strcat(result, spaces);
+        free(spaces);
+        strcat(result, box->right);
+        strcat(result, "\n");
+    }
+    
+    /* Content line */
+    strcat(result, box->left);
+    char* h_pad = str_repeat(" ", panel->padding_h);
+    strcat(result, h_pad);
+    char* padded_content = pad_right(panel->content, inner_width - panel->padding_h * 2);
+    strcat(result, padded_content);
+    free(padded_content);
+    strcat(result, h_pad);
+    free(h_pad);
+    strcat(result, box->right);
+    strcat(result, "\n");
+    
+    /* Vertical padding (bottom) */
+    for (int64_t i = 0; i < panel->padding_v; i++) {
+        strcat(result, box->left);
+        char* spaces = str_repeat(" ", inner_width);
+        strcat(result, spaces);
+        free(spaces);
+        strcat(result, box->right);
+        strcat(result, "\n");
+    }
+    
+    /* Bottom border with optional subtitle */
+    strcat(result, box->bottom_left);
+    if (panel->subtitle) {
+        size_t subtitle_len = display_width(panel->subtitle);
+        size_t side_len = (inner_width - subtitle_len - 2) / 2;
+        char* side = str_repeat(box->bottom, side_len);
+        strcat(result, side);
+        strcat(result, " ");
+        strcat(result, panel->subtitle);
+        strcat(result, " ");
+        free(side);
+        side = str_repeat(box->bottom, inner_width - side_len - subtitle_len - 2);
+        strcat(result, side);
+        free(side);
+    } else {
+        char* bottom_line = str_repeat(box->bottom, inner_width);
+        strcat(result, bottom_line);
+        free(bottom_line);
+    }
+    strcat(result, box->bottom_right);
+    
+    return result;
+}
+
+void fern_panel_free(FernPanel* panel) {
+    if (panel) {
+        free(panel->content);
+        free(panel->title);
+        free(panel->subtitle);
+        free(panel);
+    }
+}
+
+/* ========== TUI: Table Module ========== */
+
+FernTable* fern_table_new(void) {
+    FernTable* table = malloc(sizeof(FernTable));
+    if (!table) return NULL;
+    
+    table->title = NULL;
+    table->caption = NULL;
+    table->columns = NULL;
+    table->column_count = 0;
+    table->rows = NULL;
+    table->row_count = 0;
+    table->row_capacity = 0;
+    table->box_style = BOX_ROUNDED;
+    table->show_header = 1;
+    table->show_lines = 0;
+    table->expand = 0;
+    
+    return table;
+}
+
+FernTable* fern_table_add_column(FernTable* table, const char* header) {
+    if (!table) return NULL;
+    
+    table->column_count++;
+    table->columns = realloc(table->columns, table->column_count * sizeof(FernTableColumn));
+    if (!table->columns) return NULL;
+    
+    FernTableColumn* col = &table->columns[table->column_count - 1];
+    col->header = header ? strdup(header) : strdup("");
+    col->min_width = 0;
+    col->max_width = 0;
+    col->justify = 0;  /* Left */
+    
+    return table;
+}
+
+FernTable* fern_table_add_row(FernTable* table, char** cells, int64_t cell_count) {
+    if (!table) return NULL;
+    
+    /* Grow rows array if needed */
+    if (table->row_count >= table->row_capacity) {
+        table->row_capacity = table->row_capacity == 0 ? 8 : table->row_capacity * 2;
+        table->rows = realloc(table->rows, table->row_capacity * sizeof(FernTableRow));
+        if (!table->rows) return NULL;
+    }
+    
+    FernTableRow* row = &table->rows[table->row_count++];
+    row->cell_count = cell_count;
+    row->cells = malloc(cell_count * sizeof(char*));
+    if (!row->cells) return NULL;
+    
+    for (int64_t i = 0; i < cell_count; i++) {
+        row->cells[i] = cells[i] ? strdup(cells[i]) : strdup("");
+    }
+    
+    return table;
+}
+
+FernTable* fern_table_title(FernTable* table, const char* title) {
+    if (!table) return NULL;
+    if (table->title) free(table->title);
+    table->title = title ? strdup(title) : NULL;
+    return table;
+}
+
+FernTable* fern_table_border(FernTable* table, int64_t style) {
+    if (!table) return NULL;
+    if (style >= 0 && style <= 5) {
+        table->box_style = (FernBoxStyle)style;
+    }
+    return table;
+}
+
+char* fern_table_render(FernTable* table) {
+    if (!table || table->column_count == 0) return strdup("");
+    
+    const BoxChars* box = &BOX_CHARS[table->box_style];
+    
+    /* Calculate column widths */
+    size_t* col_widths = malloc(table->column_count * sizeof(size_t));
+    if (!col_widths) return strdup("");
+    
+    for (int64_t i = 0; i < table->column_count; i++) {
+        col_widths[i] = display_width(table->columns[i].header);
+    }
+    
+    /* Find max width from rows */
+    for (int64_t r = 0; r < table->row_count; r++) {
+        FernTableRow* row = &table->rows[r];
+        for (int64_t c = 0; c < row->cell_count && c < table->column_count; c++) {
+            size_t w = display_width(row->cells[c]);
+            if (w > col_widths[c]) col_widths[c] = w;
+        }
+    }
+    
+    /* Add padding */
+    for (int64_t i = 0; i < table->column_count; i++) {
+        col_widths[i] += 2;  /* Padding on each side */
+    }
+    
+    /* Build result */
+    size_t result_cap = 8192;
+    char* result = malloc(result_cap);
+    if (!result) { free(col_widths); return strdup(""); }
+    result[0] = '\0';
+    
+    /* Top border */
+    strcat(result, box->top_left);
+    for (int64_t i = 0; i < table->column_count; i++) {
+        char* line = str_repeat(box->top, col_widths[i]);
+        strcat(result, line);
+        free(line);
+        if (i < table->column_count - 1) {
+            /* Use top for separator (simplified) */
+            strcat(result, box->top);
+        }
+    }
+    strcat(result, box->top_right);
+    strcat(result, "\n");
+    
+    /* Header row */
+    if (table->show_header) {
+        strcat(result, box->left);
+        for (int64_t i = 0; i < table->column_count; i++) {
+            char* centered = center_text(table->columns[i].header, col_widths[i]);
+            strcat(result, centered);
+            free(centered);
+            if (i < table->column_count - 1) {
+                strcat(result, box->left);
+            }
+        }
+        strcat(result, box->right);
+        strcat(result, "\n");
+        
+        /* Header separator */
+        strcat(result, box->left);
+        for (int64_t i = 0; i < table->column_count; i++) {
+            char* line = str_repeat(box->top, col_widths[i]);
+            strcat(result, line);
+            free(line);
+            if (i < table->column_count - 1) {
+                strcat(result, box->top);
+            }
+        }
+        strcat(result, box->right);
+        strcat(result, "\n");
+    }
+    
+    /* Data rows */
+    for (int64_t r = 0; r < table->row_count; r++) {
+        FernTableRow* row = &table->rows[r];
+        strcat(result, box->left);
+        for (int64_t c = 0; c < table->column_count; c++) {
+            const char* cell = (c < row->cell_count) ? row->cells[c] : "";
+            char* padded = pad_right(cell, col_widths[c] - 1);
+            strcat(result, " ");
+            strcat(result, padded);
+            free(padded);
+            if (c < table->column_count - 1) {
+                strcat(result, box->left);
+            }
+        }
+        strcat(result, box->right);
+        strcat(result, "\n");
+    }
+    
+    /* Bottom border */
+    strcat(result, box->bottom_left);
+    for (int64_t i = 0; i < table->column_count; i++) {
+        char* line = str_repeat(box->bottom, col_widths[i]);
+        strcat(result, line);
+        free(line);
+        if (i < table->column_count - 1) {
+            strcat(result, box->bottom);
+        }
+    }
+    strcat(result, box->bottom_right);
+    
+    free(col_widths);
+    return result;
+}
+
+void fern_table_free(FernTable* table) {
+    if (table) {
+        free(table->title);
+        free(table->caption);
+        for (int64_t i = 0; i < table->column_count; i++) {
+            free(table->columns[i].header);
+        }
+        free(table->columns);
+        for (int64_t r = 0; r < table->row_count; r++) {
+            for (int64_t c = 0; c < table->rows[r].cell_count; c++) {
+                free(table->rows[r].cells[c]);
+            }
+            free(table->rows[r].cells);
+        }
+        free(table->rows);
+        free(table);
+    }
+}

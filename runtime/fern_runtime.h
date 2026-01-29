@@ -846,4 +846,181 @@ char* fern_style_on_hex(const char* text, const char* hex_color);
 /* Reset/strip styling */
 char* fern_style_reset(const char* text);
 
+/* ========== TUI: Panel Module ========== */
+
+/**
+ * Box drawing style for panels and tables.
+ */
+typedef enum {
+    BOX_ROUNDED,    /* ╭─╮│╰─╯ */
+    BOX_SQUARE,     /* ┌─┐│└─┘ */
+    BOX_DOUBLE,     /* ╔═╗║╚═╝ */
+    BOX_HEAVY,      /* ┏━┓┃┗━┛ */
+    BOX_ASCII,      /* +-+|+-+ */
+    BOX_NONE        /* No borders */
+} FernBoxStyle;
+
+/**
+ * Panel configuration.
+ */
+typedef struct FernPanel {
+    char* content;
+    char* title;
+    char* subtitle;
+    FernBoxStyle box_style;
+    int64_t width;           /* 0 = auto-fit to content, -1 = expand to terminal */
+    int64_t padding_h;       /* Horizontal padding */
+    int64_t padding_v;       /* Vertical padding */
+} FernPanel;
+
+/**
+ * Create a new panel with content.
+ * @param content The panel content.
+ * @return New panel struct.
+ */
+FernPanel* fern_panel_new(const char* content);
+
+/**
+ * Set panel title.
+ * @param panel The panel.
+ * @param title The title text.
+ * @return The panel (for chaining).
+ */
+FernPanel* fern_panel_title(FernPanel* panel, const char* title);
+
+/**
+ * Set panel subtitle.
+ * @param panel The panel.
+ * @param subtitle The subtitle text.
+ * @return The panel (for chaining).
+ */
+FernPanel* fern_panel_subtitle(FernPanel* panel, const char* subtitle);
+
+/**
+ * Set panel border style.
+ * @param panel The panel.
+ * @param style The box style (0=rounded, 1=square, 2=double, 3=heavy, 4=ascii, 5=none).
+ * @return The panel (for chaining).
+ */
+FernPanel* fern_panel_border(FernPanel* panel, int64_t style);
+
+/**
+ * Set panel width.
+ * @param panel The panel.
+ * @param width The width (0=auto, -1=expand to terminal).
+ * @return The panel (for chaining).
+ */
+FernPanel* fern_panel_width(FernPanel* panel, int64_t width);
+
+/**
+ * Set panel padding.
+ * @param panel The panel.
+ * @param vertical Vertical padding (lines).
+ * @param horizontal Horizontal padding (chars).
+ * @return The panel (for chaining).
+ */
+FernPanel* fern_panel_padding(FernPanel* panel, int64_t vertical, int64_t horizontal);
+
+/**
+ * Render panel to string.
+ * @param panel The panel to render.
+ * @return Rendered panel as string.
+ */
+char* fern_panel_render(FernPanel* panel);
+
+/**
+ * Free panel.
+ * @param panel The panel to free.
+ */
+void fern_panel_free(FernPanel* panel);
+
+/* ========== TUI: Table Module ========== */
+
+/**
+ * Table column definition.
+ */
+typedef struct FernTableColumn {
+    char* header;
+    int64_t min_width;
+    int64_t max_width;
+    int64_t justify;  /* 0=left, 1=center, 2=right */
+} FernTableColumn;
+
+/**
+ * Table row.
+ */
+typedef struct FernTableRow {
+    char** cells;
+    int64_t cell_count;
+} FernTableRow;
+
+/**
+ * Table configuration.
+ */
+typedef struct FernTable {
+    char* title;
+    char* caption;
+    FernTableColumn* columns;
+    int64_t column_count;
+    FernTableRow* rows;
+    int64_t row_count;
+    int64_t row_capacity;
+    FernBoxStyle box_style;
+    int64_t show_header;
+    int64_t show_lines;  /* Lines between rows */
+    int64_t expand;      /* Expand to terminal width */
+} FernTable;
+
+/**
+ * Create a new table.
+ * @return New table struct.
+ */
+FernTable* fern_table_new(void);
+
+/**
+ * Add a column to the table.
+ * @param table The table.
+ * @param header The column header.
+ * @return The table (for chaining).
+ */
+FernTable* fern_table_add_column(FernTable* table, const char* header);
+
+/**
+ * Add a row to the table.
+ * @param table The table.
+ * @param cells Array of cell values.
+ * @param cell_count Number of cells.
+ * @return The table (for chaining).
+ */
+FernTable* fern_table_add_row(FernTable* table, char** cells, int64_t cell_count);
+
+/**
+ * Set table title.
+ * @param table The table.
+ * @param title The title text.
+ * @return The table (for chaining).
+ */
+FernTable* fern_table_title(FernTable* table, const char* title);
+
+/**
+ * Set table border style.
+ * @param table The table.
+ * @param style The box style.
+ * @return The table (for chaining).
+ */
+FernTable* fern_table_border(FernTable* table, int64_t style);
+
+/**
+ * Render table to string.
+ * @param table The table to render.
+ * @return Rendered table as string.
+ */
+char* fern_table_render(FernTable* table);
+
+/**
+ * Free table.
+ * @param table The table to free.
+ */
+void fern_table_free(FernTable* table);
+
 #endif /* FERN_RUNTIME_H */
