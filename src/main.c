@@ -14,6 +14,7 @@
 #include "checker.h"
 #include "codegen.h"
 #include "ast_print.h"
+#include "version.h"
 
 /* ========== File Utilities ========== */
 
@@ -95,18 +96,19 @@ static String* get_basename(Arena* arena, const char* filename) {
  */
 static void print_usage(void) {
     // FERN_STYLE: allow(assertion-density) simple print function
-    fprintf(stderr, "Fern Compiler v0.1.0\n\n");
-    fprintf(stderr, "Usage:\n");
-    fprintf(stderr, "  fern build <source.fn>   Compile to executable\n");
-    fprintf(stderr, "  fern run <source.fn>     Compile and run immediately\n");
-    fprintf(stderr, "  fern check <source.fn>   Type check only\n");
-    fprintf(stderr, "  fern emit <source.fn>    Emit QBE IR to stdout\n");
-    fprintf(stderr, "  fern lex <source.fn>     Show tokens (debug)\n");
-    fprintf(stderr, "  fern parse <source.fn>   Show AST (debug)\n");
+    fprintf(stderr, "%s\n\n", FERN_VERSION);
+    fprintf(stderr, "Usage: fern <command> [options] <file>\n\n");
+    fprintf(stderr, "Commands:\n");
+    fprintf(stderr, "  build <file>    Compile to executable\n");
+    fprintf(stderr, "  run <file>      Compile and run immediately\n");
+    fprintf(stderr, "  check <file>    Type check only\n");
+    fprintf(stderr, "  emit <file>     Emit QBE IR to stdout\n");
+    fprintf(stderr, "  lex <file>      Show tokens (debug)\n");
+    fprintf(stderr, "  parse <file>    Show AST (debug)\n");
     fprintf(stderr, "\nOptions:\n");
-    fprintf(stderr, "  --help, -h               Show this help message\n");
-    fprintf(stderr, "  --version, -v            Show version information\n");
-    fprintf(stderr, "\nBoth .fn and .🌿 file extensions are supported.\n");
+    fprintf(stderr, "  -h, --help      Show this help message\n");
+    fprintf(stderr, "  -v, --version   Show version information\n");
+    fprintf(stderr, "\nFile extensions: .fn, .🌿\n");
 }
 
 /**
@@ -114,7 +116,7 @@ static void print_usage(void) {
  */
 static void print_version(void) {
     // FERN_STYLE: allow(assertion-density) simple print function
-    printf("fern 0.1.0\n");
+    printf("%s\n", FERN_VERSION);
 }
 
 /**
