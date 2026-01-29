@@ -1399,6 +1399,100 @@ Estimated total: ~1000 lines of C runtime code across all phases.
 
 ---
 
+## Milestone 10.5: Language Server Protocol (LSP) ✓ COMPLETE
+
+**Status:** ✅ Complete - MVP LSP working with Zed editor
+**Completed:** 2026-01-29
+
+**Goal:** Enable IDE features in editors via Language Server Protocol
+
+### What's Implemented
+
+The `fern lsp` command starts a language server that provides:
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Diagnostics | ✅ | Real-time error reporting as you type |
+| Hover | ✅ | Type information on hover |
+| Go-to-definition | ✅ | Jump to function definitions |
+
+### Architecture
+
+The LSP reuses the existing compiler infrastructure:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     Editor (Zed)                        │
+└───────────────────────┬─────────────────────────────────┘
+                        │ JSON-RPC over stdio
+┌───────────────────────▼─────────────────────────────────┐
+│                    fern lsp                             │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │  LSP Server (lib/lsp.c)                         │    │
+│  │  - JSON-RPC message handling                    │    │
+│  │  - Document management                          │    │
+│  │  - Request routing                              │    │
+│  └───────────────────────┬─────────────────────────┘    │
+│                          │ Reuses existing:             │
+│  ┌───────────────────────▼─────────────────────────┐    │
+│  │  Parser → Checker → Type Environment            │    │
+│  │  (No duplication! Language changes auto-work)   │    │
+│  └─────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Key insight:** Because the LSP reuses the parser and type checker, language changes automatically work without modifying the LSP code.
+
+### Files Created
+
+- `include/lsp.h` - LSP types and public API
+- `lib/lsp.c` - LSP server implementation (~800 lines)
+- `editor/zed-fern/` - Zed editor extension
+  - `extension.toml` - Extension metadata
+  - `Cargo.toml` - Rust build configuration
+  - `src/lib.rs` - Extension code (launches `fern lsp`)
+  - `languages/fern/config.toml` - Language configuration
+  - `languages/fern/highlights.scm` - Syntax highlighting queries
+
+### Usage
+
+```bash
+# Start the language server (for editor integration)
+fern lsp
+
+# Install Zed extension (development)
+# 1. Open Zed
+# 2. Extensions → Install Dev Extension
+# 3. Select editor/zed-fern directory
+```
+
+### Logging
+
+The LSP writes debug logs to `/tmp/fern-lsp.log`:
+
+```bash
+tail -f /tmp/fern-lsp.log
+```
+
+### Future Enhancements
+
+- [ ] Completion (textDocument/completion)
+- [ ] Signature help (textDocument/signatureHelp)
+- [ ] Document symbols (textDocument/documentSymbol)
+- [ ] Rename (textDocument/rename)
+- [ ] Code actions (textDocument/codeAction)
+- [ ] Multiple error reporting (currently shows first error only)
+- [ ] Error positions (currently reports at start of file)
+
+**Success Criteria:** ✅ All Met
+- ✅ `fern lsp` command starts language server
+- ✅ Diagnostics show errors in editor
+- ✅ Hover shows type information
+- ✅ Go-to-definition navigates to functions
+- ✅ Zed extension created
+
+---
+
 ## Milestone 11: Polish & Optimization
 
 **Goal:** Production-ready compiler
@@ -1411,7 +1505,7 @@ Estimated total: ~1000 lines of C runtime code across all phases.
   - [ ] Runtime performance
 
 - [ ] Tooling improvements
-  - [ ] LSP implementation
+  - [x] LSP implementation ✅ (Milestone 10.5)
   - [ ] Formatter
   - [ ] Linter
 
