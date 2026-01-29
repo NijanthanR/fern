@@ -272,6 +272,20 @@ static PrintType get_print_type(Codegen* cg, Expr* expr) {
             return PRINT_INT;
         }
         
+        case EXPR_BINARY: {
+            /* Binary expressions: check if string concatenation */
+            BinaryExpr* bin = &expr->data.binary;
+            if (bin->op == BINOP_ADD) {
+                /* If either operand is a string, result is string */
+                PrintType left_type = get_print_type(cg, bin->left);
+                PrintType right_type = get_print_type(cg, bin->right);
+                if (left_type == PRINT_STRING || right_type == PRINT_STRING) {
+                    return PRINT_STRING;
+                }
+            }
+            return PRINT_INT;
+        }
+        
         default:
             return PRINT_INT;
     }
@@ -280,10 +294,11 @@ static PrintType get_print_type(Codegen* cg, Expr* expr) {
 /**
  * Get QBE type specifier for an expression.
  * Returns 'l' for pointer types (lists, strings), 'w' for word types (int, bool).
+ * @param cg The codegen context (for checking wide variables).
  * @param expr The expression to check.
  * @return 'l' for 64-bit, 'w' for 32-bit.
  */
-static char qbe_type_for_expr(Expr* expr) {
+static char qbe_type_for_expr(Codegen* cg, Expr* expr) {
     // FERN_STYLE: allow(function-length) type dispatch handles all module return types
     /* FERN_STYLE: allow(assertion-density) - simple type lookup */
     if (expr == NULL) return 'w';
@@ -292,11 +307,19 @@ static char qbe_type_for_expr(Expr* expr) {
         /* Pointer types (64-bit) */
         case EXPR_LIST:
         case EXPR_STRING_LIT:
+        case EXPR_INTERP_STRING:
             return 'l';
         
         /* Word types (32-bit) */
         case EXPR_INT_LIT:
         case EXPR_BOOL_LIT:
+            return 'w';
+        
+        /* Identifiers: check if tracked as wide variable */
+        case EXPR_IDENT:
+            if (cg != NULL && is_wide_var(cg, expr->data.ident.name)) {
+                return 'l';
+            }
             return 'w';
         
         /* Check if function call returns pointer type */
@@ -353,7 +376,11 @@ static char qbe_type_for_expr(Expr* expr) {
                             strcmp(func, "arg") == 0 ||
                             strcmp(func, "exec") == 0 ||
                             strcmp(func, "exec_args") == 0 ||
-                            strcmp(func, "getenv") == 0) {
+                            strcmp(func, "getenv") == 0 ||
+                            strcmp(func, "cwd") == 0 ||
+                            strcmp(func, "hostname") == 0 ||
+                            strcmp(func, "user") == 0 ||
+                            strcmp(func, "home") == 0) {
                             return 'l';
                         }
                     }
@@ -412,10 +439,21 @@ static char qbe_type_for_expr(Expr* expr) {
             return 'w';
         }
         
-        /* For identifiers and other exprs, we'd need type info - default to word */
+        /* Binary expressions: check if string concatenation */
+        case EXPR_BINARY: {
+            BinaryExpr* bin = &expr->data.binary;
+            if (bin->op == BINOP_ADD) {
+                char left_type = qbe_type_for_expr(cg, bin->left);
+                char right_type = qbe_type_for_expr(cg, bin->right);
+                if (left_type == 'l' || right_type == 'l') {
+                    return 'l';  /* String concatenation returns pointer */
+                }
+            }
+            return 'w';
+        }
+        
+        /* For other exprs, we'd need type info - default to word */
         /* TODO: track types through codegen for proper handling */
-        case EXPR_IDENT:
-        case EXPR_BINARY:
         case EXPR_UNARY:
         case EXPR_IF:
         case EXPR_MATCH:
@@ -644,9 +682,25 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
         
         case EXPR_BINARY: {
             BinaryExpr* bin = &expr->data.binary;
+            String* tmp = fresh_temp(cg);
+            
+            /* Check if this is string concatenation (+ with string operands) */
+            if (bin->op == BINOP_ADD) {
+                char left_type = qbe_type_for_expr(cg, bin->left);
+                char right_type = qbe_type_for_expr(cg, bin->right);
+                /* If either operand is a string (pointer), use string concat */
+                if (left_type == 'l' || right_type == 'l') {
+                    String* left = codegen_expr(cg, bin->left);
+                    String* right = codegen_expr(cg, bin->right);
+                    emit(cg, "    %s =l call $fern_str_concat(l %s, l %s)\n",
+                        string_cstr(tmp), string_cstr(left), string_cstr(right));
+                    return tmp;
+                }
+            }
+            
+            /* Arithmetic/comparison operations */
             String* left = codegen_expr(cg, bin->left);
             String* right = codegen_expr(cg, bin->right);
-            String* tmp = fresh_temp(cg);
             
             const char* op = NULL;
             switch (bin->op) {
@@ -1160,6 +1214,33 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                             String* value = codegen_expr(cg, call->args->data[1].value);
                             emit(cg, "    %s =w call $fern_setenv(l %s, l %s)\n",
                                 string_cstr(result), string_cstr(name), string_cstr(value));
+                            return result;
+                        }
+                        /* System.cwd() -> String */
+                        if (strcmp(func, "cwd") == 0 && call->args->len == 0) {
+                            emit(cg, "    %s =l call $fern_cwd()\n", string_cstr(result));
+                            return result;
+                        }
+                        /* System.chdir(path) -> Int */
+                        if (strcmp(func, "chdir") == 0 && call->args->len == 1) {
+                            String* path = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    %s =w call $fern_chdir(l %s)\n",
+                                string_cstr(result), string_cstr(path));
+                            return result;
+                        }
+                        /* System.hostname() -> String */
+                        if (strcmp(func, "hostname") == 0 && call->args->len == 0) {
+                            emit(cg, "    %s =l call $fern_hostname()\n", string_cstr(result));
+                            return result;
+                        }
+                        /* System.user() -> String */
+                        if (strcmp(func, "user") == 0 && call->args->len == 0) {
+                            emit(cg, "    %s =l call $fern_user()\n", string_cstr(result));
+                            return result;
+                        }
+                        /* System.home() -> String */
+                        if (strcmp(func, "home") == 0 && call->args->len == 0) {
+                            emit(cg, "    %s =l call $fern_home()\n", string_cstr(result));
                             return result;
                         }
                     }
@@ -1937,7 +2018,7 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
             for (size_t i = 0; i < list->elements->len; i++) {
                 Expr* elem_expr = list->elements->data[i];
                 String* elem = codegen_expr(cg, elem_expr);
-                char elem_type = qbe_type_for_expr(elem_expr);
+                char elem_type = qbe_type_for_expr(cg, elem_expr);
                 emit(cg, "    call $fern_list_push_mut(l %s, %c %s)\n",
                     string_cstr(list_ptr), elem_type, string_cstr(elem));
             }
@@ -2050,6 +2131,85 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
         
         case EXPR_FOR: {
             /* For loop: for var_name in iterable: body
+             * Supports both List and Range iterables.
+             */
+            ForExpr* for_loop = &expr->data.for_loop;
+            
+            /* Check if iterable is a Range expression */
+            if (for_loop->iterable->type == EXPR_RANGE) {
+                /* Range iteration: for i in start..end: body
+                 * 
+                 * Generated code pattern:
+                 *   current = start
+                 *   end_val = end
+                 * @loop_start
+                 *   cond = current < end_val (or <= for inclusive)
+                 *   jnz cond, @loop_body, @loop_end
+                 * @loop_body
+                 *   var_name = current
+                 *   <body>
+                 *   current = current + 1
+                 *   jmp @loop_start
+                 * @loop_end
+                 *   result = 0  (unit value)
+                 */
+                RangeExpr* range = &for_loop->iterable->data.range;
+                
+                /* Evaluate start and end values */
+                String* start_val = codegen_expr(cg, range->start);
+                String* end_val = codegen_expr(cg, range->end);
+                
+                /* Initialize current to start */
+                String* current = fresh_temp(cg);
+                emit(cg, "    %s =w copy %s\n", string_cstr(current), string_cstr(start_val));
+                
+                /* Generate labels */
+                String* loop_start = fresh_label(cg);
+                String* loop_body = fresh_label(cg);
+                String* loop_end = fresh_label(cg);
+                
+                /* Loop start: check condition */
+                emit(cg, "%s\n", string_cstr(loop_start));
+                String* cond = fresh_temp(cg);
+                if (range->inclusive) {
+                    /* current <= end for ..= */
+                    emit(cg, "    %s =w cslew %s, %s\n", 
+                        string_cstr(cond), string_cstr(current), string_cstr(end_val));
+                } else {
+                    /* current < end for .. */
+                    emit(cg, "    %s =w csltw %s, %s\n", 
+                        string_cstr(cond), string_cstr(current), string_cstr(end_val));
+                }
+                emit(cg, "    jnz %s, %s, %s\n", 
+                    string_cstr(cond), string_cstr(loop_body), string_cstr(loop_end));
+                
+                /* Loop body */
+                emit(cg, "%s\n", string_cstr(loop_body));
+                
+                /* Bind loop variable to current value */
+                emit(cg, "    %%%s =w copy %s\n", 
+                    string_cstr(for_loop->var_name), string_cstr(current));
+                
+                /* Execute body */
+                codegen_expr(cg, for_loop->body);
+                
+                /* Increment current */
+                String* new_current = fresh_temp(cg);
+                emit(cg, "    %s =w add %s, 1\n", string_cstr(new_current), string_cstr(current));
+                emit(cg, "    %s =w copy %s\n", string_cstr(current), string_cstr(new_current));
+                
+                /* Jump back to loop start */
+                emit(cg, "    jmp %s\n", string_cstr(loop_start));
+                
+                /* Loop end: return unit value */
+                emit(cg, "%s\n", string_cstr(loop_end));
+                String* result = fresh_temp(cg);
+                emit(cg, "    %s =w copy 0\n", string_cstr(result));
+                
+                return result;
+            }
+            
+            /* List iteration: for item in list: body
              * 
              * Generated code pattern:
              *   list = <iterable>
@@ -2066,7 +2226,6 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
              * @loop_end
              *   result = 0  (unit value)
              */
-            ForExpr* for_loop = &expr->data.for_loop;
             
             /* Generate code for the iterable (list) */
             String* list = codegen_expr(cg, for_loop->iterable);
@@ -2295,7 +2454,7 @@ void codegen_stmt(Codegen* cg, Stmt* stmt) {
             String* val = codegen_expr(cg, let->value);
             
             /* Determine QBE type based on the value expression */
-            char type_spec = qbe_type_for_expr(let->value);
+            char type_spec = qbe_type_for_expr(cg, let->value);
             
             /* For simple identifier patterns, just copy to a named local */
             if (let->pattern->type == PATTERN_IDENT) {

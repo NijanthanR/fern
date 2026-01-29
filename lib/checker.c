@@ -536,6 +536,32 @@ static Type* lookup_module_function(Checker* checker, const char* module, const 
             TypeVec_push(arena, params, type_string(arena));
             return type_fn(arena, params, type_int(arena));
         }
+        /* System.cwd() -> String */
+        if (strcmp(func, "cwd") == 0) {
+            params = TypeVec_new(arena);
+            return type_fn(arena, params, type_string(arena));
+        }
+        /* System.chdir(String) -> Int */
+        if (strcmp(func, "chdir") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, type_int(arena));
+        }
+        /* System.hostname() -> String */
+        if (strcmp(func, "hostname") == 0) {
+            params = TypeVec_new(arena);
+            return type_fn(arena, params, type_string(arena));
+        }
+        /* System.user() -> String */
+        if (strcmp(func, "user") == 0) {
+            params = TypeVec_new(arena);
+            return type_fn(arena, params, type_string(arena));
+        }
+        /* System.home() -> String */
+        if (strcmp(func, "home") == 0) {
+            params = TypeVec_new(arena);
+            return type_fn(arena, params, type_string(arena));
+        }
     }
 
     /* ===== Regex module ===== */
@@ -2247,7 +2273,7 @@ Type* checker_infer_expr(Checker* checker, Expr* expr) {
             
         case EXPR_FOR: {
             /* For loop: for var in iterable: body
-             * Iterable must be a List, var is bound to element type.
+             * Iterable must be a List or Range, var is bound to element type.
              * For loop returns Unit (side-effect only).
              */
             ForExpr* for_loop = &expr->data.for_loop;
@@ -2256,15 +2282,23 @@ Type* checker_infer_expr(Checker* checker, Expr* expr) {
             Type* iter_type = checker_infer_expr(checker, for_loop->iterable);
             if (iter_type->kind == TYPE_ERROR) return iter_type;
             
-            /* Iterable must be a List (for now) */
-            if (iter_type->kind != TYPE_CON || 
-                strcmp(string_cstr(iter_type->data.con.name), "List") != 0) {
-                return error_type_at(checker, expr->loc, "for loop requires List, got %s",
-                    string_cstr(type_to_string(checker->arena, iter_type)));
+            /* Iterable must be a List or Range */
+            Type* elem_type = NULL;
+            if (iter_type->kind == TYPE_CON) {
+                const char* type_name = string_cstr(iter_type->data.con.name);
+                if (strcmp(type_name, "List") == 0) {
+                    /* Extract element type from List(elem) */
+                    elem_type = iter_type->data.con.args->data[0];
+                } else if (strcmp(type_name, "Range") == 0) {
+                    /* Extract element type from Range(elem) */
+                    elem_type = iter_type->data.con.args->data[0];
+                }
             }
             
-            /* Extract element type from List(elem) */
-            Type* elem_type = iter_type->data.con.args->data[0];
+            if (elem_type == NULL) {
+                return error_type_at(checker, expr->loc, "for loop requires List or Range, got %s",
+                    string_cstr(type_to_string(checker->arena, iter_type)));
+            }
             
             /* Push scope and bind loop variable */
             checker_push_scope(checker);
