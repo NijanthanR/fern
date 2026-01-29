@@ -132,6 +132,7 @@ static const Command COMMANDS[] = {
 static const Option OPTIONS[] = {
     {"-h", "--help",    "Show this help message"},
     {"-v", "--version", "Show version information"},
+    {"-o", "--output",  "Output file (build only)"},
     {NULL, NULL, NULL}  /* Sentinel */
 };
 
@@ -183,17 +184,6 @@ static const Command* find_command(const char* name) {
         }
     }
     return NULL;
-}
-
-/**
- * Check if argument matches an option.
- * @param arg The argument to check.
- * @param opt The option to match against.
- * @return true if matches, false otherwise.
- */
-static bool matches_option(const char* arg, const Option* opt) {
-    // FERN_STYLE: allow(assertion-density) simple comparison
-    return strcmp(arg, opt->short_flag) == 0 || strcmp(arg, opt->long_flag) == 0;
 }
 
 /**
@@ -283,6 +273,9 @@ static bool find_runtime_lib(const char* exe_path, char* buf, size_t buf_size) {
 /* Global variable to store exe path from main */
 static const char* g_exe_path = NULL;
 
+/* Global variable for output filename (-o flag) */
+static const char* g_output_file = NULL;
+
 /**
  * Run QBE compiler and linker to create executable.
  * @param ssa_file Path to QBE IR file.
@@ -363,10 +356,18 @@ static int cmd_build(Arena* arena, const char* filename) {
         return 1;
     }
     
+    // Determine output filename
+    char output_file[256];
+    if (g_output_file) {
+        snprintf(output_file, sizeof(output_file), "%s", g_output_file);
+    } else {
+        String* basename = get_basename(arena, filename);
+        snprintf(output_file, sizeof(output_file), "%s", string_cstr(basename));
+    }
+    
     // Write QBE IR to temp file
-    String* basename = get_basename(arena, filename);
     char ssa_file[256];
-    snprintf(ssa_file, sizeof(ssa_file), "%s.ssa", string_cstr(basename));
+    snprintf(ssa_file, sizeof(ssa_file), "%s.ssa", output_file);
     
     if (!codegen_write(cg, ssa_file)) {
         fprintf(stderr, "Error: Cannot write QBE IR to '%s'\n", ssa_file);
@@ -374,9 +375,6 @@ static int cmd_build(Arena* arena, const char* filename) {
     }
     
     // Run QBE and link
-    char output_file[256];
-    snprintf(output_file, sizeof(output_file), "%s", string_cstr(basename));
-    
     int ret = run_qbe_and_link(ssa_file, output_file);
     
     // Clean up SSA file on success
@@ -601,17 +599,13 @@ int main(int argc, char** argv) {
     
     // Handle global options (before command)
     if (argc >= 2) {
-        for (const Option* opt = OPTIONS; opt->short_flag != NULL; opt++) {
-            if (matches_option(argv[1], opt)) {
-                if (strcmp(opt->short_flag, "-h") == 0) {
-                    print_usage();
-                    return 0;
-                }
-                if (strcmp(opt->short_flag, "-v") == 0) {
-                    print_version();
-                    return 0;
-                }
-            }
+        if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
+            print_usage();
+            return 0;
+        }
+        if (strcmp(argv[1], "-v") == 0 || strcmp(argv[1], "--version") == 0) {
+            print_version();
+            return 0;
         }
     }
     
@@ -621,13 +615,38 @@ int main(int argc, char** argv) {
         return 1;
     }
     
-    // Find and execute command
+    // Find command
     const Command* cmd = find_command(argv[1]);
     if (!cmd) {
         fprintf(stderr, "Unknown command: %s\n\n", argv[1]);
         print_usage();
         return 1;
     }
+    
+    // Parse command-specific options
+    int arg_index = 2;
+    while (arg_index < argc && argv[arg_index][0] == '-') {
+        if ((strcmp(argv[arg_index], "-o") == 0 || strcmp(argv[arg_index], "--output") == 0)) {
+            if (arg_index + 1 >= argc) {
+                fprintf(stderr, "Error: -o requires an argument\n");
+                return 1;
+            }
+            g_output_file = argv[arg_index + 1];
+            arg_index += 2;
+        } else {
+            fprintf(stderr, "Unknown option: %s\n", argv[arg_index]);
+            return 1;
+        }
+    }
+    
+    // Need a file argument
+    if (arg_index >= argc) {
+        fprintf(stderr, "Error: missing file argument\n\n");
+        print_usage();
+        return 1;
+    }
+    
+    const char* filename = argv[arg_index];
     
     // Create arena for compiler session
     Arena* arena = arena_create(4 * 1024 * 1024);  // 4MB
@@ -636,7 +655,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     
-    int result = cmd->handler(arena, argv[2]);
+    int result = cmd->handler(arena, filename);
     
     arena_destroy(arena);
     return result;
