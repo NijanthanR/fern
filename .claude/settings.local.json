@@ -5,7 +5,8 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:rich.readthedocs.io)",
       "WebFetch(domain:aardappel.github.io)",
-      "WebFetch(domain:www.roc-lang.org)"
+      "WebFetch(domain:www.roc-lang.org)",
+      "WebFetch(domain:tour.gleam.run)"
     ]
   }
 }
