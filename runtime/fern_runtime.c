@@ -447,6 +447,70 @@ FernStringList* fern_str_split(const char* s, const char* delim) {
 }
 
 /**
+ * Split string into lines.
+ * Handles \n, \r\n, and \r line endings.
+ * @param s The string.
+ * @return List of lines (as FernStringList).
+ */
+FernStringList* fern_str_lines(const char* s) {
+    assert(s != NULL);
+    
+    FernStringList* list = malloc(sizeof(FernStringList));
+    assert(list != NULL);
+    list->cap = 8;
+    list->len = 0;
+    list->data = malloc((size_t)list->cap * sizeof(char*));
+    assert(list->data != NULL);
+    
+    const char* p = s;
+    const char* line_start = s;
+    
+    while (*p != '\0') {
+        if (*p == '\n' || *p == '\r') {
+            /* End of line found - add the line */
+            if (list->len >= list->cap) {
+                list->cap *= 2;
+                list->data = realloc(list->data, (size_t)list->cap * sizeof(char*));
+                assert(list->data != NULL);
+            }
+            size_t line_len = (size_t)(p - line_start);
+            char* line = malloc(line_len + 1);
+            assert(line != NULL);
+            memcpy(line, line_start, line_len);
+            line[line_len] = '\0';
+            list->data[list->len++] = line;
+            
+            /* Skip line ending - handle \r\n as single newline */
+            if (*p == '\r' && *(p + 1) == '\n') {
+                p += 2;
+            } else {
+                p++;
+            }
+            line_start = p;
+        } else {
+            p++;
+        }
+    }
+    
+    /* Add remaining content as last line (even if empty after final newline) */
+    if (p > line_start || list->len == 0) {
+        if (list->len >= list->cap) {
+            list->cap *= 2;
+            list->data = realloc(list->data, (size_t)list->cap * sizeof(char*));
+            assert(list->data != NULL);
+        }
+        size_t line_len = (size_t)(p - line_start);
+        char* line = malloc(line_len + 1);
+        assert(line != NULL);
+        memcpy(line, line_start, line_len);
+        line[line_len] = '\0';
+        list->data[list->len++] = line;
+    }
+    
+    return list;
+}
+
+/**
  * Join list of strings with separator.
  * @param list The string list.
  * @param sep The separator.

@@ -182,6 +182,14 @@ char* fern_str_replace(const char* s, const char* old_str, const char* new_str);
 struct FernStringList* fern_str_split(const char* s, const char* delim);
 
 /**
+ * Split string into lines.
+ * Handles \n, \r\n, and \r line endings.
+ * @param s The string.
+ * @return List of lines (as FernStringList).
+ */
+struct FernStringList* fern_str_lines(const char* s);
+
+/**
  * Join list of strings with separator.
  * @param list The string list.
  * @param sep The separator.
