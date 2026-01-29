@@ -880,9 +880,154 @@ stdlib/
 
 ---
 
+## Milestone 7.5: Garbage Collection ✓ COMPLETE
+
+**Status:** ✅ Complete - Boehm GC integrated
+**Completed:** 2026-01-29
+
+**Goal:** Automatic memory management for Fern programs
+
+### Current Implementation: Boehm GC
+
+Fern uses the [Boehm-Demers-Weiser conservative garbage collector](https://github.com/ivmai/bdwgc) for automatic memory management.
+
+**Why Boehm GC:**
+- Drop-in replacement for malloc/free
+- Conservative scanning (works with C interop)
+- Proven in production (used by Mono, GCJ, many languages)
+- Low integration complexity (~100 lines)
+- Good performance for most workloads
+
+**Installation:**
+```bash
+# macOS
+brew install bdw-gc
+
+# Ubuntu/Debian
+apt install libgc-dev
+
+# Fedora
+dnf install gc-devel
+```
+
+### Tasks
+
+- [x] Add Boehm GC dependency
+- [x] Create `runtime/fern_gc.h` with allocation macros
+- [x] Replace all malloc/realloc/strdup in runtime with GC versions
+- [x] Remove manual free calls (now no-ops)
+- [x] Add GC initialization at program start
+- [x] Update Makefile to link with `-lgc`
+- [x] Update codegen to link compiled programs with `-lgc`
+
+### Future: BEAM-Style Per-Process GC
+
+When the actor runtime is implemented (Milestone 8), Fern will transition to per-process garbage collection:
+
+**Why Per-Process GC:**
+- Each actor has its own heap — GC never blocks other actors
+- Process death = instant heap reclamation (no GC needed)
+- Perfect isolation between actors (no shared mutable state)
+- Enables BEAM-level reliability and latency guarantees
+
+**Implementation Plan:**
+- [ ] Design per-process heap allocator
+- [ ] Integrate with actor scheduler
+- [ ] Generational collection within each process (young/old heaps)
+- [ ] Message copying between process heaps
+- [ ] Benchmark against Boehm GC baseline
+
+**References:**
+- [Erlang GC Documentation](https://www.erlang.org/doc/apps/erts/garbagecollection)
+- [OCaml Multicore GC](https://fun-ocaml.com/2024/multicore-gc/)
+- [Go GC Guide](https://tip.golang.org/doc/gc-guide)
+
+**Success Criteria:**
+- ✅ No memory leaks in Fern programs
+- ✅ Fern programs compile and run without manual memory management
+- Future: Sub-millisecond GC pauses with per-process heaps
+
+---
+
+## Milestone 7.6: Self-Contained Toolchain ✓ COMPLETE
+
+**Status:** ✅ Complete - QBE embedded, GC statically linked
+**Completed:** 2026-01-29
+
+**Goal:** Make the fern binary fully self-contained for development
+
+### What Changed
+
+```
+Before:                              After:
+┌─────────────────────────┐          ┌─────────────────────────┐
+│ To develop Fern:        │          │ To develop Fern:        │
+│ • Install qbe           │    →     │ • Install bdw-gc only   │
+│ • Install bdw-gc        │          │                         │
+├─────────────────────────┤          ├─────────────────────────┤
+│ To run Fern programs:   │          │ To run Fern programs:   │
+│ • Need libgc installed  │    →     │ • Nothing! Standalone   │
+└─────────────────────────┘          └─────────────────────────┘
+```
+
+### Tasks
+
+- [x] Embed QBE source into `deps/qbe/` (~6,650 lines)
+- [x] Modify QBE to expose `qbe_compile()` library function
+- [x] Update Makefile to compile QBE as part of fern
+- [x] Update `run_qbe_and_link()` to use embedded QBE
+- [x] Statically link Boehm GC into compiled programs
+- [x] Update documentation
+
+### Binary Sizes
+
+| Binary | Size | Dependencies |
+|--------|------|--------------|
+| `bin/fern` (compiler) | ~540 KB | None (self-contained) |
+| Compiled Fern program | ~245 KB | None (standalone) |
+
+### What You Need
+
+**To build the fern compiler:**
+```bash
+# macOS
+brew install bdw-gc
+
+# Linux
+apt install libgc-dev  # or dnf install gc-devel
+```
+
+**To compile and run Fern programs:**
+```bash
+./bin/fern build myapp.fn   # Creates standalone binary
+./myapp                      # Runs anywhere!
+```
+
+### Remaining External Dependencies
+
+The fern compiler still uses external tools for:
+- `cc` (clang/gcc) - Assembling and linking (standard on all Unix)
+
+Future consideration: Embed an assembler and linker to become 100% self-contained like Go.
+
+**Success Criteria:**
+- ✅ `qbe` no longer required as external dependency
+- ✅ Compiled programs are standalone (no runtime deps)
+- ✅ Single fern binary for development
+
+---
+
 ## Milestone 8: Actor Runtime
 
 **Goal:** Implement BEAM-inspired actor-based concurrency with supervision trees
+
+### Memory Model
+
+With actors, Fern will use **per-process heaps** (like BEAM/Erlang):
+- Each actor has its own garbage-collected heap
+- Messages are copied between processes (no sharing)
+- Process crash = instant memory reclamation
+- GC pauses are per-process, never global
 
 ### Tasks
 

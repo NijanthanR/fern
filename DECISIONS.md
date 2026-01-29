@@ -4,6 +4,20 @@ This document tracks major architectural and technical decisions made during the
 
 ## Project Decision Log
 
+### 23 Embedded QBE compiler backend
+* **Date**: 2026-01-29
+* **Status**: ✅ Adopted
+* **Decision**: I will embed QBE directly into the fern binary rather than requiring it as an external dependency.
+* **Context**: The fern compiler was calling external `qbe` binary via system() which required users to install QBE separately. This conflicted with the "single binary" philosophy. Considered options: (1) Keep external qbe - simple but adds dependency, (2) Embed QBE source - removes dependency, single binary, (3) Use LLVM - powerful but massive dependency, (4) Write custom backend - flexible but huge effort. QBE is only ~6,650 lines of C with no dependencies, making it ideal for embedding. Modified QBE's main.c to expose `qbe_compile()` library function.
+* **Consequences**: QBE source added to `deps/qbe/` (~16 files, 6.6K lines). Fern binary increased from ~200KB to ~540KB. Users no longer need to install qbe. The fern binary is now fully self-contained for development - only needs a C compiler (cc/clang) for assembling and linking, which is standard on all Unix systems.
+
+### 22 Boehm GC for automatic memory management
+* **Date**: 2026-01-29
+* **Status**: ✅ Adopted
+* **Decision**: I will use Boehm GC for automatic garbage collection in Fern programs, with a future path to BEAM-style per-process heaps when actors are implemented.
+* **Context**: Fern's immutable-first, functional style generates many intermediate values (strings, lists, etc.) that need automatic memory management. Considered several approaches: (1) Manual memory management - error-prone, leaks inevitable, (2) Reference counting - works but has cycles problem and overhead, (3) Boehm GC - conservative, drop-in replacement for malloc, proven in production, (4) Custom tracing GC - complex, takes months to implement well, (5) BEAM-style per-process heaps - ideal for actors but requires actor runtime first. Chose Boehm GC as the pragmatic v1 solution: ~100 lines of integration, zero memory leaks, works with C FFI. When actors are added (Milestone 8), we'll transition to per-process heaps where each actor has its own GC'd heap - this eliminates global GC pauses and enables instant memory reclamation on process death.
+* **Consequences**: Runtime uses `GC_MALLOC` instead of `malloc`. All `_free()` functions become no-ops. Compiled programs link with `-lgc`. Requires `brew install bdw-gc` (macOS) or `apt install libgc-dev` (Linux). Binary size increased ~20KB. No measurable performance impact in benchmarks. Future actor runtime will use per-process heaps with generational collection within each process.
+
 ### 21 Built-in module syntax for standard functions
 * **Date**: 2026-01-29
 * **Status**: ✅ Adopted

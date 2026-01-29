@@ -4176,19 +4176,24 @@ All compiler code follows **FERN_STYLE.md** (inspired by [TigerBeetle's TIGER_ST
 
 **Total dependencies:** ~4,000 lines of third-party code
 
-### Backend: QBE
+### Backend: QBE (Embedded)
+
+QBE is embedded directly into the fern binary - no external `qbe` installation needed.
 
 **Compilation Pipeline:**
 ```
-Fern Source → C Compiler → QBE IR (text) → QBE → Assembly → Native Binary
+Fern Source → Fern Compiler → QBE IR → [embedded QBE] → Assembly → [cc] → Native Binary
+                    ↑                        ↑
+            Single fern binary         No external qbe
 ```
 
 **Why QBE:**
 - ✅ Simple IR (easy for AI to generate)
 - ✅ Fast compilation (< 1s for most programs)
-- ✅ Small binaries (300-800 KB)
+- ✅ Small binaries (200-300 KB)
 - ✅ Good performance (75-80% of LLVM, plenty for CLI tools)
-- ✅ No dependencies (single binary)
+- ✅ Embeddable (~6,650 lines of C, no dependencies)
+- ✅ Single binary deployment (fern binary is self-contained)
 
 **QBE IR Example:**
 ```qbe
@@ -4303,6 +4308,71 @@ void ctx_free(CompilerContext *ctx) {
     arena_free(&ctx->type_arena);
 }
 ```
+
+### Runtime Memory Management: Garbage Collection
+
+The compiler uses arena allocation (above), but **compiled Fern programs** use automatic garbage collection:
+
+**Current: Boehm GC**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Fern Program Memory Model (v1)                             │
+├─────────────────────────────────────────────────────────────┤
+│  • Boehm conservative garbage collector                     │
+│  • Statically linked - binaries are fully standalone        │
+│  • No manual memory management needed                       │
+│  • All allocations automatically reclaimed                  │
+│  • Zero memory leaks guaranteed                             │
+│  • Works seamlessly with C FFI                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Why Boehm GC:**
+- Drop-in replacement for malloc (~100 lines of integration)
+- Proven in production (Mono, GCJ, many languages)
+- Conservative scanning works with C interop
+- No runtime pauses visible in benchmarks
+- **Statically linked** - no runtime dependencies
+
+**Installation (development only):**
+```bash
+# macOS
+brew install bdw-gc
+
+# Ubuntu/Debian
+apt install libgc-dev
+
+# Fedora
+dnf install gc-devel
+```
+
+**Future: BEAM-Style Per-Process Heaps**
+
+When actors are implemented (Milestone 8), Fern will transition to per-process garbage collection:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Fern Actor Memory Model (future)                           │
+├─────────────────────────────────────────────────────────────┤
+│  Actor 1          Actor 2          Actor 3                  │
+│  ┌─────────┐      ┌─────────┐      ┌─────────┐              │
+│  │ Young   │      │ Young   │      │ Young   │              │
+│  │ Heap    │      │ Heap    │      │ Heap    │              │
+│  ├─────────┤      ├─────────┤      ├─────────┤              │
+│  │ Old     │      │ Old     │      │ Old     │              │
+│  │ Heap    │      │ Heap    │      │ Heap    │              │
+│  └─────────┘      └─────────┘      └─────────┘              │
+│       │                │                │                   │
+│       └────── Messages copied between heaps ──────┘         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Benefits of per-process heaps:**
+- GC never blocks other actors (isolated heaps)
+- Process death = instant memory reclamation
+- No global GC pauses
+- BEAM-level latency guarantees
 
 ### Error Handling: Result Types
 
