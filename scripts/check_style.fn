@@ -576,24 +576,16 @@ fn find_function_end_rec(lines: List(String), idx: Int, line_count: Int, brace_c
             find_function_end_rec(lines, idx + 1, line_count, brace_count, body_lines, found_first)
 
 # Count occurrences of a character (as ASCII code) in a string
-# Uses recursion to avoid parser issue with match inside for loops
 fn count_char(s: String, ch: Int) -> Int:
-    count_char_from(s, ch, 0, 0, String.len(s))
-
-# Recursive helper: count char starting from position, accumulating count
-fn count_char_from(s: String, ch: Int, pos: Int, acc: Int, len: Int) -> Int:
-    if pos >= len:
-        acc
-    else:
-        let char_opt = String.char_at(s, pos)
-        let new_acc = add_if_match(char_opt, ch, acc)
-        count_char_from(s, ch, pos + 1, new_acc, len)
-
-# Helper to increment count if char matches
-fn add_if_match(char_opt: Option(Int), ch: Int, acc: Int) -> Int:
-    match char_opt:
-        Some(c) -> if c == ch: acc + 1 else: acc,
-        None -> acc
+    let count = 0
+    let len = String.len(s)
+    for i in 0..len:
+        let char_opt = String.char_at(s, i)
+        let count = match char_opt:
+            Some(c) -> if c == ch: count + 1 else: count,
+            None -> count
+        ()
+    count
 
 # Count assert() calls in function body
 fn count_assertions(body: String) -> Int:
