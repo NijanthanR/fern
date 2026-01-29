@@ -1062,6 +1062,11 @@ static Expr* parse_primary_internal(Parser* parser) {
             consume(parser, TOKEN_COLON, "Expected ':' after match value");
         }
         
+        /* Track dedent count before parsing arms.
+         * Multi-line match arms are indented, and when we return to the match's
+         * indentation level, we don't want that dedent to propagate to outer blocks. */
+        int starting_dedent_count = g_dedent_seen;
+        
         // Parse match arms
         MatchArmVec* arms = MatchArmVec_new(parser->arena);
         
@@ -1103,7 +1108,15 @@ static Expr* parse_primary_internal(Parser* parser) {
                 arm.body = body;
                 MatchArmVec_push(parser->arena, arms, arm);
             }
-        } while (match(parser, TOKEN_COMMA) || can_start_pattern(parser));
+        } while (match(parser, TOKEN_COMMA) || (!g_newline_seen && can_start_pattern(parser)));
+        /* Match arms continue with comma, or same-line pattern start.
+         * If we hit a newline without comma, we stop (the next line is not a match arm). */
+        
+        /* Consume any dedent caused by the match expression's indented arms.
+         * This prevents the dedent from propagating to outer blocks (e.g., for loop body). */
+        if (g_dedent_seen > starting_dedent_count) {
+            g_dedent_seen = starting_dedent_count;
+        }
         
         return expr_match(parser->arena, value, arms, loc);
     }
