@@ -2,7 +2,7 @@
 
 > A statically-typed, functional language with Python aesthetics that compiles to single binaries.
 
-**Status:** 🚧 In active development - Milestone 4 (Code Generation) in progress, 331 tests passing
+**Status:** 🚧 In active development - Milestone 4 (Code Generation) in progress, 346 tests passing
 
 ## What is Fern?
 
@@ -29,6 +29,7 @@ Ok(process(validated))
 
 - **Static types** with inference - safety without verbosity
 - **Pattern matching** - exhaustiveness checking catches bugs
+- **Garbage collected** - automatic memory management (Boehm GC)
 - **Actor concurrency** - Erlang/Elixir-style lightweight processes
 - **Embedded database** - libSQL included (SQLite-compatible)
 - **Helpful errors** - compiler guides you to solutions
@@ -62,7 +63,8 @@ We're implementing the compiler using test-driven development. See [DESIGN.md](D
 - 🚧 Milestone 4: Code Generation
   - QBE IR generation from AST
   - Runtime library (Result, List, String operations)
-  - 331 tests passing
+  - Automatic garbage collection (Boehm GC)
+  - 346 tests passing
 
 **Planned:**
 - FernFuzz: Grammar-based fuzzing for compiler testing
@@ -116,18 +118,26 @@ fn main() -> Result[(), Error]:
 
 ## Building
 
+**Dependencies (for building the compiler):**
 ```bash
-# Build the compiler
-make
+# macOS
+brew install bdw-gc
 
-# Run tests
-make test
+# Ubuntu/Debian
+apt install libgc-dev
 
-# Build with debug symbols
-make debug
+# Fedora
+dnf install gc-devel
+```
 
-# Check code style (FERN_STYLE compliance)
-make style
+> **Note:** QBE is embedded in the compiler - no external `qbe` binary needed. Boehm GC is statically linked into compiled programs. The fern binary and compiled programs are **fully standalone** - no runtime dependencies, just like Go.
+
+**Build the compiler:**
+```bash
+make           # Release build
+make debug     # Debug build with symbols
+make test      # Run test suite (346 tests)
+make style     # Check FERN_STYLE compliance
 ```
 
 ## FAQ

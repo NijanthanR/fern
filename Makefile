@@ -2,10 +2,18 @@
 # A statically-typed, functional language that compiles to single binaries
 
 CC = clang
-CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -Werror -Iinclude -Ilib
+CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -Werror -Iinclude -Ilib -Ideps/qbe
 DEBUGFLAGS = -g -O0 -DDEBUG
 RELEASEFLAGS = -O2 -DNDEBUG
 LDFLAGS =
+
+# QBE compiler flags (embedded backend, more lenient warnings for external code)
+QBE_CFLAGS = -std=c99 -Ideps/qbe -Wno-unused-parameter -Wno-sign-compare
+
+# Boehm GC for runtime (automatic garbage collection)
+# Install with: brew install bdw-gc (macOS) or apt install libgc-dev (Linux)
+GC_CFLAGS = $(shell pkg-config --cflags bdw-gc 2>/dev/null || echo "")
+GC_LDFLAGS = $(shell pkg-config --libs bdw-gc 2>/dev/null || echo "-lgc")
 
 # Directories
 SRC_DIR = src
@@ -15,6 +23,7 @@ INCLUDE_DIR = include
 BUILD_DIR = build
 BIN_DIR = bin
 RUNTIME_DIR = runtime
+QBE_DIR = deps/qbe
 
 # Source files
 SRCS = $(wildcard $(SRC_DIR)/*.c)
@@ -22,11 +31,40 @@ TEST_SRCS = $(wildcard $(TEST_DIR)/*.c)
 LIB_SRCS = $(wildcard $(LIB_DIR)/*.c)
 RUNTIME_SRCS = $(wildcard $(RUNTIME_DIR)/*.c)
 
+# QBE source files (embedded compiler backend)
+QBE_COMMON_SRCS = $(QBE_DIR)/main.c $(QBE_DIR)/util.c $(QBE_DIR)/parse.c \
+                  $(QBE_DIR)/abi.c $(QBE_DIR)/cfg.c $(QBE_DIR)/mem.c \
+                  $(QBE_DIR)/ssa.c $(QBE_DIR)/alias.c $(QBE_DIR)/load.c \
+                  $(QBE_DIR)/copy.c $(QBE_DIR)/fold.c $(QBE_DIR)/simpl.c \
+                  $(QBE_DIR)/live.c $(QBE_DIR)/spill.c $(QBE_DIR)/rega.c \
+                  $(QBE_DIR)/emit.c
+QBE_AMD64_SRCS = $(QBE_DIR)/amd64/targ.c $(QBE_DIR)/amd64/sysv.c \
+                 $(QBE_DIR)/amd64/isel.c $(QBE_DIR)/amd64/emit.c
+QBE_ARM64_SRCS = $(QBE_DIR)/arm64/targ.c $(QBE_DIR)/arm64/abi.c \
+                 $(QBE_DIR)/arm64/isel.c $(QBE_DIR)/arm64/emit.c
+QBE_RV64_SRCS = $(QBE_DIR)/rv64/targ.c $(QBE_DIR)/rv64/abi.c \
+                $(QBE_DIR)/rv64/isel.c $(QBE_DIR)/rv64/emit.c
+QBE_SRCS = $(QBE_COMMON_SRCS) $(QBE_AMD64_SRCS) $(QBE_ARM64_SRCS) $(QBE_RV64_SRCS)
+
 # Object files
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
 TEST_OBJS = $(TEST_SRCS:$(TEST_DIR)/%.c=$(BUILD_DIR)/test_%.o)
 LIB_OBJS = $(LIB_SRCS:$(LIB_DIR)/%.c=$(BUILD_DIR)/lib_%.o)
 RUNTIME_OBJS = $(RUNTIME_SRCS:$(RUNTIME_DIR)/%.c=$(BUILD_DIR)/runtime_%.o)
+# QBE object files (with flattened names to avoid subdirectory issues)
+QBE_COMMON_OBJS = $(BUILD_DIR)/qbe_main.o $(BUILD_DIR)/qbe_util.o $(BUILD_DIR)/qbe_parse.o \
+                  $(BUILD_DIR)/qbe_abi.o $(BUILD_DIR)/qbe_cfg.o $(BUILD_DIR)/qbe_mem.o \
+                  $(BUILD_DIR)/qbe_ssa.o $(BUILD_DIR)/qbe_alias.o $(BUILD_DIR)/qbe_load.o \
+                  $(BUILD_DIR)/qbe_copy.o $(BUILD_DIR)/qbe_fold.o $(BUILD_DIR)/qbe_simpl.o \
+                  $(BUILD_DIR)/qbe_live.o $(BUILD_DIR)/qbe_spill.o $(BUILD_DIR)/qbe_rega.o \
+                  $(BUILD_DIR)/qbe_emit.o
+QBE_AMD64_OBJS = $(BUILD_DIR)/qbe_amd64_targ.o $(BUILD_DIR)/qbe_amd64_sysv.o \
+                 $(BUILD_DIR)/qbe_amd64_isel.o $(BUILD_DIR)/qbe_amd64_emit.o
+QBE_ARM64_OBJS = $(BUILD_DIR)/qbe_arm64_targ.o $(BUILD_DIR)/qbe_arm64_abi.o \
+                 $(BUILD_DIR)/qbe_arm64_isel.o $(BUILD_DIR)/qbe_arm64_emit.o
+QBE_RV64_OBJS = $(BUILD_DIR)/qbe_rv64_targ.o $(BUILD_DIR)/qbe_rv64_abi.o \
+                $(BUILD_DIR)/qbe_rv64_isel.o $(BUILD_DIR)/qbe_rv64_emit.o
+QBE_OBJS = $(QBE_COMMON_OBJS) $(QBE_AMD64_OBJS) $(QBE_ARM64_OBJS) $(QBE_RV64_OBJS)
 
 # Runtime library (linked into compiled Fern programs)
 RUNTIME_LIB = $(BIN_DIR)/libfern_runtime.a
@@ -49,8 +87,8 @@ debug: $(FERN_BIN) $(RUNTIME_LIB)
 release: CFLAGS += $(RELEASEFLAGS)
 release: clean $(FERN_BIN) $(RUNTIME_LIB)
 
-# Build fern compiler
-$(FERN_BIN): $(OBJS) $(LIB_OBJS) | $(BIN_DIR)
+# Build fern compiler (includes embedded QBE backend)
+$(FERN_BIN): $(OBJS) $(LIB_OBJS) $(QBE_OBJS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 	@echo "✓ Built fern compiler: $@"
 
@@ -83,9 +121,25 @@ $(BUILD_DIR)/test_%.o: $(TEST_DIR)/%.c | $(BUILD_DIR)
 $(BUILD_DIR)/lib_%.o: $(LIB_DIR)/%.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Compile runtime files
+# Compile runtime files (with GC support)
 $(BUILD_DIR)/runtime_%.o: $(RUNTIME_DIR)/%.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -I$(RUNTIME_DIR) -c $< -o $@
+	$(CC) $(CFLAGS) $(GC_CFLAGS) -I$(RUNTIME_DIR) -c $< -o $@
+
+# Compile QBE common files (embedded compiler backend, uses C99)
+$(BUILD_DIR)/qbe_%.o: $(QBE_DIR)/%.c | $(BUILD_DIR)
+	$(CC) $(QBE_CFLAGS) -c $< -o $@
+
+# Compile QBE amd64 target files
+$(BUILD_DIR)/qbe_amd64_%.o: $(QBE_DIR)/amd64/%.c | $(BUILD_DIR)
+	$(CC) $(QBE_CFLAGS) -c $< -o $@
+
+# Compile QBE arm64 target files
+$(BUILD_DIR)/qbe_arm64_%.o: $(QBE_DIR)/arm64/%.c | $(BUILD_DIR)
+	$(CC) $(QBE_CFLAGS) -c $< -o $@
+
+# Compile QBE rv64 target files
+$(BUILD_DIR)/qbe_rv64_%.o: $(QBE_DIR)/rv64/%.c | $(BUILD_DIR)
+	$(CC) $(QBE_CFLAGS) -c $< -o $@
 
 # Create directories
 $(BUILD_DIR):
