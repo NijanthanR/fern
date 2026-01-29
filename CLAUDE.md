@@ -152,28 +152,41 @@ The ROADMAP.md is the single source of truth for project progress. Failing to up
 
 ### CRITICAL: Mandatory Verification Steps
 
-**ALWAYS run these commands after ANY code changes. This is non-negotiable.**
+**ALWAYS run the quality checker after ANY code changes. This is non-negotiable.**
 
 ```bash
-# 1. Clean build (catches stale object files)
-make clean && make
-
-# 2. Run all tests
-make test
-
-# 3. Run style checker
-make style
-
-# Or run all at once:
-make clean && make && make test && make style
+# Single command that does EVERYTHING (strict mode - warnings are errors):
+make check
 ```
+
+This runs the consolidated quality checker (`scripts/check_style.py`) which:
+1. **Clean build** - `make clean && make` (catches stale .o files)
+2. **Unit tests** - `make test` (all 346+ tests must pass)
+3. **Examples** - Type-checks all `examples/*.fn` files
+4. **FERN_STYLE** - Code compliance (assertions, function length, docs, etc.)
+
+**Alternative commands:**
+```bash
+make check          # Full check (build + test + examples + style) - STRICT
+make style          # FERN_STYLE only (strict mode)
+make style-lenient  # FERN_STYLE only (warnings allowed, for development)
+make pre-commit     # Pre-commit hook mode (includes git hygiene checks)
+make test-examples  # Type-check all examples/*.fn files
+```
+
+**Strict mode (default):** All warnings are treated as errors. This ensures:
+- Every function has documentation
+- Every function has 2+ assertions
+- No unbounded loops
+- No raw char* parameters
 
 **Why this matters:**
 - `make clean` removes stale `.o` files that can mask errors
-- `make test` verifies no regressions
-- Style checker enforces assertions and function size limits
+- Unit tests verify no regressions in compiler code
+- Examples test the full compilation pipeline end-to-end
+- Style checker enforces FERN_STYLE requirements
 
-**DO NOT commit if any of these fail.**
+**DO NOT commit if `make check` fails.**
 
 ### Pre-Commit Checklist
 
@@ -822,11 +835,15 @@ Expr **arr = malloc(size * sizeof(Expr*));
 
 Before committing code, verify:
 
-**Mandatory Verification (run these commands):**
-- [ ] `make clean && make` - Clean build with no warnings
-- [ ] `make test` - All tests pass
-- [ ] `make style` - Style check passes
+**Mandatory Verification (single command):**
+- [ ] `make check` - Full quality check (build + test + examples + style)
 - [ ] ROADMAP.md updated with completed tasks
+
+This single command runs:
+1. Clean build with no warnings
+2. All unit tests pass
+3. All examples/*.fn files type-check
+4. FERN_STYLE compliance (strict mode)
 
 **Safety Libraries:**
 - [ ] All allocations use arena (no malloc/free)
@@ -876,6 +893,6 @@ The entire safety strategy is:
 These rules eliminate 90% of C's danger while keeping AI productivity high. The FERN_STYLE.md requirements ensure assertions document invariants and small functions fit in AI context windows.
 
 **After EVERY task:**
-1. Run `make clean && make && make test && make style`
+1. Run `make check` (build + test + examples + style, strict mode)
 2. Update ROADMAP.md
 3. Then commit
