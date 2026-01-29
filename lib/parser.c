@@ -93,6 +93,9 @@ static void __attribute__((unused)) skip_newlines(Parser* parser) {
 /** Global flag set when advance() skips a DEDENT token */
 static int g_dedent_seen = 0;
 
+/** Global flag set when advance() skips a NEWLINE token (for postfix operator handling) */
+static bool g_newline_seen = false;
+
 /**
  * Advance to the next token, skipping layout tokens.
  * Use this for most parsing; use advance_raw when layout matters.
@@ -103,12 +106,18 @@ static void advance(Parser* parser) {
     // FERN_STYLE: allow(assertion-density) trivial state update with skip
     advance_raw(parser);
     
+    // Reset newline flag - we track newlines between significant tokens
+    g_newline_seen = false;
+    
     // Skip layout tokens for backward compatibility in most contexts
     // Don't use advance_raw here - we don't want to overwrite previous
-    // Track DEDENT tokens that we skip
+    // Track DEDENT and NEWLINE tokens that we skip
     while (is_layout_token(parser->current.type)) {
         if (parser->current.type == TOKEN_DEDENT) {
             g_dedent_seen++;
+        }
+        if (parser->current.type == TOKEN_NEWLINE) {
+            g_newline_seen = true;
         }
         parser->current = lexer_next(parser->lexer);
     }
@@ -317,8 +326,8 @@ static Expr* parse_indented_block_with_indent(Parser* parser, bool track_dedent)
         /* Check if a DEDENT was seen since we started this block */
         if (track_dedent && g_dedent_seen > starting_dedent_count) {
             /* Consume exactly ONE dedent for this block's termination.
-             * This prevents outer blocks from also seeing this dedent. */
-            g_dedent_seen = starting_dedent_count;
+             * Decrement by 1 so outer blocks can see their dedents too. */
+            g_dedent_seen--;
             break;
         }
         
@@ -347,7 +356,7 @@ static Expr* parse_indented_block_with_indent(Parser* parser, bool track_dedent)
                 final_expr = expr;
                 /* Consume the dedent if we're exiting due to it */
                 if (saw_dedent) {
-                    g_dedent_seen = starting_dedent_count;
+                    g_dedent_seen--;
                 }
                 break;
             }
@@ -715,7 +724,11 @@ static Expr* parse_call(Parser* parser) {
             expr = parse_postfix_index(parser, expr);
         } else if (match(parser, TOKEN_DOT)) {
             expr = parse_postfix_dot(parser, expr);
-        } else if (match(parser, TOKEN_LPAREN)) {
+        } else if (check(parser, TOKEN_LPAREN) && !g_newline_seen) {
+            /* Function call: only allow if no newline was crossed.
+             * This prevents (tuple) on next line from being parsed as call args.
+             * We use check() instead of match() so we can test g_newline_seen first. */
+            advance(parser);
             expr = parse_postfix_call(parser, expr);
         } else {
             break;
