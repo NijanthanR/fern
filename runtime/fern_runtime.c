@@ -872,15 +872,13 @@ FernList* fern_list_concat(FernList* a, FernList* b) {
 /**
  * Get first element of a list.
  * @param list The list.
- * @return Option: Some(first) if non-empty, None otherwise.
+ * @return The first element (panics if list is empty).
  */
 int64_t fern_list_head(FernList* list) {
     assert(list != NULL);
+    assert(list->len > 0 && "List.head called on empty list");
 
-    if (list->len == 0) {
-        return fern_option_none();
-    }
-    return fern_option_some(list->data[0]);
+    return list->data[0];
 }
 
 /**
@@ -1428,47 +1426,67 @@ int64_t fern_result_unwrap_or_else(int64_t result, int64_t (*fn)(int64_t)) {
 /* ========== Option Type ========== */
 
 /*
- * Option encoding (packed 64-bit):
- * - Bits 0-31: tag (0 = None, 1 = Some)
- * - Bits 32-63: value (only meaningful if Some)
+ * Option encoding: heap-allocated struct to support full 64-bit values.
+ * This allows Option to contain pointers (strings, lists, etc.).
+ *
+ * FernOption {
+ *   tag: int32_t (0 = None, 1 = Some)
+ *   value: int64_t (the some value, can be a pointer)
+ * }
+ *
+ * The Option is passed around as a pointer (int64_t).
+ * None is represented as NULL (0).
  */
+
+typedef struct {
+    int32_t tag;
+    int64_t value;
+} FernOption;
 
 #define OPTION_TAG_NONE 0
 #define OPTION_TAG_SOME 1
 
 /**
  * Create a Some option.
- * @param value The contained value.
- * @return Packed Option value.
+ * @param value The contained value (can be a pointer).
+ * @return Pointer to heap-allocated Option.
  */
 int64_t fern_option_some(int64_t value) {
-    return ((value & 0xFFFFFFFF) << 32) | OPTION_TAG_SOME;
+    FernOption* opt = FERN_ALLOC(sizeof(FernOption));
+    opt->tag = OPTION_TAG_SOME;
+    opt->value = value;
+    return (int64_t)(intptr_t)opt;
 }
 
 /**
  * Create a None option.
- * @return Packed Option value representing None.
+ * @return NULL (representing None).
  */
 int64_t fern_option_none(void) {
-    return OPTION_TAG_NONE;
+    /* None is represented as NULL for efficiency */
+    return 0;
 }
 
 /**
  * Check if an Option is Some.
- * @param option The packed Option value.
+ * @param option Pointer to Option (or NULL for None).
  * @return 1 if Some, 0 if None.
  */
 int64_t fern_option_is_some(int64_t option) {
-    return (option & 0xFFFFFFFF) == OPTION_TAG_SOME ? 1 : 0;
+    if (option == 0) return 0;  /* None */
+    FernOption* opt = (FernOption*)(intptr_t)option;
+    return opt->tag == OPTION_TAG_SOME ? 1 : 0;
 }
 
 /**
  * Unwrap the value from an Option.
- * @param option The packed Option value.
+ * @param option Pointer to Option.
  * @return The contained value (undefined if None).
  */
 int64_t fern_option_unwrap(int64_t option) {
-    return (int64_t)((int32_t)(option >> 32));
+    assert(option != 0);  /* Should not unwrap None */
+    FernOption* opt = (FernOption*)(intptr_t)option;
+    return opt->value;
 }
 
 /**
