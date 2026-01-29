@@ -10,7 +10,10 @@
 #include <string.h>
 #include <assert.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <dirent.h>
+#include <unistd.h>
+#include <regex.h>
 
 /* ========== I/O Functions ========== */
 
@@ -1036,6 +1039,173 @@ int main(int argc, char** argv) {
     return fern_main();
 }
 
+/**
+ * Execute a shell command and capture output.
+ * @param cmd The command to execute.
+ * @return FernExecResult with exit code, stdout, and stderr.
+ */
+FernExecResult* fern_exec(const char* cmd) {
+    assert(cmd != NULL);
+    
+    FernExecResult* result = malloc(sizeof(FernExecResult));
+    assert(result != NULL);
+    result->exit_code = -1;
+    result->stdout_str = NULL;
+    result->stderr_str = NULL;
+    
+    /* Create temp file for stderr */
+    char stderr_template[] = "/tmp/fern_stderr_XXXXXX";
+    int stderr_fd = mkstemp(stderr_template);
+    if (stderr_fd < 0) {
+        result->stdout_str = strdup("");
+        result->stderr_str = strdup("Failed to create temp file for stderr");
+        return result;
+    }
+    close(stderr_fd);
+    
+    /* Build command that redirects stderr to temp file */
+    size_t cmd_len = strlen(cmd) + strlen(stderr_template) + 32;
+    char* full_cmd = malloc(cmd_len);
+    assert(full_cmd != NULL);
+    snprintf(full_cmd, cmd_len, "{ %s; } 2>%s", cmd, stderr_template);
+    
+    /* Execute command and capture stdout */
+    FILE* pipe = popen(full_cmd, "r");
+    free(full_cmd);
+    
+    if (!pipe) {
+        result->stdout_str = strdup("");
+        result->stderr_str = strdup("Failed to execute command");
+        unlink(stderr_template);
+        return result;
+    }
+    
+    /* Read stdout */
+    size_t stdout_cap = 4096;
+    size_t stdout_len = 0;
+    char* stdout_buf = malloc(stdout_cap);
+    assert(stdout_buf != NULL);
+    
+    char buf[1024];
+    while (fgets(buf, sizeof(buf), pipe) != NULL) {
+        size_t buf_len = strlen(buf);
+        if (stdout_len + buf_len >= stdout_cap) {
+            stdout_cap *= 2;
+            stdout_buf = realloc(stdout_buf, stdout_cap);
+            assert(stdout_buf != NULL);
+        }
+        memcpy(stdout_buf + stdout_len, buf, buf_len);
+        stdout_len += buf_len;
+    }
+    stdout_buf[stdout_len] = '\0';
+    
+    int status = pclose(pipe);
+    result->exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    result->stdout_str = stdout_buf;
+    
+    /* Read stderr from temp file */
+    FILE* stderr_file = fopen(stderr_template, "r");
+    if (stderr_file) {
+        fseek(stderr_file, 0, SEEK_END);
+        long stderr_size = ftell(stderr_file);
+        fseek(stderr_file, 0, SEEK_SET);
+        
+        char* stderr_buf = malloc((size_t)stderr_size + 1);
+        assert(stderr_buf != NULL);
+        size_t read_size = fread(stderr_buf, 1, (size_t)stderr_size, stderr_file);
+        stderr_buf[read_size] = '\0';
+        fclose(stderr_file);
+        result->stderr_str = stderr_buf;
+    } else {
+        result->stderr_str = strdup("");
+    }
+    
+    unlink(stderr_template);
+    return result;
+}
+
+/**
+ * Execute a command with arguments (no shell).
+ * @param args FernStringList of command and arguments.
+ * @return FernExecResult with exit code, stdout, and stderr.
+ */
+FernExecResult* fern_exec_args(FernStringList* args) {
+    assert(args != NULL);
+    
+    /* For simplicity, join args and use shell execution */
+    /* A proper implementation would use fork/exec directly */
+    if (args->len == 0) {
+        FernExecResult* result = malloc(sizeof(FernExecResult));
+        assert(result != NULL);
+        result->exit_code = -1;
+        result->stdout_str = strdup("");
+        result->stderr_str = strdup("No command specified");
+        return result;
+    }
+    
+    /* Calculate total length needed */
+    size_t total_len = 0;
+    for (int64_t i = 0; i < args->len; i++) {
+        total_len += strlen(args->data[i]) + 3; /* quotes + space */
+    }
+    
+    /* Build quoted command string */
+    char* cmd = malloc(total_len + 1);
+    assert(cmd != NULL);
+    char* p = cmd;
+    for (int64_t i = 0; i < args->len; i++) {
+        if (i > 0) *p++ = ' ';
+        /* Simple quoting - wrap in single quotes */
+        *p++ = '\'';
+        const char* arg = args->data[i];
+        while (*arg) {
+            if (*arg == '\'') {
+                /* Escape single quote: ' -> '\'' */
+                memcpy(p, "'\\''", 4);
+                p += 4;
+            } else {
+                *p++ = *arg;
+            }
+            arg++;
+        }
+        *p++ = '\'';
+    }
+    *p = '\0';
+    
+    FernExecResult* result = fern_exec(cmd);
+    free(cmd);
+    return result;
+}
+
+/**
+ * Get environment variable.
+ * @param name The variable name.
+ * @return The value, or empty string if not set.
+ */
+char* fern_getenv(const char* name) {
+    assert(name != NULL);
+    const char* value = getenv(name);
+    if (value == NULL) {
+        char* empty = malloc(1);
+        assert(empty != NULL);
+        empty[0] = '\0';
+        return empty;
+    }
+    return strdup(value);
+}
+
+/**
+ * Set environment variable.
+ * @param name The variable name.
+ * @param value The value to set.
+ * @return 0 on success, non-zero on failure.
+ */
+int64_t fern_setenv(const char* name, const char* value) {
+    assert(name != NULL);
+    assert(value != NULL);
+    return setenv(name, value, 1);
+}
+
 /* ========== Memory Functions ========== */
 
 /**
@@ -1458,4 +1628,392 @@ FernStringList* fern_list_dir(const char* path) {
     
     closedir(dir);
     return list;
+}
+
+/* ========== Regex Functions ========== */
+
+/**
+ * Check if string matches regex pattern.
+ * @param s The string to match.
+ * @param pattern The regex pattern.
+ * @return 1 if matches, 0 otherwise.
+ */
+int64_t fern_regex_is_match(const char* s, const char* pattern) {
+    assert(s != NULL);
+    assert(pattern != NULL);
+    
+    regex_t regex;
+    int ret = regcomp(&regex, pattern, REG_EXTENDED | REG_NOSUB);
+    if (ret != 0) {
+        return 0; /* Invalid pattern */
+    }
+    
+    ret = regexec(&regex, s, 0, NULL, 0);
+    regfree(&regex);
+    
+    return (ret == 0) ? 1 : 0;
+}
+
+/**
+ * Find first match of regex in string.
+ * @param s The string to search.
+ * @param pattern The regex pattern.
+ * @return FernRegexMatch with match info (start=-1 if no match).
+ */
+FernRegexMatch* fern_regex_find(const char* s, const char* pattern) {
+    assert(s != NULL);
+    assert(pattern != NULL);
+    
+    FernRegexMatch* result = malloc(sizeof(FernRegexMatch));
+    assert(result != NULL);
+    result->start = -1;
+    result->end = -1;
+    result->matched = NULL;
+    
+    regex_t regex;
+    int ret = regcomp(&regex, pattern, REG_EXTENDED);
+    if (ret != 0) {
+        return result; /* Invalid pattern */
+    }
+    
+    regmatch_t match;
+    ret = regexec(&regex, s, 1, &match, 0);
+    regfree(&regex);
+    
+    if (ret == 0) {
+        result->start = match.rm_so;
+        result->end = match.rm_eo;
+        size_t len = (size_t)(match.rm_eo - match.rm_so);
+        result->matched = malloc(len + 1);
+        assert(result->matched != NULL);
+        memcpy(result->matched, s + match.rm_so, len);
+        result->matched[len] = '\0';
+    }
+    
+    return result;
+}
+
+/**
+ * Find all matches of regex in string.
+ * @param s The string to search.
+ * @param pattern The regex pattern.
+ * @return FernStringList of all matched substrings.
+ */
+FernStringList* fern_regex_find_all(const char* s, const char* pattern) {
+    assert(s != NULL);
+    assert(pattern != NULL);
+    
+    FernStringList* list = malloc(sizeof(FernStringList));
+    assert(list != NULL);
+    list->cap = 8;
+    list->len = 0;
+    list->data = malloc((size_t)list->cap * sizeof(char*));
+    assert(list->data != NULL);
+    
+    regex_t regex;
+    int ret = regcomp(&regex, pattern, REG_EXTENDED);
+    if (ret != 0) {
+        return list; /* Invalid pattern, return empty list */
+    }
+    
+    const char* p = s;
+    regmatch_t match;
+    
+    while (regexec(&regex, p, 1, &match, 0) == 0) {
+        /* Grow if needed */
+        if (list->len >= list->cap) {
+            list->cap *= 2;
+            list->data = realloc(list->data, (size_t)list->cap * sizeof(char*));
+            assert(list->data != NULL);
+        }
+        
+        /* Copy matched substring */
+        size_t len = (size_t)(match.rm_eo - match.rm_so);
+        char* matched = malloc(len + 1);
+        assert(matched != NULL);
+        memcpy(matched, p + match.rm_so, len);
+        matched[len] = '\0';
+        list->data[list->len++] = matched;
+        
+        /* Move past this match */
+        p += match.rm_eo;
+        if (*p == '\0') break;
+        
+        /* Avoid infinite loop on zero-length matches */
+        if (match.rm_eo == match.rm_so) {
+            p++;
+            if (*p == '\0') break;
+        }
+    }
+    
+    regfree(&regex);
+    return list;
+}
+
+/**
+ * Replace first match of regex with replacement.
+ * @param s The string to modify.
+ * @param pattern The regex pattern.
+ * @param replacement The replacement string.
+ * @return New string with replacement applied.
+ */
+char* fern_regex_replace(const char* s, const char* pattern, const char* replacement) {
+    assert(s != NULL);
+    assert(pattern != NULL);
+    assert(replacement != NULL);
+    
+    regex_t regex;
+    int ret = regcomp(&regex, pattern, REG_EXTENDED);
+    if (ret != 0) {
+        /* Invalid pattern, return copy of original */
+        return strdup(s);
+    }
+    
+    regmatch_t match;
+    ret = regexec(&regex, s, 1, &match, 0);
+    regfree(&regex);
+    
+    if (ret != 0) {
+        /* No match, return copy of original */
+        return strdup(s);
+    }
+    
+    /* Build result: prefix + replacement + suffix */
+    size_t prefix_len = (size_t)match.rm_so;
+    size_t repl_len = strlen(replacement);
+    size_t suffix_len = strlen(s + match.rm_eo);
+    size_t total_len = prefix_len + repl_len + suffix_len;
+    
+    char* result = malloc(total_len + 1);
+    assert(result != NULL);
+    
+    memcpy(result, s, prefix_len);
+    memcpy(result + prefix_len, replacement, repl_len);
+    memcpy(result + prefix_len + repl_len, s + match.rm_eo, suffix_len + 1);
+    
+    return result;
+}
+
+/**
+ * Replace all matches of regex with replacement.
+ * @param s The string to modify.
+ * @param pattern The regex pattern.
+ * @param replacement The replacement string.
+ * @return New string with all replacements applied.
+ */
+char* fern_regex_replace_all(const char* s, const char* pattern, const char* replacement) {
+    assert(s != NULL);
+    assert(pattern != NULL);
+    assert(replacement != NULL);
+    
+    regex_t regex;
+    int ret = regcomp(&regex, pattern, REG_EXTENDED);
+    if (ret != 0) {
+        return strdup(s);
+    }
+    
+    /* Build result incrementally */
+    size_t result_cap = strlen(s) * 2 + 1;
+    size_t result_len = 0;
+    char* result = malloc(result_cap);
+    assert(result != NULL);
+    
+    const char* p = s;
+    regmatch_t match;
+    size_t repl_len = strlen(replacement);
+    
+    while (regexec(&regex, p, 1, &match, 0) == 0) {
+        /* Append prefix (before match) */
+        size_t prefix_len = (size_t)match.rm_so;
+        if (result_len + prefix_len + repl_len >= result_cap) {
+            result_cap = (result_len + prefix_len + repl_len) * 2;
+            result = realloc(result, result_cap);
+            assert(result != NULL);
+        }
+        memcpy(result + result_len, p, prefix_len);
+        result_len += prefix_len;
+        
+        /* Append replacement */
+        memcpy(result + result_len, replacement, repl_len);
+        result_len += repl_len;
+        
+        /* Move past this match */
+        p += match.rm_eo;
+        
+        /* Avoid infinite loop on zero-length matches */
+        if (match.rm_eo == match.rm_so) {
+            if (*p == '\0') break;
+            /* Copy one char and move on */
+            if (result_len + 1 >= result_cap) {
+                result_cap *= 2;
+                result = realloc(result, result_cap);
+                assert(result != NULL);
+            }
+            result[result_len++] = *p++;
+        }
+    }
+    
+    /* Append remaining suffix */
+    size_t suffix_len = strlen(p);
+    if (result_len + suffix_len >= result_cap) {
+        result_cap = result_len + suffix_len + 1;
+        result = realloc(result, result_cap);
+        assert(result != NULL);
+    }
+    memcpy(result + result_len, p, suffix_len + 1);
+    
+    regfree(&regex);
+    return result;
+}
+
+/**
+ * Split string by regex pattern.
+ * @param s The string to split.
+ * @param pattern The regex pattern to split on.
+ * @return FernStringList of parts.
+ */
+FernStringList* fern_regex_split(const char* s, const char* pattern) {
+    assert(s != NULL);
+    assert(pattern != NULL);
+    
+    FernStringList* list = malloc(sizeof(FernStringList));
+    assert(list != NULL);
+    list->cap = 8;
+    list->len = 0;
+    list->data = malloc((size_t)list->cap * sizeof(char*));
+    assert(list->data != NULL);
+    
+    regex_t regex;
+    int ret = regcomp(&regex, pattern, REG_EXTENDED);
+    if (ret != 0) {
+        /* Invalid pattern, return original as single element */
+        list->data[0] = strdup(s);
+        list->len = 1;
+        return list;
+    }
+    
+    const char* p = s;
+    regmatch_t match;
+    
+    while (regexec(&regex, p, 1, &match, 0) == 0) {
+        /* Grow if needed */
+        if (list->len >= list->cap) {
+            list->cap *= 2;
+            list->data = realloc(list->data, (size_t)list->cap * sizeof(char*));
+            assert(list->data != NULL);
+        }
+        
+        /* Copy part before match */
+        size_t len = (size_t)match.rm_so;
+        char* part = malloc(len + 1);
+        assert(part != NULL);
+        memcpy(part, p, len);
+        part[len] = '\0';
+        list->data[list->len++] = part;
+        
+        /* Move past this match */
+        p += match.rm_eo;
+        
+        /* Avoid infinite loop on zero-length matches */
+        if (match.rm_eo == match.rm_so) {
+            if (*p == '\0') break;
+            p++;
+        }
+    }
+    
+    /* Add remaining part */
+    if (list->len >= list->cap) {
+        list->cap *= 2;
+        list->data = realloc(list->data, (size_t)list->cap * sizeof(char*));
+        assert(list->data != NULL);
+    }
+    list->data[list->len++] = strdup(p);
+    
+    regfree(&regex);
+    return list;
+}
+
+/**
+ * Find match with capture groups.
+ * @param s The string to search.
+ * @param pattern The regex pattern with groups.
+ * @return FernRegexCaptures with all capture groups.
+ */
+FernRegexCaptures* fern_regex_captures(const char* s, const char* pattern) {
+    assert(s != NULL);
+    assert(pattern != NULL);
+    
+    FernRegexCaptures* result = malloc(sizeof(FernRegexCaptures));
+    assert(result != NULL);
+    result->count = 0;
+    result->captures = NULL;
+    
+    regex_t regex;
+    int ret = regcomp(&regex, pattern, REG_EXTENDED);
+    if (ret != 0) {
+        return result;
+    }
+    
+    /* POSIX regex supports up to 9 subexpressions + full match */
+    size_t max_groups = 10;
+    regmatch_t* matches = malloc(max_groups * sizeof(regmatch_t));
+    assert(matches != NULL);
+    
+    ret = regexec(&regex, s, max_groups, matches, 0);
+    if (ret != 0) {
+        regfree(&regex);
+        free(matches);
+        return result;
+    }
+    
+    /* Count valid matches */
+    size_t count = 0;
+    for (size_t i = 0; i < max_groups; i++) {
+        if (matches[i].rm_so == -1) break;
+        count++;
+    }
+    
+    result->count = (int64_t)count;
+    result->captures = malloc(count * sizeof(FernRegexMatch));
+    assert(result->captures != NULL);
+    
+    for (size_t i = 0; i < count; i++) {
+        result->captures[i].start = matches[i].rm_so;
+        result->captures[i].end = matches[i].rm_eo;
+        
+        size_t len = (size_t)(matches[i].rm_eo - matches[i].rm_so);
+        result->captures[i].matched = malloc(len + 1);
+        assert(result->captures[i].matched != NULL);
+        memcpy(result->captures[i].matched, s + matches[i].rm_so, len);
+        result->captures[i].matched[len] = '\0';
+    }
+    
+    regfree(&regex);
+    free(matches);
+    return result;
+}
+
+/**
+ * Free a regex match result.
+ * @param match The match to free.
+ */
+void fern_regex_match_free(FernRegexMatch* match) {
+    if (match) {
+        free(match->matched);
+        free(match);
+    }
+}
+
+/**
+ * Free regex captures.
+ * @param captures The captures to free.
+ */
+void fern_regex_captures_free(FernRegexCaptures* captures) {
+    if (captures) {
+        for (int64_t i = 0; i < captures->count; i++) {
+            free(captures->captures[i].matched);
+        }
+        free(captures->captures);
+        free(captures);
+    }
 }

@@ -144,6 +144,7 @@ static bool is_builtin_module(const char* name) {
            strcmp(name, "List") == 0 ||
            strcmp(name, "File") == 0 ||
            strcmp(name, "System") == 0 ||
+           strcmp(name, "Regex") == 0 ||
            strcmp(name, "Result") == 0 ||
            strcmp(name, "Option") == 0;
 }
@@ -494,6 +495,105 @@ static Type* lookup_module_function(Checker* checker, const char* module, const 
             params = TypeVec_new(arena);
             TypeVec_push(arena, params, type_int(arena));
             return type_fn(arena, params, type_unit(arena));
+        }
+        /* System.exec(String) -> (Int, String, String) - exit code, stdout, stderr */
+        if (strcmp(func, "exec") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            TypeVec* tuple_elems = TypeVec_new(arena);
+            TypeVec_push(arena, tuple_elems, type_int(arena));
+            TypeVec_push(arena, tuple_elems, type_string(arena));
+            TypeVec_push(arena, tuple_elems, type_string(arena));
+            return type_fn(arena, params, type_tuple(arena, tuple_elems));
+        }
+        /* System.exec_args(List(String)) -> (Int, String, String) */
+        if (strcmp(func, "exec_args") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_list(arena, type_string(arena)));
+            TypeVec* tuple_elems = TypeVec_new(arena);
+            TypeVec_push(arena, tuple_elems, type_int(arena));
+            TypeVec_push(arena, tuple_elems, type_string(arena));
+            TypeVec_push(arena, tuple_elems, type_string(arena));
+            return type_fn(arena, params, type_tuple(arena, tuple_elems));
+        }
+        /* System.getenv(String) -> String */
+        if (strcmp(func, "getenv") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, type_string(arena));
+        }
+        /* System.setenv(String, String) -> Int */
+        if (strcmp(func, "setenv") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, type_int(arena));
+        }
+    }
+
+    /* ===== Regex module ===== */
+    if (strcmp(module, "Regex") == 0) {
+        /* Regex.is_match(String, String) -> Bool */
+        if (strcmp(func, "is_match") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, type_bool(arena));
+        }
+        /* Regex.find(String, String) -> Option((Int, Int, String)) */
+        if (strcmp(func, "find") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            TypeVec_push(arena, params, type_string(arena));
+            /* Return match as (start, end, matched_text) tuple wrapped in Option */
+            TypeVec* match_elems = TypeVec_new(arena);
+            TypeVec_push(arena, match_elems, type_int(arena));
+            TypeVec_push(arena, match_elems, type_int(arena));
+            TypeVec_push(arena, match_elems, type_string(arena));
+            TypeVec* option_args = TypeVec_new(arena);
+            TypeVec_push(arena, option_args, type_tuple(arena, match_elems));
+            return type_fn(arena, params, type_con(arena, string_new(arena, "Option"), option_args));
+        }
+        /* Regex.find_all(String, String) -> List(String) */
+        if (strcmp(func, "find_all") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, type_list(arena, type_string(arena)));
+        }
+        /* Regex.replace(String, String, String) -> String */
+        if (strcmp(func, "replace") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            TypeVec_push(arena, params, type_string(arena));
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, type_string(arena));
+        }
+        /* Regex.replace_all(String, String, String) -> String */
+        if (strcmp(func, "replace_all") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            TypeVec_push(arena, params, type_string(arena));
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, type_string(arena));
+        }
+        /* Regex.split(String, String) -> List(String) */
+        if (strcmp(func, "split") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, type_list(arena, type_string(arena)));
+        }
+        /* Regex.captures(String, String) -> List((Int, Int, String)) */
+        if (strcmp(func, "captures") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            TypeVec_push(arena, params, type_string(arena));
+            TypeVec* match_elems = TypeVec_new(arena);
+            TypeVec_push(arena, match_elems, type_int(arena));
+            TypeVec_push(arena, match_elems, type_int(arena));
+            TypeVec_push(arena, match_elems, type_string(arena));
+            return type_fn(arena, params, type_list(arena, type_tuple(arena, match_elems)));
         }
     }
 

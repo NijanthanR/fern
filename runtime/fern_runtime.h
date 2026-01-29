@@ -539,6 +539,44 @@ FernStringList* fern_args(void);
  */
 void fern_exit(int64_t code);
 
+/**
+ * Result of executing a command.
+ */
+typedef struct FernExecResult {
+    int64_t exit_code;   /* Process exit code */
+    char* stdout_str;    /* Captured stdout */
+    char* stderr_str;    /* Captured stderr */
+} FernExecResult;
+
+/**
+ * Execute a shell command and capture output.
+ * @param cmd The command to execute.
+ * @return FernExecResult with exit code, stdout, and stderr.
+ */
+FernExecResult* fern_exec(const char* cmd);
+
+/**
+ * Execute a command with arguments (no shell).
+ * @param args FernStringList of command and arguments.
+ * @return FernExecResult with exit code, stdout, and stderr.
+ */
+FernExecResult* fern_exec_args(FernStringList* args);
+
+/**
+ * Get environment variable.
+ * @param name The variable name.
+ * @return The value, or empty string if not set.
+ */
+char* fern_getenv(const char* name);
+
+/**
+ * Set environment variable.
+ * @param name The variable name.
+ * @param value The value to set.
+ * @return 0 on success, non-zero on failure.
+ */
+int64_t fern_setenv(const char* name, const char* value);
+
 /* ========== Memory Functions ========== */
 
 /**
@@ -629,5 +667,94 @@ FernStringList* fern_list_dir(const char* path);
 #define FERN_ERR_IO              3
 #define FERN_ERR_OUT_OF_MEMORY   4
 #define FERN_ERR_NOT_A_DIR       5
+
+/* ========== Regex Functions ========== */
+
+/**
+ * Regex match result.
+ */
+typedef struct FernRegexMatch {
+    int64_t start;       /* Start index of match (-1 if no match) */
+    int64_t end;         /* End index of match (exclusive) */
+    char* matched;       /* The matched substring (NULL if no match) */
+} FernRegexMatch;
+
+/**
+ * Regex match with capture groups.
+ */
+typedef struct FernRegexCaptures {
+    int64_t count;              /* Number of captures (0 = full match) */
+    FernRegexMatch* captures;   /* Array of captures */
+} FernRegexCaptures;
+
+/**
+ * Check if string matches regex pattern.
+ * @param s The string to match.
+ * @param pattern The regex pattern.
+ * @return 1 if matches, 0 otherwise.
+ */
+int64_t fern_regex_is_match(const char* s, const char* pattern);
+
+/**
+ * Find first match of regex in string.
+ * @param s The string to search.
+ * @param pattern The regex pattern.
+ * @return FernRegexMatch with match info (start=-1 if no match).
+ */
+FernRegexMatch* fern_regex_find(const char* s, const char* pattern);
+
+/**
+ * Find all matches of regex in string.
+ * @param s The string to search.
+ * @param pattern The regex pattern.
+ * @return FernStringList of all matched substrings.
+ */
+FernStringList* fern_regex_find_all(const char* s, const char* pattern);
+
+/**
+ * Replace first match of regex with replacement.
+ * @param s The string to modify.
+ * @param pattern The regex pattern.
+ * @param replacement The replacement string.
+ * @return New string with replacement applied.
+ */
+char* fern_regex_replace(const char* s, const char* pattern, const char* replacement);
+
+/**
+ * Replace all matches of regex with replacement.
+ * @param s The string to modify.
+ * @param pattern The regex pattern.
+ * @param replacement The replacement string.
+ * @return New string with all replacements applied.
+ */
+char* fern_regex_replace_all(const char* s, const char* pattern, const char* replacement);
+
+/**
+ * Split string by regex pattern.
+ * @param s The string to split.
+ * @param pattern The regex pattern to split on.
+ * @return FernStringList of parts.
+ */
+FernStringList* fern_regex_split(const char* s, const char* pattern);
+
+/**
+ * Find match with capture groups.
+ * @param s The string to search.
+ * @param pattern The regex pattern with groups.
+ * @return FernRegexCaptures with all capture groups.
+ */
+FernRegexCaptures* fern_regex_captures(const char* s, const char* pattern);
+
+/**
+ * Free a regex match result.
+ * @param match The match to free.
+ */
+void fern_regex_match_free(FernRegexMatch* match);
+
+/**
+ * Free regex captures.
+ * @param captures The captures to free.
+ */
+void fern_regex_captures_free(FernRegexCaptures* captures);
 
 #endif /* FERN_RUNTIME_H */

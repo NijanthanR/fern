@@ -174,6 +174,7 @@ typedef enum {
  * @return The print type (PRINT_INT, PRINT_STRING, or PRINT_BOOL).
  */
 static PrintType get_print_type(Codegen* cg, Expr* expr) {
+    // FERN_STYLE: allow(function-length) type dispatch for all expression print types
     assert(cg != NULL);
     assert(cg->arena != NULL);
     if (expr == NULL) return PRINT_INT;
@@ -196,6 +197,21 @@ static PrintType get_print_type(Codegen* cg, Expr* expr) {
                 return PRINT_STRING;
             }
             return PRINT_INT;
+        
+        case EXPR_DOT: {
+            /* Field access - check if it's a string field (e.g., exec result.1, result.2) */
+            DotExpr* dot = &expr->data.dot;
+            const char* field = string_cstr(dot->field);
+            /* For exec results: field 0 is int, fields 1,2 are strings */
+            if (field[0] >= '0' && field[0] <= '9') {
+                int idx = atoi(field);
+                if (idx >= 1) {
+                    /* Fields 1+ are strings (stdout, stderr) */
+                    return PRINT_STRING;
+                }
+            }
+            return PRINT_INT;
+        }
         
         case EXPR_CALL: {
             CallExpr* call = &expr->data.call;
@@ -309,7 +325,21 @@ static char qbe_type_for_expr(Expr* expr) {
                     /* System module functions returning pointers */
                     if (strcmp(module, "System") == 0) {
                         if (strcmp(func, "args") == 0 ||
-                            strcmp(func, "arg") == 0) {
+                            strcmp(func, "arg") == 0 ||
+                            strcmp(func, "exec") == 0 ||
+                            strcmp(func, "exec_args") == 0 ||
+                            strcmp(func, "getenv") == 0) {
+                            return 'l';
+                        }
+                    }
+                    /* Regex module functions returning pointers */
+                    if (strcmp(module, "Regex") == 0) {
+                        if (strcmp(func, "find") == 0 ||
+                            strcmp(func, "find_all") == 0 ||
+                            strcmp(func, "replace") == 0 ||
+                            strcmp(func, "replace_all") == 0 ||
+                            strcmp(func, "split") == 0 ||
+                            strcmp(func, "captures") == 0) {
                             return 'l';
                         }
                     }
@@ -1045,6 +1075,97 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                             emit(cg, "    %s =w copy 0\n", string_cstr(result));
                             return result;
                         }
+                        /* System.exec(cmd) -> (Int, String, String) */
+                        if (strcmp(func, "exec") == 0 && call->args->len == 1) {
+                            String* cmd = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    %s =l call $fern_exec(l %s)\n",
+                                string_cstr(result), string_cstr(cmd));
+                            return result;
+                        }
+                        /* System.exec_args(args) -> (Int, String, String) */
+                        if (strcmp(func, "exec_args") == 0 && call->args->len == 1) {
+                            String* args = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    %s =l call $fern_exec_args(l %s)\n",
+                                string_cstr(result), string_cstr(args));
+                            return result;
+                        }
+                        /* System.getenv(name) -> String */
+                        if (strcmp(func, "getenv") == 0 && call->args->len == 1) {
+                            String* name = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    %s =l call $fern_getenv(l %s)\n",
+                                string_cstr(result), string_cstr(name));
+                            return result;
+                        }
+                        /* System.setenv(name, value) -> Int */
+                        if (strcmp(func, "setenv") == 0 && call->args->len == 2) {
+                            String* name = codegen_expr(cg, call->args->data[0].value);
+                            String* value = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =w call $fern_setenv(l %s, l %s)\n",
+                                string_cstr(result), string_cstr(name), string_cstr(value));
+                            return result;
+                        }
+                    }
+
+                    /* ===== Regex module ===== */
+                    if (strcmp(module, "Regex") == 0) {
+                        /* Regex.is_match(s, pattern) -> Bool */
+                        if (strcmp(func, "is_match") == 0 && call->args->len == 2) {
+                            String* s = codegen_expr(cg, call->args->data[0].value);
+                            String* pattern = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =w call $fern_regex_is_match(l %s, l %s)\n",
+                                string_cstr(result), string_cstr(s), string_cstr(pattern));
+                            return result;
+                        }
+                        /* Regex.find(s, pattern) -> RegexMatch* */
+                        if (strcmp(func, "find") == 0 && call->args->len == 2) {
+                            String* s = codegen_expr(cg, call->args->data[0].value);
+                            String* pattern = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_regex_find(l %s, l %s)\n",
+                                string_cstr(result), string_cstr(s), string_cstr(pattern));
+                            return result;
+                        }
+                        /* Regex.find_all(s, pattern) -> List(String) */
+                        if (strcmp(func, "find_all") == 0 && call->args->len == 2) {
+                            String* s = codegen_expr(cg, call->args->data[0].value);
+                            String* pattern = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_regex_find_all(l %s, l %s)\n",
+                                string_cstr(result), string_cstr(s), string_cstr(pattern));
+                            return result;
+                        }
+                        /* Regex.replace(s, pattern, repl) -> String */
+                        if (strcmp(func, "replace") == 0 && call->args->len == 3) {
+                            String* s = codegen_expr(cg, call->args->data[0].value);
+                            String* pattern = codegen_expr(cg, call->args->data[1].value);
+                            String* repl = codegen_expr(cg, call->args->data[2].value);
+                            emit(cg, "    %s =l call $fern_regex_replace(l %s, l %s, l %s)\n",
+                                string_cstr(result), string_cstr(s), string_cstr(pattern), string_cstr(repl));
+                            return result;
+                        }
+                        /* Regex.replace_all(s, pattern, repl) -> String */
+                        if (strcmp(func, "replace_all") == 0 && call->args->len == 3) {
+                            String* s = codegen_expr(cg, call->args->data[0].value);
+                            String* pattern = codegen_expr(cg, call->args->data[1].value);
+                            String* repl = codegen_expr(cg, call->args->data[2].value);
+                            emit(cg, "    %s =l call $fern_regex_replace_all(l %s, l %s, l %s)\n",
+                                string_cstr(result), string_cstr(s), string_cstr(pattern), string_cstr(repl));
+                            return result;
+                        }
+                        /* Regex.split(s, pattern) -> List(String) */
+                        if (strcmp(func, "split") == 0 && call->args->len == 2) {
+                            String* s = codegen_expr(cg, call->args->data[0].value);
+                            String* pattern = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_regex_split(l %s, l %s)\n",
+                                string_cstr(result), string_cstr(s), string_cstr(pattern));
+                            return result;
+                        }
+                        /* Regex.captures(s, pattern) -> captures* */
+                        if (strcmp(func, "captures") == 0 && call->args->len == 2) {
+                            String* s = codegen_expr(cg, call->args->data[0].value);
+                            String* pattern = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_regex_captures(l %s, l %s)\n",
+                                string_cstr(result), string_cstr(s), string_cstr(pattern));
+                            return result;
+                        }
                     }
                 }
             }
@@ -1664,6 +1785,43 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
             }
             
             emit(cg, "%s\n", string_cstr(end_label));
+            return result;
+        }
+        
+        case EXPR_DOT: {
+            /* Field access: expr.field
+             * For tuple-like structs (exec result), access numbered fields
+             * Field "0" is at offset 0, "1" at offset 8, "2" at offset 16 (64-bit aligned)
+             */
+            DotExpr* dot = &expr->data.dot;
+            String* obj = codegen_expr(cg, dot->object);
+            String* result = fresh_temp(cg);
+            const char* field = string_cstr(dot->field);
+            
+            /* Check if field is a numeric index (tuple-style access) */
+            if (field[0] >= '0' && field[0] <= '9') {
+                int idx = atoi(field);
+                int offset = idx * 8;  /* 64-bit aligned fields */
+                
+                /* Load pointer at offset from struct */
+                String* addr = fresh_temp(cg);
+                emit(cg, "    %s =l add %s, %d\n", string_cstr(addr), string_cstr(obj), offset);
+                
+                /* For exec results: field 0 is int64, fields 1,2 are pointers */
+                if (idx == 0) {
+                    /* Load as word (though stored as 64-bit, we use as int) */
+                    emit(cg, "    %s =w loadw %s\n", string_cstr(result), string_cstr(addr));
+                } else {
+                    /* Load as pointer */
+                    emit(cg, "    %s =l loadl %s\n", string_cstr(result), string_cstr(addr));
+                    register_wide_var(cg, result);
+                }
+            } else {
+                /* Named field access - not yet implemented for user types */
+                emit(cg, "    # TODO: named field access .%s\n", field);
+                emit(cg, "    %s =w copy 0\n", string_cstr(result));
+            }
+            
             return result;
         }
             
