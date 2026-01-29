@@ -92,7 +92,23 @@ else
     echo "   Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"
 fi
 
-# 6. Check for common mistakes
+# 6. Regenerate editor support if token.h changed
+TOKEN_CHANGED=$(echo "$CODE_FILES" | grep "include/token.h" || true)
+if [ -n "$TOKEN_CHANGED" ]; then
+    echo -e "\n🎨 Regenerating editor support (token.h changed)..."
+    make editor-support > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        # Stage the generated files
+        git add editor/tree-sitter-fern/grammar.js 2>/dev/null || true
+        git add editor/zed-fern/languages/fern/highlights.scm 2>/dev/null || true
+        print_status 0 "Editor support regenerated and staged"
+        echo "   Note: Run 'make editor-support-compile' to compile WASM (requires tree-sitter CLI)"
+    else
+        echo -e "${YELLOW}⚠${NC}  Warning: Failed to regenerate editor support"
+    fi
+fi
+
+# 7. Check for common mistakes
 echo -e "\n🔎 Checking for common mistakes..."
 
 # Check for malloc/free (should use arena)
@@ -112,7 +128,7 @@ if echo "$CODE_FILES" | xargs grep -n "enum.*kind\|\.kind\s*=" 2>/dev/null | gre
     echo -e "${YELLOW}⚠${NC}  Warning: Found manual tagged union - consider using Result macros"
 fi
 
-# 7. Verify ROADMAP.md and DECISIONS.md updates
+# 8. Verify ROADMAP.md and DECISIONS.md updates
 COMMIT_MSG_FILE=".git/COMMIT_EDITMSG"
 if [ -f "$COMMIT_MSG_FILE" ]; then
     COMMIT_MSG=$(cat "$COMMIT_MSG_FILE" 2>/dev/null || echo "")
@@ -136,7 +152,7 @@ if [ -f "$COMMIT_MSG_FILE" ]; then
     fi
 fi
 
-# 8. Summary
+# 9. Summary
 echo -e "\n${GREEN}✓ All pre-commit checks passed!${NC}"
 echo ""
 echo "Summary:"

@@ -223,6 +223,32 @@ test-examples: debug
 		echo "✓ All examples type check!"; \
 	fi
 
+# Generate editor support files (syntax highlighting, grammar, etc.)
+# Run this after changing language keywords/tokens in include/token.h
+.PHONY: editor-support
+editor-support:
+	@echo "Generating editor support files..."
+	@python3 scripts/generate_editor_support.py
+	@echo "✓ Editor support files regenerated"
+	@echo ""
+	@echo "To compile Tree-sitter grammar to WASM:"
+	@echo "  make editor-support-compile"
+
+# Compile Tree-sitter grammar to WASM
+# Requires: npm install -g tree-sitter-cli
+.PHONY: editor-support-compile
+editor-support-compile: editor-support
+	@echo "Compiling Tree-sitter grammar to WASM..."
+	@if ! command -v tree-sitter >/dev/null 2>&1; then \
+		echo "Error: tree-sitter CLI not found"; \
+		echo "Install with: npm install -g tree-sitter-cli"; \
+		exit 1; \
+	fi
+	@cd editor/tree-sitter-fern && tree-sitter generate
+	@cd editor/tree-sitter-fern && tree-sitter build --wasm
+	@cp editor/tree-sitter-fern/tree-sitter-fern.wasm editor/zed-fern/languages/fern/fern.wasm
+	@echo "✓ Tree-sitter grammar compiled and installed to Zed extension"
+
 # Help
 .PHONY: help
 help:
@@ -244,5 +270,9 @@ help:
 	@echo "  make style        - FERN_STYLE only (strict)"
 	@echo "  make style-lenient - FERN_STYLE only (warnings allowed)"
 	@echo "  make pre-commit   - Pre-commit hook check"
+	@echo ""
+	@echo "Editor Support:"
+	@echo "  make editor-support         - Regenerate grammar/highlighting from token.h"
+	@echo "  make editor-support-compile - Compile Tree-sitter grammar to WASM"
 	@echo ""
 	@echo "  make help         - Show this help message"
