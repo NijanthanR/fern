@@ -1,0 +1,11 @@
+id = "fern"
+name = "Fern"
+version = "0.1.0"
+schema_version = 1
+authors = ["Niklas Heer <niklas.heer@gmail.com>"]
+description = "Fern programming language support for Zed"
+repository = "https://github.com/niklas-heer/fern"
+
+[language_servers.fern-lsp]
+name = "Fern LSP"
+languages = ["Fern"]

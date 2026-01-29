@@ -1,0 +1,8 @@
+name = "Fern"
+path_suffixes = ["fn"]
+line_comments = ["# "]
+block_comment = ["/*", "*/"]
+
+[grammar]
+name = "fern"
+path = "fern.wasm"
