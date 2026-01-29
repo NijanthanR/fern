@@ -122,15 +122,52 @@ memcheck: debug
 fmt:
 	clang-format -i $(SRC_DIR)/*.c $(INCLUDE_DIR)/*.h $(TEST_DIR)/*.c
 
-# Check FERN_STYLE compliance
-.PHONY: style
-style:
+# Full quality check (build + test + style, strict mode)
+.PHONY: check
+check:
 	@uv run scripts/check_style.py $(SRC_DIR) $(LIB_DIR)
 
-# Check FERN_STYLE with strict mode (warnings are errors)
-.PHONY: style-strict
-style-strict:
-	@uv run scripts/check_style.py --strict $(SRC_DIR) $(LIB_DIR)
+# Style check only (no build/test)
+.PHONY: style
+style:
+	@uv run scripts/check_style.py --style-only $(SRC_DIR) $(LIB_DIR)
+
+# Lenient style check (warnings allowed)
+.PHONY: style-lenient
+style-lenient:
+	@uv run scripts/check_style.py --style-only --lenient $(SRC_DIR) $(LIB_DIR)
+
+# Pre-commit hook check
+.PHONY: pre-commit
+pre-commit:
+	@uv run scripts/check_style.py --pre-commit $(SRC_DIR) $(LIB_DIR)
+
+# Test examples - type check all .fn files in examples/
+# Note: We only check compilation, not execution, since some examples
+# return non-zero exit codes intentionally (e.g., hello.fn returns 42)
+.PHONY: test-examples
+test-examples: debug
+	@echo "Testing examples..."
+	@failed=0; \
+	for f in examples/*.fn; do \
+		name=$$(basename "$$f"); \
+		printf "  %-30s" "$$name"; \
+		if $(FERN_BIN) check "$$f" > /dev/null 2>&1; then \
+			echo "✓ PASS"; \
+		else \
+			echo "✗ FAIL"; \
+			$(FERN_BIN) check "$$f" 2>&1 | head -5; \
+			failed=1; \
+		fi; \
+	done; \
+	if [ $$failed -eq 1 ]; then \
+		echo ""; \
+		echo "Some examples failed type checking!"; \
+		exit 1; \
+	else \
+		echo ""; \
+		echo "✓ All examples type check!"; \
+	fi
 
 # Help
 .PHONY: help
@@ -141,11 +178,17 @@ help:
 	@echo "  make debug        - Build debug version with symbols"
 	@echo "  make release      - Build optimized release version"
 	@echo "  make test         - Build and run all tests"
+	@echo "  make test-examples- Type check and run all examples"
 	@echo "  make clean        - Remove build artifacts"
 	@echo "  make install      - Install fern to /usr/local/bin"
 	@echo "  make uninstall    - Remove installed fern"
 	@echo "  make memcheck     - Run with Valgrind"
 	@echo "  make fmt          - Format code with clang-format"
-	@echo "  make style        - Check FERN_STYLE compliance"
-	@echo "  make style-strict - Check FERN_STYLE (warnings are errors)"
+	@echo ""
+	@echo "Quality Checks (strict mode - warnings are errors):"
+	@echo "  make check        - Full check (build + test + style)"
+	@echo "  make style        - FERN_STYLE only (strict)"
+	@echo "  make style-lenient - FERN_STYLE only (warnings allowed)"
+	@echo "  make pre-commit   - Pre-commit hook check"
+	@echo ""
 	@echo "  make help         - Show this help message"

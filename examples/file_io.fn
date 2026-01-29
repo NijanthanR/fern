@@ -11,7 +11,9 @@ fn main():
 
     # Write a file
     let write_result = write_file("/tmp/fern_test_file.txt", "Hello from Fern!")
-    println(bool_to_int(is_ok(write_result)))
+    match write_result:
+        Ok(_) -> println(1)
+        Err(_) -> println(0)
 
     # Check file exists after writing
     let exists_after = file_exists("/tmp/fern_test_file.txt")
@@ -31,7 +33,9 @@ fn main():
 
     # Append to the file
     let append_result = append_file("/tmp/fern_test_file.txt", " More content.")
-    println(bool_to_int(is_ok(append_result)))
+    match append_result:
+        Ok(_) -> println(1)
+        Err(_) -> println(0)
 
     # Check new file size after append
     let size_after = file_size("/tmp/fern_test_file.txt")
@@ -41,7 +45,9 @@ fn main():
 
     # Delete the file
     let delete_result = delete_file("/tmp/fern_test_file.txt")
-    println(bool_to_int(is_ok(delete_result)))
+    match delete_result:
+        Ok(_) -> println(1)
+        Err(_) -> println(0)
 
     # Verify file no longer exists
     let exists_deleted = file_exists("/tmp/fern_test_file.txt")
@@ -49,4 +55,6 @@ fn main():
 
     # Try to read non-existent file (should fail)
     let read_missing = read_file("/tmp/nonexistent_file_12345.txt")
-    println(bool_to_int(is_ok(read_missing)))
+    match read_missing:
+        Ok(_) -> println(1)
+        Err(_) -> println(0)

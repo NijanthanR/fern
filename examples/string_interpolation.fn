@@ -1,0 +1,31 @@
+# String interpolation example
+# Demonstrates variable and expression interpolation in strings
+
+fn main():
+    # Basic variable interpolation
+    let name = "World"
+    println("Hello, {name}!")
+
+    # Multiple variables
+    let first = "Alice"
+    let last = "Smith"
+    println("User: {first} {last}")
+
+    # Integer interpolation
+    let age = 30
+    let year = 2026
+    println("{first} is {age} years old in {year}")
+
+    # Expression interpolation
+    println("2 + 2 = {2 + 2}")
+    println("Next year: {year + 1}")
+
+    # String function results
+    let greeting = "hello"
+    let upper = str_to_upper(greeting)
+    println("Uppercase: {upper}")
+
+    # Combining strings and numbers
+    let items = 5
+    let price = 10
+    println("Total: {items} items x {price} = {items * price}")
