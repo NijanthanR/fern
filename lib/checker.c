@@ -3019,7 +3019,9 @@ static bool check_let_stmt(Checker* checker, LetStmt* stmt) {
             return false;
         }
         
-        if (!type_assignable(value_type, annotated)) {
+        /* Use unify instead of type_assignable to handle type variables
+         * (e.g., empty list [] has type List(a) which should unify with List(Concrete)) */
+        if (!unify(value_type, annotated)) {
             add_error(checker, "Type mismatch: expected %s, got %s",
                 string_cstr(type_to_string(checker->arena, annotated)),
                 string_cstr(type_to_string(checker->arena, value_type)));
