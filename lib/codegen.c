@@ -292,13 +292,14 @@ static char qbe_type_for_expr(Expr* expr) {
                             return 'l';
                         }
                     }
-                    /* File module functions returning Result (pointer) */
+                    /* File module functions returning Result or List (pointer) */
                     if (strcmp(module, "File") == 0) {
                         if (strcmp(func, "read") == 0 ||
                             strcmp(func, "write") == 0 ||
                             strcmp(func, "append") == 0 ||
                             strcmp(func, "delete") == 0 ||
-                            strcmp(func, "size") == 0) {
+                            strcmp(func, "size") == 0 ||
+                            strcmp(func, "list_dir") == 0) {
                             return 'l';
                         }
                     }
@@ -972,6 +973,20 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                         if (strcmp(func, "size") == 0 && call->args->len == 1) {
                             String* path = codegen_expr(cg, call->args->data[0].value);
                             emit(cg, "    %s =l call $fern_file_size(l %s)\n",
+                                string_cstr(result), string_cstr(path));
+                            return result;
+                        }
+                        /* File.is_dir(path) -> Bool */
+                        if (strcmp(func, "is_dir") == 0 && call->args->len == 1) {
+                            String* path = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    %s =w call $fern_is_dir(l %s)\n",
+                                string_cstr(result), string_cstr(path));
+                            return result;
+                        }
+                        /* File.list_dir(path) -> List(String) */
+                        if (strcmp(func, "list_dir") == 0 && call->args->len == 1) {
+                            String* path = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    %s =l call $fern_list_dir(l %s)\n",
                                 string_cstr(result), string_cstr(path));
                             return result;
                         }

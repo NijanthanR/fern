@@ -432,6 +432,18 @@ static Type* lookup_module_function(Checker* checker, const char* module, const 
             result_type = type_con(arena, string_new(arena, "Result"), result_args);
             return type_fn(arena, params, result_type);
         }
+        /* File.is_dir(String) -> Bool */
+        if (strcmp(func, "is_dir") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, type_bool(arena));
+        }
+        /* File.list_dir(String) -> List(String) */
+        if (strcmp(func, "list_dir") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, type_list(arena, type_string(arena)));
+        }
     }
 
     /* ===== System module ===== */

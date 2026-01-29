@@ -2593,6 +2593,10 @@ let appended = File.append("log.txt", "x") # Result(Int, Int)
 let exists = File.exists("data.txt")       # Bool
 let size = File.size("data.txt")           # Result(Int, Int)
 let deleted = File.delete("temp.txt")      # Result(Int, Int)
+
+# Directory operations
+let is_dir = File.is_dir("src")            # Bool
+let entries = File.list_dir("src")         # List(String)
 ```
 
 ### System Module

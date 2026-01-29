@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <sys/stat.h>
+#include <dirent.h>
 
 /* ========== I/O Functions ========== */
 
@@ -1396,4 +1398,64 @@ int64_t fern_file_size(const char* path) {
     }
     
     return fern_result_ok((int64_t)size);
+}
+
+/**
+ * Check if path is a directory.
+ * @param path The path to check.
+ * @return 1 if directory, 0 otherwise.
+ */
+int64_t fern_is_dir(const char* path) {
+    assert(path != NULL);
+    struct stat st;
+    if (stat(path, &st) != 0) {
+        return 0;
+    }
+    return S_ISDIR(st.st_mode) ? 1 : 0;
+}
+
+/**
+ * List directory contents.
+ * @param path The directory path.
+ * @return FernStringList containing entry names, or NULL on error.
+ */
+FernStringList* fern_list_dir(const char* path) {
+    assert(path != NULL);
+    
+    DIR* dir = opendir(path);
+    if (!dir) {
+        return NULL;
+    }
+    
+    FernStringList* list = malloc(sizeof(FernStringList));
+    assert(list != NULL);
+    list->cap = 16;
+    list->len = 0;
+    list->data = malloc((size_t)list->cap * sizeof(char*));
+    assert(list->data != NULL);
+    
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != NULL) {
+        /* Skip . and .. */
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        
+        /* Grow if needed */
+        if (list->len >= list->cap) {
+            list->cap *= 2;
+            list->data = realloc(list->data, (size_t)list->cap * sizeof(char*));
+            assert(list->data != NULL);
+        }
+        
+        /* Copy entry name */
+        size_t name_len = strlen(entry->d_name);
+        char* name = malloc(name_len + 1);
+        assert(name != NULL);
+        memcpy(name, entry->d_name, name_len + 1);
+        list->data[list->len++] = name;
+    }
+    
+    closedir(dir);
+    return list;
 }

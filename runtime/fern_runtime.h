@@ -609,10 +609,25 @@ int64_t fern_delete_file(const char* path);
  */
 int64_t fern_file_size(const char* path);
 
+/**
+ * Check if path is a directory.
+ * @param path The path to check.
+ * @return 1 if directory, 0 otherwise.
+ */
+int64_t fern_is_dir(const char* path);
+
+/**
+ * List directory contents.
+ * @param path The directory path.
+ * @return FernStringList containing entry names, or NULL on error.
+ */
+FernStringList* fern_list_dir(const char* path);
+
 /* Error codes for file operations */
 #define FERN_ERR_FILE_NOT_FOUND  1
 #define FERN_ERR_PERMISSION      2
 #define FERN_ERR_IO              3
 #define FERN_ERR_OUT_OF_MEMORY   4
+#define FERN_ERR_NOT_A_DIR       5
 
 #endif /* FERN_RUNTIME_H */
