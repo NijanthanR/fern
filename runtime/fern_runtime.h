@@ -3,6 +3,11 @@
  *
  * This library provides core functions for compiled Fern programs.
  * It is linked into every Fern executable.
+ *
+ * Memory Management:
+ * - Uses Boehm GC for automatic garbage collection
+ * - All allocated memory is GC-managed (no manual free needed)
+ * - Future: BEAM-style per-process heaps for actor isolation
  */
 
 #ifndef FERN_RUNTIME_H
@@ -54,14 +59,14 @@ void fern_println_bool(int64_t b);
 /**
  * Convert an integer to a string.
  * @param n The integer to convert.
- * @return Newly allocated string (caller must free).
+ * @return Newly allocated string (GC-managed).
  */
 char* fern_int_to_str(int64_t n);
 
 /**
  * Convert a boolean to a string.
  * @param b The boolean (0 = false, non-zero = true).
- * @return Newly allocated string (caller must free).
+ * @return Newly allocated string (GC-managed).
  */
 char* fern_bool_to_str(int64_t b);
 
@@ -76,7 +81,7 @@ int64_t fern_str_len(const char* s);
  * Concatenate two strings.
  * @param a First string.
  * @param b Second string.
- * @return Newly allocated concatenated string (caller must free).
+ * @return Newly allocated concatenated string (GC-managed).
  */
 char* fern_str_concat(const char* a, const char* b);
 
@@ -576,6 +581,37 @@ char* fern_getenv(const char* name);
  * @return 0 on success, non-zero on failure.
  */
 int64_t fern_setenv(const char* name, const char* value);
+
+/**
+ * Get current working directory.
+ * @return The current working directory path.
+ */
+char* fern_cwd(void);
+
+/**
+ * Change current working directory.
+ * @param path The path to change to.
+ * @return 0 on success, -1 on failure.
+ */
+int64_t fern_chdir(const char* path);
+
+/**
+ * Get system hostname.
+ * @return The hostname string.
+ */
+char* fern_hostname(void);
+
+/**
+ * Get current username.
+ * @return The username string.
+ */
+char* fern_user(void);
+
+/**
+ * Get home directory.
+ * @return The home directory path.
+ */
+char* fern_home(void);
 
 /* ========== Memory Functions ========== */
 

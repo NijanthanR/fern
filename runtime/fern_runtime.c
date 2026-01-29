@@ -5,6 +5,7 @@
  */
 
 #include "fern_runtime.h"
+#include "fern_gc.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -77,7 +78,7 @@ void fern_println_bool(int64_t b) {
 char* fern_int_to_str(int64_t n) {
     char buf[32];
     snprintf(buf, sizeof(buf), "%lld", (long long)n);
-    char* result = malloc(strlen(buf) + 1);
+    char* result = FERN_ALLOC(strlen(buf) + 1);
     assert(result != NULL);
     strcpy(result, buf);
     return result;
@@ -90,7 +91,7 @@ char* fern_int_to_str(int64_t n) {
  */
 char* fern_bool_to_str(int64_t b) {
     const char* str = b ? "true" : "false";
-    char* result = malloc(strlen(str) + 1);
+    char* result = FERN_ALLOC(strlen(str) + 1);
     assert(result != NULL);
     strcpy(result, str);
     return result;
@@ -117,7 +118,7 @@ char* fern_str_concat(const char* a, const char* b) {
     assert(b != NULL);
     size_t len_a = strlen(a);
     size_t len_b = strlen(b);
-    char* result = malloc(len_a + len_b + 1);
+    char* result = FERN_ALLOC(len_a + len_b + 1);
     assert(result != NULL);
     memcpy(result, a, len_a);
     memcpy(result + len_a, b, len_b + 1);
@@ -210,7 +211,7 @@ char* fern_str_slice(const char* s, int64_t start, int64_t end) {
     if ((size_t)end > len) end = (int64_t)len;
     
     size_t slice_len = (size_t)(end - start);
-    char* result = malloc(slice_len + 1);
+    char* result = FERN_ALLOC(slice_len + 1);
     assert(result != NULL);
     memcpy(result, s + start, slice_len);
     result[slice_len] = '\0';
@@ -240,7 +241,7 @@ char* fern_str_trim(const char* s) {
     while (end > start && is_whitespace(s[end - 1])) end--;
     
     size_t new_len = end - start;
-    char* result = malloc(new_len + 1);
+    char* result = FERN_ALLOC(new_len + 1);
     assert(result != NULL);
     memcpy(result, s + start, new_len);
     result[new_len] = '\0';
@@ -260,7 +261,7 @@ char* fern_str_trim_start(const char* s) {
     while (start < len && is_whitespace(s[start])) start++;
     
     size_t new_len = len - start;
-    char* result = malloc(new_len + 1);
+    char* result = FERN_ALLOC(new_len + 1);
     assert(result != NULL);
     memcpy(result, s + start, new_len + 1);
     return result;
@@ -277,7 +278,7 @@ char* fern_str_trim_end(const char* s) {
     
     while (len > 0 && is_whitespace(s[len - 1])) len--;
     
-    char* result = malloc(len + 1);
+    char* result = FERN_ALLOC(len + 1);
     assert(result != NULL);
     memcpy(result, s, len);
     result[len] = '\0';
@@ -292,7 +293,7 @@ char* fern_str_trim_end(const char* s) {
 char* fern_str_to_upper(const char* s) {
     assert(s != NULL);
     size_t len = strlen(s);
-    char* result = malloc(len + 1);
+    char* result = FERN_ALLOC(len + 1);
     assert(result != NULL);
     
     for (size_t i = 0; i <= len; i++) {
@@ -314,7 +315,7 @@ char* fern_str_to_upper(const char* s) {
 char* fern_str_to_lower(const char* s) {
     assert(s != NULL);
     size_t len = strlen(s);
-    char* result = malloc(len + 1);
+    char* result = FERN_ALLOC(len + 1);
     assert(result != NULL);
     
     for (size_t i = 0; i <= len; i++) {
@@ -345,7 +346,7 @@ char* fern_str_replace(const char* s, const char* old_str, const char* new_str) 
     
     /* Empty old_str: return copy of s */
     if (old_len == 0) {
-        char* result = malloc(strlen(s) + 1);
+        char* result = FERN_ALLOC(strlen(s) + 1);
         assert(result != NULL);
         strcpy(result, s);
         return result;
@@ -362,7 +363,7 @@ char* fern_str_replace(const char* s, const char* old_str, const char* new_str) 
     /* Calculate new length */
     size_t s_len = strlen(s);
     size_t result_len = s_len + count * (new_len - old_len);
-    char* result = malloc(result_len + 1);
+    char* result = FERN_ALLOC(result_len + 1);
     assert(result != NULL);
     
     /* Build result */
@@ -392,11 +393,11 @@ FernStringList* fern_str_split(const char* s, const char* delim) {
     assert(s != NULL);
     assert(delim != NULL);
     
-    FernStringList* list = malloc(sizeof(FernStringList));
+    FernStringList* list = FERN_ALLOC(sizeof(FernStringList));
     assert(list != NULL);
     list->cap = 8;
     list->len = 0;
-    list->data = malloc((size_t)list->cap * sizeof(char*));
+    list->data = FERN_ALLOC((size_t)list->cap * sizeof(char*));
     assert(list->data != NULL);
     
     size_t delim_len = strlen(delim);
@@ -407,10 +408,10 @@ FernStringList* fern_str_split(const char* s, const char* delim) {
         for (size_t i = 0; i < s_len; i++) {
             if (list->len >= list->cap) {
                 list->cap *= 2;
-                list->data = realloc(list->data, (size_t)list->cap * sizeof(char*));
+                list->data = FERN_REALLOC(list->data, (size_t)list->cap * sizeof(char*));
                 assert(list->data != NULL);
             }
-            char* ch = malloc(2);
+            char* ch = FERN_ALLOC(2);
             assert(ch != NULL);
             ch[0] = s[i];
             ch[1] = '\0';
@@ -425,11 +426,11 @@ FernStringList* fern_str_split(const char* s, const char* delim) {
     while ((found = strstr(p, delim)) != NULL) {
         if (list->len >= list->cap) {
             list->cap *= 2;
-            list->data = realloc(list->data, (size_t)list->cap * sizeof(char*));
+            list->data = FERN_REALLOC(list->data, (size_t)list->cap * sizeof(char*));
             assert(list->data != NULL);
         }
         size_t part_len = (size_t)(found - p);
-        char* part = malloc(part_len + 1);
+        char* part = FERN_ALLOC(part_len + 1);
         assert(part != NULL);
         memcpy(part, p, part_len);
         part[part_len] = '\0';
@@ -440,10 +441,10 @@ FernStringList* fern_str_split(const char* s, const char* delim) {
     /* Add remaining part */
     if (list->len >= list->cap) {
         list->cap *= 2;
-        list->data = realloc(list->data, (size_t)list->cap * sizeof(char*));
+        list->data = FERN_REALLOC(list->data, (size_t)list->cap * sizeof(char*));
         assert(list->data != NULL);
     }
-    char* last = malloc(strlen(p) + 1);
+    char* last = FERN_ALLOC(strlen(p) + 1);
     assert(last != NULL);
     strcpy(last, p);
     list->data[list->len++] = last;
@@ -460,11 +461,11 @@ FernStringList* fern_str_split(const char* s, const char* delim) {
 FernStringList* fern_str_lines(const char* s) {
     assert(s != NULL);
     
-    FernStringList* list = malloc(sizeof(FernStringList));
+    FernStringList* list = FERN_ALLOC(sizeof(FernStringList));
     assert(list != NULL);
     list->cap = 8;
     list->len = 0;
-    list->data = malloc((size_t)list->cap * sizeof(char*));
+    list->data = FERN_ALLOC((size_t)list->cap * sizeof(char*));
     assert(list->data != NULL);
     
     const char* p = s;
@@ -475,11 +476,11 @@ FernStringList* fern_str_lines(const char* s) {
             /* End of line found - add the line */
             if (list->len >= list->cap) {
                 list->cap *= 2;
-                list->data = realloc(list->data, (size_t)list->cap * sizeof(char*));
+                list->data = FERN_REALLOC(list->data, (size_t)list->cap * sizeof(char*));
                 assert(list->data != NULL);
             }
             size_t line_len = (size_t)(p - line_start);
-            char* line = malloc(line_len + 1);
+            char* line = FERN_ALLOC(line_len + 1);
             assert(line != NULL);
             memcpy(line, line_start, line_len);
             line[line_len] = '\0';
@@ -501,11 +502,11 @@ FernStringList* fern_str_lines(const char* s) {
     if (p > line_start || list->len == 0) {
         if (list->len >= list->cap) {
             list->cap *= 2;
-            list->data = realloc(list->data, (size_t)list->cap * sizeof(char*));
+            list->data = FERN_REALLOC(list->data, (size_t)list->cap * sizeof(char*));
             assert(list->data != NULL);
         }
         size_t line_len = (size_t)(p - line_start);
-        char* line = malloc(line_len + 1);
+        char* line = FERN_ALLOC(line_len + 1);
         assert(line != NULL);
         memcpy(line, line_start, line_len);
         line[line_len] = '\0';
@@ -526,7 +527,7 @@ char* fern_str_join(FernStringList* list, const char* sep) {
     assert(sep != NULL);
     
     if (list->len == 0) {
-        char* result = malloc(1);
+        char* result = FERN_ALLOC(1);
         assert(result != NULL);
         result[0] = '\0';
         return result;
@@ -540,7 +541,7 @@ char* fern_str_join(FernStringList* list, const char* sep) {
         if (i < list->len - 1) total += sep_len;
     }
     
-    char* result = malloc(total + 1);
+    char* result = FERN_ALLOC(total + 1);
     assert(result != NULL);
     
     char* dst = result;
@@ -568,7 +569,7 @@ char* fern_str_repeat(const char* s, int64_t n) {
     assert(s != NULL);
     
     if (n <= 0) {
-        char* result = malloc(1);
+        char* result = FERN_ALLOC(1);
         assert(result != NULL);
         result[0] = '\0';
         return result;
@@ -576,7 +577,7 @@ char* fern_str_repeat(const char* s, int64_t n) {
     
     size_t s_len = strlen(s);
     size_t total = s_len * (size_t)n;
-    char* result = malloc(total + 1);
+    char* result = FERN_ALLOC(total + 1);
     assert(result != NULL);
     
     char* dst = result;
@@ -620,13 +621,13 @@ int64_t fern_str_is_empty(const char* s) {
  * Free a string list.
  * @param list The list to free.
  */
-void fern_str_list_free(FernStringList* list) {
+void fern_str_list_FERN_FREE(FernStringList* list) {
     if (list != NULL) {
         for (int64_t i = 0; i < list->len; i++) {
-            free(list->data[i]);
+            FERN_FREE(list->data[i]);
         }
-        free(list->data);
-        free(list);
+        FERN_FREE(list->data);
+        FERN_FREE(list);
     }
 }
 
@@ -647,9 +648,9 @@ FernList* fern_list_new(void) {
  */
 FernList* fern_list_with_capacity(int64_t cap) {
     assert(cap > 0);
-    FernList* list = malloc(sizeof(FernList));
+    FernList* list = FERN_ALLOC(sizeof(FernList));
     assert(list != NULL);
-    list->data = malloc((size_t)cap * sizeof(int64_t));
+    list->data = FERN_ALLOC((size_t)cap * sizeof(int64_t));
     assert(list->data != NULL);
     list->len = 0;
     list->cap = cap;
@@ -691,7 +692,7 @@ void fern_list_push_mut(FernList* list, int64_t value) {
     if (list->len >= list->cap) {
         int64_t new_cap = list->cap * 2;
         if (new_cap < 8) new_cap = 8;
-        list->data = realloc(list->data, (size_t)new_cap * sizeof(int64_t));
+        list->data = FERN_REALLOC(list->data, (size_t)new_cap * sizeof(int64_t));
         assert(list->data != NULL);
         list->cap = new_cap;
     }
@@ -769,10 +770,10 @@ int64_t fern_list_fold(FernList* list, int64_t init, int64_t (*fn)(int64_t, int6
  * Free a list.
  * @param list The list to free.
  */
-void fern_list_free(FernList* list) {
+void fern_list_FERN_FREE(FernList* list) {
     if (list != NULL) {
-        free(list->data);
-        free(list);
+        FERN_FREE(list->data);
+        FERN_FREE(list);
     }
 }
 
@@ -794,7 +795,7 @@ FernList* fern_list_filter(FernList* list, int64_t (*pred)(int64_t)) {
             /* Grow if needed */
             if (new_list->len >= new_list->cap) {
                 new_list->cap *= 2;
-                new_list->data = realloc(new_list->data, 
+                new_list->data = FERN_REALLOC(new_list->data, 
                     (size_t)new_list->cap * sizeof(int64_t));
                 assert(new_list->data != NULL);
             }
@@ -986,14 +987,14 @@ char* fern_arg(int64_t index) {
     assert(g_argv != NULL || g_argc == 0);
     if (index < 0 || index >= (int64_t)g_argc) {
         /* Return empty string for out-of-bounds access */
-        char* empty = malloc(1);
+        char* empty = FERN_ALLOC(1);
         assert(empty != NULL);
         empty[0] = '\0';
         return empty;
     }
     /* Return a copy of the argument string */
     size_t len = strlen(g_argv[index]);
-    char* result = malloc(len + 1);
+    char* result = FERN_ALLOC(len + 1);
     assert(result != NULL);
     memcpy(result, g_argv[index], len + 1);
     return result;
@@ -1006,16 +1007,16 @@ char* fern_arg(int64_t index) {
 FernStringList* fern_args(void) {
     assert(g_argv != NULL || g_argc == 0);
     
-    FernStringList* list = malloc(sizeof(FernStringList));
+    FernStringList* list = FERN_ALLOC(sizeof(FernStringList));
     assert(list != NULL);
     list->len = g_argc;
     list->cap = g_argc > 0 ? g_argc : 1;
-    list->data = malloc((size_t)list->cap * sizeof(char*));
+    list->data = FERN_ALLOC((size_t)list->cap * sizeof(char*));
     assert(list->data != NULL);
     
     for (int i = 0; i < g_argc; i++) {
         size_t len = strlen(g_argv[i]);
-        list->data[i] = malloc(len + 1);
+        list->data[i] = FERN_ALLOC(len + 1);
         assert(list->data[i] != NULL);
         memcpy(list->data[i], g_argv[i], len + 1);
     }
@@ -1035,6 +1036,9 @@ void fern_exit(int64_t code) {
 extern int fern_main(void);
 
 int main(int argc, char** argv) {
+    /* Initialize the garbage collector before any allocations */
+    fern_gc_init();
+
     fern_set_args(argc, argv);
     return fern_main();
 }
@@ -1047,7 +1051,7 @@ int main(int argc, char** argv) {
 FernExecResult* fern_exec(const char* cmd) {
     assert(cmd != NULL);
     
-    FernExecResult* result = malloc(sizeof(FernExecResult));
+    FernExecResult* result = FERN_ALLOC(sizeof(FernExecResult));
     assert(result != NULL);
     result->exit_code = -1;
     result->stdout_str = NULL;
@@ -1057,25 +1061,25 @@ FernExecResult* fern_exec(const char* cmd) {
     char stderr_template[] = "/tmp/fern_stderr_XXXXXX";
     int stderr_fd = mkstemp(stderr_template);
     if (stderr_fd < 0) {
-        result->stdout_str = strdup("");
-        result->stderr_str = strdup("Failed to create temp file for stderr");
+        result->stdout_str = FERN_STRDUP("");
+        result->stderr_str = FERN_STRDUP("Failed to create temp file for stderr");
         return result;
     }
     close(stderr_fd);
     
     /* Build command that redirects stderr to temp file */
     size_t cmd_len = strlen(cmd) + strlen(stderr_template) + 32;
-    char* full_cmd = malloc(cmd_len);
+    char* full_cmd = FERN_ALLOC(cmd_len);
     assert(full_cmd != NULL);
     snprintf(full_cmd, cmd_len, "{ %s; } 2>%s", cmd, stderr_template);
     
     /* Execute command and capture stdout */
     FILE* pipe = popen(full_cmd, "r");
-    free(full_cmd);
+    FERN_FREE(full_cmd);
     
     if (!pipe) {
-        result->stdout_str = strdup("");
-        result->stderr_str = strdup("Failed to execute command");
+        result->stdout_str = FERN_STRDUP("");
+        result->stderr_str = FERN_STRDUP("Failed to execute command");
         unlink(stderr_template);
         return result;
     }
@@ -1083,7 +1087,7 @@ FernExecResult* fern_exec(const char* cmd) {
     /* Read stdout */
     size_t stdout_cap = 4096;
     size_t stdout_len = 0;
-    char* stdout_buf = malloc(stdout_cap);
+    char* stdout_buf = FERN_ALLOC(stdout_cap);
     assert(stdout_buf != NULL);
     
     char buf[1024];
@@ -1091,7 +1095,7 @@ FernExecResult* fern_exec(const char* cmd) {
         size_t buf_len = strlen(buf);
         if (stdout_len + buf_len >= stdout_cap) {
             stdout_cap *= 2;
-            stdout_buf = realloc(stdout_buf, stdout_cap);
+            stdout_buf = FERN_REALLOC(stdout_buf, stdout_cap);
             assert(stdout_buf != NULL);
         }
         memcpy(stdout_buf + stdout_len, buf, buf_len);
@@ -1110,14 +1114,14 @@ FernExecResult* fern_exec(const char* cmd) {
         long stderr_size = ftell(stderr_file);
         fseek(stderr_file, 0, SEEK_SET);
         
-        char* stderr_buf = malloc((size_t)stderr_size + 1);
+        char* stderr_buf = FERN_ALLOC((size_t)stderr_size + 1);
         assert(stderr_buf != NULL);
         size_t read_size = fread(stderr_buf, 1, (size_t)stderr_size, stderr_file);
         stderr_buf[read_size] = '\0';
         fclose(stderr_file);
         result->stderr_str = stderr_buf;
     } else {
-        result->stderr_str = strdup("");
+        result->stderr_str = FERN_STRDUP("");
     }
     
     unlink(stderr_template);
@@ -1135,11 +1139,11 @@ FernExecResult* fern_exec_args(FernStringList* args) {
     /* For simplicity, join args and use shell execution */
     /* A proper implementation would use fork/exec directly */
     if (args->len == 0) {
-        FernExecResult* result = malloc(sizeof(FernExecResult));
+        FernExecResult* result = FERN_ALLOC(sizeof(FernExecResult));
         assert(result != NULL);
         result->exit_code = -1;
-        result->stdout_str = strdup("");
-        result->stderr_str = strdup("No command specified");
+        result->stdout_str = FERN_STRDUP("");
+        result->stderr_str = FERN_STRDUP("No command specified");
         return result;
     }
     
@@ -1150,7 +1154,7 @@ FernExecResult* fern_exec_args(FernStringList* args) {
     }
     
     /* Build quoted command string */
-    char* cmd = malloc(total_len + 1);
+    char* cmd = FERN_ALLOC(total_len + 1);
     assert(cmd != NULL);
     char* p = cmd;
     for (int64_t i = 0; i < args->len; i++) {
@@ -1173,7 +1177,7 @@ FernExecResult* fern_exec_args(FernStringList* args) {
     *p = '\0';
     
     FernExecResult* result = fern_exec(cmd);
-    free(cmd);
+    FERN_FREE(cmd);
     return result;
 }
 
@@ -1186,12 +1190,12 @@ char* fern_getenv(const char* name) {
     assert(name != NULL);
     const char* value = getenv(name);
     if (value == NULL) {
-        char* empty = malloc(1);
+        char* empty = FERN_ALLOC(1);
         assert(empty != NULL);
         empty[0] = '\0';
         return empty;
     }
-    return strdup(value);
+    return FERN_STRDUP(value);
 }
 
 /**
@@ -1206,6 +1210,77 @@ int64_t fern_setenv(const char* name, const char* value) {
     return setenv(name, value, 1);
 }
 
+/**
+ * Get current working directory.
+ * @return The current working directory path.
+ */
+char* fern_cwd(void) {
+    char* buf = FERN_ALLOC(4096);
+    assert(buf != NULL);
+    if (getcwd(buf, 4096) == NULL) {
+        /* Return empty string on error */
+        buf[0] = '\0';
+    }
+    return buf;
+}
+
+/**
+ * Change current working directory.
+ * @param path The path to change to.
+ * @return 0 on success, -1 on failure.
+ */
+int64_t fern_chdir(const char* path) {
+    assert(path != NULL);
+    return chdir(path);
+}
+
+/**
+ * Get system hostname.
+ * @return The hostname string.
+ */
+char* fern_hostname(void) {
+    char* buf = FERN_ALLOC(256);
+    assert(buf != NULL);
+    if (gethostname(buf, 256) != 0) {
+        /* Return empty string on error */
+        buf[0] = '\0';
+    }
+    return buf;
+}
+
+/**
+ * Get current username.
+ * @return The username string.
+ */
+char* fern_user(void) {
+    const char* user = getenv("USER");
+    if (user == NULL) {
+        user = getenv("LOGNAME");
+    }
+    if (user == NULL) {
+        char* empty = FERN_ALLOC(1);
+        assert(empty != NULL);
+        empty[0] = '\0';
+        return empty;
+    }
+    return FERN_STRDUP(user);
+}
+
+/**
+ * Get home directory.
+ * @return The home directory path.
+ */
+char* fern_home(void) {
+    const char* home = getenv("HOME");
+    if (home == NULL) {
+        char* empty = FERN_ALLOC(1);
+        assert(empty != NULL);
+        empty[0] = '\0';
+        return empty;
+    }
+    return FERN_STRDUP(home);
+}
+
 /* ========== Memory Functions ========== */
 
 /**
@@ -1214,7 +1289,7 @@ int64_t fern_setenv(const char* name, const char* value) {
  * @return Pointer to allocated memory.
  */
 void* fern_alloc(size_t size) {
-    void* ptr = malloc(size);
+    void* ptr = FERN_ALLOC(size);
     assert(ptr != NULL);
     return ptr;
 }
@@ -1223,8 +1298,8 @@ void* fern_alloc(size_t size) {
  * Free memory.
  * @param ptr Pointer to free.
  */
-void fern_free(void* ptr) {
-    free(ptr);
+void fern_FERN_FREE(void* ptr) {
+    FERN_FREE(ptr);
 }
 
 /* ========== Result Type ========== */
@@ -1441,7 +1516,7 @@ int64_t fern_read_file(const char* path) {
     }
     
     /* Allocate buffer for contents + null terminator */
-    char* contents = malloc((size_t)size + 1);
+    char* contents = FERN_ALLOC((size_t)size + 1);
     if (!contents) {
         fclose(f);
         return fern_result_err(FERN_ERR_OUT_OF_MEMORY);
@@ -1452,7 +1527,7 @@ int64_t fern_read_file(const char* path) {
     fclose(f);
     
     if ((long)read_size != size) {
-        free(contents);
+        FERN_FREE(contents);
         return fern_result_err(FERN_ERR_IO);
     }
     
@@ -1597,11 +1672,11 @@ FernStringList* fern_list_dir(const char* path) {
         return NULL;
     }
     
-    FernStringList* list = malloc(sizeof(FernStringList));
+    FernStringList* list = FERN_ALLOC(sizeof(FernStringList));
     assert(list != NULL);
     list->cap = 16;
     list->len = 0;
-    list->data = malloc((size_t)list->cap * sizeof(char*));
+    list->data = FERN_ALLOC((size_t)list->cap * sizeof(char*));
     assert(list->data != NULL);
     
     struct dirent* entry;
@@ -1614,13 +1689,13 @@ FernStringList* fern_list_dir(const char* path) {
         /* Grow if needed */
         if (list->len >= list->cap) {
             list->cap *= 2;
-            list->data = realloc(list->data, (size_t)list->cap * sizeof(char*));
+            list->data = FERN_REALLOC(list->data, (size_t)list->cap * sizeof(char*));
             assert(list->data != NULL);
         }
         
         /* Copy entry name */
         size_t name_len = strlen(entry->d_name);
-        char* name = malloc(name_len + 1);
+        char* name = FERN_ALLOC(name_len + 1);
         assert(name != NULL);
         memcpy(name, entry->d_name, name_len + 1);
         list->data[list->len++] = name;
@@ -1664,7 +1739,7 @@ FernRegexMatch* fern_regex_find(const char* s, const char* pattern) {
     assert(s != NULL);
     assert(pattern != NULL);
     
-    FernRegexMatch* result = malloc(sizeof(FernRegexMatch));
+    FernRegexMatch* result = FERN_ALLOC(sizeof(FernRegexMatch));
     assert(result != NULL);
     result->start = -1;
     result->end = -1;
@@ -1684,7 +1759,7 @@ FernRegexMatch* fern_regex_find(const char* s, const char* pattern) {
         result->start = match.rm_so;
         result->end = match.rm_eo;
         size_t len = (size_t)(match.rm_eo - match.rm_so);
-        result->matched = malloc(len + 1);
+        result->matched = FERN_ALLOC(len + 1);
         assert(result->matched != NULL);
         memcpy(result->matched, s + match.rm_so, len);
         result->matched[len] = '\0';
@@ -1703,11 +1778,11 @@ FernStringList* fern_regex_find_all(const char* s, const char* pattern) {
     assert(s != NULL);
     assert(pattern != NULL);
     
-    FernStringList* list = malloc(sizeof(FernStringList));
+    FernStringList* list = FERN_ALLOC(sizeof(FernStringList));
     assert(list != NULL);
     list->cap = 8;
     list->len = 0;
-    list->data = malloc((size_t)list->cap * sizeof(char*));
+    list->data = FERN_ALLOC((size_t)list->cap * sizeof(char*));
     assert(list->data != NULL);
     
     regex_t regex;
@@ -1723,13 +1798,13 @@ FernStringList* fern_regex_find_all(const char* s, const char* pattern) {
         /* Grow if needed */
         if (list->len >= list->cap) {
             list->cap *= 2;
-            list->data = realloc(list->data, (size_t)list->cap * sizeof(char*));
+            list->data = FERN_REALLOC(list->data, (size_t)list->cap * sizeof(char*));
             assert(list->data != NULL);
         }
         
         /* Copy matched substring */
         size_t len = (size_t)(match.rm_eo - match.rm_so);
-        char* matched = malloc(len + 1);
+        char* matched = FERN_ALLOC(len + 1);
         assert(matched != NULL);
         memcpy(matched, p + match.rm_so, len);
         matched[len] = '\0';
@@ -1766,7 +1841,7 @@ char* fern_regex_replace(const char* s, const char* pattern, const char* replace
     int ret = regcomp(&regex, pattern, REG_EXTENDED);
     if (ret != 0) {
         /* Invalid pattern, return copy of original */
-        return strdup(s);
+        return FERN_STRDUP(s);
     }
     
     regmatch_t match;
@@ -1775,7 +1850,7 @@ char* fern_regex_replace(const char* s, const char* pattern, const char* replace
     
     if (ret != 0) {
         /* No match, return copy of original */
-        return strdup(s);
+        return FERN_STRDUP(s);
     }
     
     /* Build result: prefix + replacement + suffix */
@@ -1784,7 +1859,7 @@ char* fern_regex_replace(const char* s, const char* pattern, const char* replace
     size_t suffix_len = strlen(s + match.rm_eo);
     size_t total_len = prefix_len + repl_len + suffix_len;
     
-    char* result = malloc(total_len + 1);
+    char* result = FERN_ALLOC(total_len + 1);
     assert(result != NULL);
     
     memcpy(result, s, prefix_len);
@@ -1809,13 +1884,13 @@ char* fern_regex_replace_all(const char* s, const char* pattern, const char* rep
     regex_t regex;
     int ret = regcomp(&regex, pattern, REG_EXTENDED);
     if (ret != 0) {
-        return strdup(s);
+        return FERN_STRDUP(s);
     }
     
     /* Build result incrementally */
     size_t result_cap = strlen(s) * 2 + 1;
     size_t result_len = 0;
-    char* result = malloc(result_cap);
+    char* result = FERN_ALLOC(result_cap);
     assert(result != NULL);
     
     const char* p = s;
@@ -1827,7 +1902,7 @@ char* fern_regex_replace_all(const char* s, const char* pattern, const char* rep
         size_t prefix_len = (size_t)match.rm_so;
         if (result_len + prefix_len + repl_len >= result_cap) {
             result_cap = (result_len + prefix_len + repl_len) * 2;
-            result = realloc(result, result_cap);
+            result = FERN_REALLOC(result, result_cap);
             assert(result != NULL);
         }
         memcpy(result + result_len, p, prefix_len);
@@ -1846,7 +1921,7 @@ char* fern_regex_replace_all(const char* s, const char* pattern, const char* rep
             /* Copy one char and move on */
             if (result_len + 1 >= result_cap) {
                 result_cap *= 2;
-                result = realloc(result, result_cap);
+                result = FERN_REALLOC(result, result_cap);
                 assert(result != NULL);
             }
             result[result_len++] = *p++;
@@ -1857,7 +1932,7 @@ char* fern_regex_replace_all(const char* s, const char* pattern, const char* rep
     size_t suffix_len = strlen(p);
     if (result_len + suffix_len >= result_cap) {
         result_cap = result_len + suffix_len + 1;
-        result = realloc(result, result_cap);
+        result = FERN_REALLOC(result, result_cap);
         assert(result != NULL);
     }
     memcpy(result + result_len, p, suffix_len + 1);
@@ -1876,18 +1951,18 @@ FernStringList* fern_regex_split(const char* s, const char* pattern) {
     assert(s != NULL);
     assert(pattern != NULL);
     
-    FernStringList* list = malloc(sizeof(FernStringList));
+    FernStringList* list = FERN_ALLOC(sizeof(FernStringList));
     assert(list != NULL);
     list->cap = 8;
     list->len = 0;
-    list->data = malloc((size_t)list->cap * sizeof(char*));
+    list->data = FERN_ALLOC((size_t)list->cap * sizeof(char*));
     assert(list->data != NULL);
     
     regex_t regex;
     int ret = regcomp(&regex, pattern, REG_EXTENDED);
     if (ret != 0) {
         /* Invalid pattern, return original as single element */
-        list->data[0] = strdup(s);
+        list->data[0] = FERN_STRDUP(s);
         list->len = 1;
         return list;
     }
@@ -1899,13 +1974,13 @@ FernStringList* fern_regex_split(const char* s, const char* pattern) {
         /* Grow if needed */
         if (list->len >= list->cap) {
             list->cap *= 2;
-            list->data = realloc(list->data, (size_t)list->cap * sizeof(char*));
+            list->data = FERN_REALLOC(list->data, (size_t)list->cap * sizeof(char*));
             assert(list->data != NULL);
         }
         
         /* Copy part before match */
         size_t len = (size_t)match.rm_so;
-        char* part = malloc(len + 1);
+        char* part = FERN_ALLOC(len + 1);
         assert(part != NULL);
         memcpy(part, p, len);
         part[len] = '\0';
@@ -1924,10 +1999,10 @@ FernStringList* fern_regex_split(const char* s, const char* pattern) {
     /* Add remaining part */
     if (list->len >= list->cap) {
         list->cap *= 2;
-        list->data = realloc(list->data, (size_t)list->cap * sizeof(char*));
+        list->data = FERN_REALLOC(list->data, (size_t)list->cap * sizeof(char*));
         assert(list->data != NULL);
     }
-    list->data[list->len++] = strdup(p);
+    list->data[list->len++] = FERN_STRDUP(p);
     
     regfree(&regex);
     return list;
@@ -1943,7 +2018,7 @@ FernRegexCaptures* fern_regex_captures(const char* s, const char* pattern) {
     assert(s != NULL);
     assert(pattern != NULL);
     
-    FernRegexCaptures* result = malloc(sizeof(FernRegexCaptures));
+    FernRegexCaptures* result = FERN_ALLOC(sizeof(FernRegexCaptures));
     assert(result != NULL);
     result->count = 0;
     result->captures = NULL;
@@ -1956,13 +2031,13 @@ FernRegexCaptures* fern_regex_captures(const char* s, const char* pattern) {
     
     /* POSIX regex supports up to 9 subexpressions + full match */
     size_t max_groups = 10;
-    regmatch_t* matches = malloc(max_groups * sizeof(regmatch_t));
+    regmatch_t* matches = FERN_ALLOC(max_groups * sizeof(regmatch_t));
     assert(matches != NULL);
     
     ret = regexec(&regex, s, max_groups, matches, 0);
     if (ret != 0) {
         regfree(&regex);
-        free(matches);
+        FERN_FREE(matches);
         return result;
     }
     
@@ -1974,7 +2049,7 @@ FernRegexCaptures* fern_regex_captures(const char* s, const char* pattern) {
     }
     
     result->count = (int64_t)count;
-    result->captures = malloc(count * sizeof(FernRegexMatch));
+    result->captures = FERN_ALLOC(count * sizeof(FernRegexMatch));
     assert(result->captures != NULL);
     
     for (size_t i = 0; i < count; i++) {
@@ -1982,14 +2057,14 @@ FernRegexCaptures* fern_regex_captures(const char* s, const char* pattern) {
         result->captures[i].end = matches[i].rm_eo;
         
         size_t len = (size_t)(matches[i].rm_eo - matches[i].rm_so);
-        result->captures[i].matched = malloc(len + 1);
+        result->captures[i].matched = FERN_ALLOC(len + 1);
         assert(result->captures[i].matched != NULL);
         memcpy(result->captures[i].matched, s + matches[i].rm_so, len);
         result->captures[i].matched[len] = '\0';
     }
     
     regfree(&regex);
-    free(matches);
+    FERN_FREE(matches);
     return result;
 }
 
@@ -1997,10 +2072,10 @@ FernRegexCaptures* fern_regex_captures(const char* s, const char* pattern) {
  * Free a regex match result.
  * @param match The match to free.
  */
-void fern_regex_match_free(FernRegexMatch* match) {
+void fern_regex_match_FERN_FREE(FernRegexMatch* match) {
     if (match) {
-        free(match->matched);
-        free(match);
+        FERN_FREE(match->matched);
+        FERN_FREE(match);
     }
 }
 
@@ -2008,13 +2083,13 @@ void fern_regex_match_free(FernRegexMatch* match) {
  * Free regex captures.
  * @param captures The captures to free.
  */
-void fern_regex_captures_free(FernRegexCaptures* captures) {
+void fern_regex_captures_FERN_FREE(FernRegexCaptures* captures) {
     if (captures) {
         for (int64_t i = 0; i < captures->count; i++) {
-            free(captures->captures[i].matched);
+            FERN_FREE(captures->captures[i].matched);
         }
-        free(captures->captures);
-        free(captures);
+        FERN_FREE(captures->captures);
+        FERN_FREE(captures);
     }
 }
 
@@ -2028,7 +2103,7 @@ void fern_regex_captures_free(FernRegexCaptures* captures) {
  * @return FernTermSize with columns and rows.
  */
 FernTermSize* fern_term_size(void) {
-    FernTermSize* size = malloc(sizeof(FernTermSize));
+    FernTermSize* size = FERN_ALLOC(sizeof(FernTermSize));
     if (!size) return NULL;
     
     struct winsize ws;
@@ -2146,7 +2221,7 @@ static char* style_wrap(const char* prefix, const char* text) {
     size_t text_len = strlen(text);
     size_t reset_len = strlen(ANSI_RESET);
     
-    char* result = malloc(prefix_len + text_len + reset_len + 1);
+    char* result = FERN_ALLOC(prefix_len + text_len + reset_len + 1);
     if (!result) return NULL;
     
     memcpy(result, prefix, prefix_len);
@@ -2301,7 +2376,7 @@ char* fern_style_hex(const char* text, const char* hex_color) {
     int r, g, b;
     if (!parse_hex_color(hex_color, &r, &g, &b)) {
         /* Invalid hex, return unstyled copy */
-        return strdup(text ? text : "");
+        return FERN_STRDUP(text ? text : "");
     }
     return fern_style_rgb(text, r, g, b);
 }
@@ -2316,7 +2391,7 @@ char* fern_style_on_hex(const char* text, const char* hex_color) {
     int r, g, b;
     if (!parse_hex_color(hex_color, &r, &g, &b)) {
         /* Invalid hex, return unstyled copy */
-        return strdup(text ? text : "");
+        return FERN_STRDUP(text ? text : "");
     }
     return fern_style_on_rgb(text, r, g, b);
 }
@@ -2330,7 +2405,7 @@ char* fern_style_reset(const char* text) {
     if (!text) return NULL;
     
     size_t len = strlen(text);
-    char* result = malloc(len + 1);
+    char* result = FERN_ALLOC(len + 1);
     if (!result) return NULL;
     
     size_t j = 0;
@@ -2403,7 +2478,7 @@ static size_t display_width(const char* s) {
  */
 static char* str_repeat(const char* s, size_t n) {
     size_t slen = strlen(s);
-    char* result = malloc(slen * n + 1);
+    char* result = FERN_ALLOC(slen * n + 1);
     if (!result) return NULL;
     result[0] = '\0';
     for (size_t i = 0; i < n; i++) {
@@ -2420,11 +2495,11 @@ static char* str_repeat(const char* s, size_t n) {
  */
 static char* pad_right(const char* s, size_t width) {
     size_t dw = display_width(s);
-    if (dw >= width) return strdup(s);
+    if (dw >= width) return FERN_STRDUP(s);
     
     size_t padding = width - dw;
     size_t slen = strlen(s);
-    char* result = malloc(slen + padding + 1);
+    char* result = FERN_ALLOC(slen + padding + 1);
     if (!result) return NULL;
     
     strcpy(result, s);
@@ -2443,14 +2518,14 @@ static char* pad_right(const char* s, size_t width) {
  */
 static char* center_text(const char* s, size_t width) {
     size_t dw = display_width(s);
-    if (dw >= width) return strdup(s);
+    if (dw >= width) return FERN_STRDUP(s);
     
     size_t total_padding = width - dw;
     size_t left_pad = total_padding / 2;
     size_t right_pad = total_padding - left_pad;
     size_t slen = strlen(s);
     
-    char* result = malloc(left_pad + slen + right_pad + 1);
+    char* result = FERN_ALLOC(left_pad + slen + right_pad + 1);
     if (!result) return NULL;
     
     for (size_t i = 0; i < left_pad; i++) result[i] = ' ';
@@ -2461,10 +2536,10 @@ static char* center_text(const char* s, size_t width) {
 }
 
 FernPanel* fern_panel_new(const char* content) {
-    FernPanel* panel = malloc(sizeof(FernPanel));
+    FernPanel* panel = FERN_ALLOC(sizeof(FernPanel));
     if (!panel) return NULL;
     
-    panel->content = content ? strdup(content) : strdup("");
+    panel->content = content ? FERN_STRDUP(content) : FERN_STRDUP("");
     panel->title = NULL;
     panel->subtitle = NULL;
     panel->box_style = BOX_ROUNDED;
@@ -2477,15 +2552,15 @@ FernPanel* fern_panel_new(const char* content) {
 
 FernPanel* fern_panel_title(FernPanel* panel, const char* title) {
     if (!panel) return NULL;
-    if (panel->title) free(panel->title);
-    panel->title = title ? strdup(title) : NULL;
+    if (panel->title) FERN_FREE(panel->title);
+    panel->title = title ? FERN_STRDUP(title) : NULL;
     return panel;
 }
 
 FernPanel* fern_panel_subtitle(FernPanel* panel, const char* subtitle) {
     if (!panel) return NULL;
-    if (panel->subtitle) free(panel->subtitle);
-    panel->subtitle = subtitle ? strdup(subtitle) : NULL;
+    if (panel->subtitle) FERN_FREE(panel->subtitle);
+    panel->subtitle = subtitle ? FERN_STRDUP(subtitle) : NULL;
     return panel;
 }
 
@@ -2511,7 +2586,7 @@ FernPanel* fern_panel_padding(FernPanel* panel, int64_t vertical, int64_t horizo
 }
 
 char* fern_panel_render(FernPanel* panel) {
-    if (!panel) return strdup("");
+    if (!panel) return FERN_STRDUP("");
     
     const BoxChars* box = &BOX_CHARS[panel->box_style];
     
@@ -2533,14 +2608,14 @@ char* fern_panel_render(FernPanel* panel) {
         FernTermSize* size = fern_term_size();
         if (size) {
             inner_width = (size_t)size->cols - 2;
-            free(size);
+            FERN_FREE(size);
         }
     }
     
     /* Build result string */
     size_t result_cap = 4096;
-    char* result = malloc(result_cap);
-    if (!result) return strdup("");
+    char* result = FERN_ALLOC(result_cap);
+    if (!result) return FERN_STRDUP("");
     result[0] = '\0';
     
     /* Top border with optional title */
@@ -2553,14 +2628,14 @@ char* fern_panel_render(FernPanel* panel) {
         strcat(result, " ");
         strcat(result, panel->title);
         strcat(result, " ");
-        free(side);
+        FERN_FREE(side);
         side = str_repeat(box->top, inner_width - side_len - title_len - 2);
         strcat(result, side);
-        free(side);
+        FERN_FREE(side);
     } else {
         char* top_line = str_repeat(box->top, inner_width);
         strcat(result, top_line);
-        free(top_line);
+        FERN_FREE(top_line);
     }
     strcat(result, box->top_right);
     strcat(result, "\n");
@@ -2570,7 +2645,7 @@ char* fern_panel_render(FernPanel* panel) {
         strcat(result, box->left);
         char* spaces = str_repeat(" ", inner_width);
         strcat(result, spaces);
-        free(spaces);
+        FERN_FREE(spaces);
         strcat(result, box->right);
         strcat(result, "\n");
     }
@@ -2581,9 +2656,9 @@ char* fern_panel_render(FernPanel* panel) {
     strcat(result, h_pad);
     char* padded_content = pad_right(panel->content, inner_width - panel->padding_h * 2);
     strcat(result, padded_content);
-    free(padded_content);
+    FERN_FREE(padded_content);
     strcat(result, h_pad);
-    free(h_pad);
+    FERN_FREE(h_pad);
     strcat(result, box->right);
     strcat(result, "\n");
     
@@ -2592,14 +2667,14 @@ char* fern_panel_render(FernPanel* panel) {
         strcat(result, box->left);
         char* spaces = str_repeat(" ", inner_width);
         strcat(result, spaces);
-        free(spaces);
+        FERN_FREE(spaces);
         strcat(result, box->right);
         strcat(result, "\n");
     }
     
     /* Bottom border with optional subtitle */
     strcat(result, box->bottom_left);
-    if (panel->subtitle) {
+    if (panel->subtitle && panel->subtitle[0] != '\0') {
         size_t subtitle_len = display_width(panel->subtitle);
         size_t side_len = (inner_width - subtitle_len - 2) / 2;
         char* side = str_repeat(box->bottom, side_len);
@@ -2607,33 +2682,33 @@ char* fern_panel_render(FernPanel* panel) {
         strcat(result, " ");
         strcat(result, panel->subtitle);
         strcat(result, " ");
-        free(side);
+        FERN_FREE(side);
         side = str_repeat(box->bottom, inner_width - side_len - subtitle_len - 2);
         strcat(result, side);
-        free(side);
+        FERN_FREE(side);
     } else {
         char* bottom_line = str_repeat(box->bottom, inner_width);
         strcat(result, bottom_line);
-        free(bottom_line);
+        FERN_FREE(bottom_line);
     }
     strcat(result, box->bottom_right);
     
     return result;
 }
 
-void fern_panel_free(FernPanel* panel) {
+void fern_panel_FERN_FREE(FernPanel* panel) {
     if (panel) {
-        free(panel->content);
-        free(panel->title);
-        free(panel->subtitle);
-        free(panel);
+        FERN_FREE(panel->content);
+        FERN_FREE(panel->title);
+        FERN_FREE(panel->subtitle);
+        FERN_FREE(panel);
     }
 }
 
 /* ========== TUI: Table Module ========== */
 
 FernTable* fern_table_new(void) {
-    FernTable* table = malloc(sizeof(FernTable));
+    FernTable* table = FERN_ALLOC(sizeof(FernTable));
     if (!table) return NULL;
     
     table->title = NULL;
@@ -2655,11 +2730,11 @@ FernTable* fern_table_add_column(FernTable* table, const char* header) {
     if (!table) return NULL;
     
     table->column_count++;
-    table->columns = realloc(table->columns, table->column_count * sizeof(FernTableColumn));
+    table->columns = FERN_REALLOC(table->columns, table->column_count * sizeof(FernTableColumn));
     if (!table->columns) return NULL;
     
     FernTableColumn* col = &table->columns[table->column_count - 1];
-    col->header = header ? strdup(header) : strdup("");
+    col->header = header ? FERN_STRDUP(header) : FERN_STRDUP("");
     col->min_width = 0;
     col->max_width = 0;
     col->justify = 0;  /* Left */
@@ -2673,17 +2748,17 @@ FernTable* fern_table_add_row(FernTable* table, FernStringList* cells) {
     /* Grow rows array if needed */
     if (table->row_count >= table->row_capacity) {
         table->row_capacity = table->row_capacity == 0 ? 8 : table->row_capacity * 2;
-        table->rows = realloc(table->rows, table->row_capacity * sizeof(FernTableRow));
+        table->rows = FERN_REALLOC(table->rows, table->row_capacity * sizeof(FernTableRow));
         if (!table->rows) return NULL;
     }
     
     FernTableRow* row = &table->rows[table->row_count++];
     row->cell_count = cells->len;
-    row->cells = malloc(cells->len * sizeof(char*));
+    row->cells = FERN_ALLOC(cells->len * sizeof(char*));
     if (!row->cells) return NULL;
     
     for (int64_t i = 0; i < cells->len; i++) {
-        row->cells[i] = cells->data[i] ? strdup(cells->data[i]) : strdup("");
+        row->cells[i] = cells->data[i] ? FERN_STRDUP(cells->data[i]) : FERN_STRDUP("");
     }
     
     return table;
@@ -2691,8 +2766,8 @@ FernTable* fern_table_add_row(FernTable* table, FernStringList* cells) {
 
 FernTable* fern_table_title(FernTable* table, const char* title) {
     if (!table) return NULL;
-    if (table->title) free(table->title);
-    table->title = title ? strdup(title) : NULL;
+    if (table->title) FERN_FREE(table->title);
+    table->title = title ? FERN_STRDUP(title) : NULL;
     return table;
 }
 
@@ -2705,13 +2780,13 @@ FernTable* fern_table_border(FernTable* table, int64_t style) {
 }
 
 char* fern_table_render(FernTable* table) {
-    if (!table || table->column_count == 0) return strdup("");
+    if (!table || table->column_count == 0) return FERN_STRDUP("");
     
     const BoxChars* box = &BOX_CHARS[table->box_style];
     
     /* Calculate column widths */
-    size_t* col_widths = malloc(table->column_count * sizeof(size_t));
-    if (!col_widths) return strdup("");
+    size_t* col_widths = FERN_ALLOC(table->column_count * sizeof(size_t));
+    if (!col_widths) return FERN_STRDUP("");
     
     for (int64_t i = 0; i < table->column_count; i++) {
         col_widths[i] = display_width(table->columns[i].header);
@@ -2733,8 +2808,8 @@ char* fern_table_render(FernTable* table) {
     
     /* Build result */
     size_t result_cap = 8192;
-    char* result = malloc(result_cap);
-    if (!result) { free(col_widths); return strdup(""); }
+    char* result = FERN_ALLOC(result_cap);
+    if (!result) { FERN_FREE(col_widths); return FERN_STRDUP(""); }
     result[0] = '\0';
     
     /* Top border */
@@ -2742,7 +2817,7 @@ char* fern_table_render(FernTable* table) {
     for (int64_t i = 0; i < table->column_count; i++) {
         char* line = str_repeat(box->top, col_widths[i]);
         strcat(result, line);
-        free(line);
+        FERN_FREE(line);
         if (i < table->column_count - 1) {
             /* Use top for separator (simplified) */
             strcat(result, box->top);
@@ -2757,7 +2832,7 @@ char* fern_table_render(FernTable* table) {
         for (int64_t i = 0; i < table->column_count; i++) {
             char* centered = center_text(table->columns[i].header, col_widths[i]);
             strcat(result, centered);
-            free(centered);
+            FERN_FREE(centered);
             if (i < table->column_count - 1) {
                 strcat(result, box->left);
             }
@@ -2770,7 +2845,7 @@ char* fern_table_render(FernTable* table) {
         for (int64_t i = 0; i < table->column_count; i++) {
             char* line = str_repeat(box->top, col_widths[i]);
             strcat(result, line);
-            free(line);
+            FERN_FREE(line);
             if (i < table->column_count - 1) {
                 strcat(result, box->top);
             }
@@ -2788,7 +2863,7 @@ char* fern_table_render(FernTable* table) {
             char* padded = pad_right(cell, col_widths[c] - 1);
             strcat(result, " ");
             strcat(result, padded);
-            free(padded);
+            FERN_FREE(padded);
             if (c < table->column_count - 1) {
                 strcat(result, box->left);
             }
@@ -2802,48 +2877,48 @@ char* fern_table_render(FernTable* table) {
     for (int64_t i = 0; i < table->column_count; i++) {
         char* line = str_repeat(box->bottom, col_widths[i]);
         strcat(result, line);
-        free(line);
+        FERN_FREE(line);
         if (i < table->column_count - 1) {
             strcat(result, box->bottom);
         }
     }
     strcat(result, box->bottom_right);
     
-    free(col_widths);
+    FERN_FREE(col_widths);
     return result;
 }
 
-void fern_table_free(FernTable* table) {
+void fern_table_FERN_FREE(FernTable* table) {
     if (table) {
-        free(table->title);
-        free(table->caption);
+        FERN_FREE(table->title);
+        FERN_FREE(table->caption);
         for (int64_t i = 0; i < table->column_count; i++) {
-            free(table->columns[i].header);
+            FERN_FREE(table->columns[i].header);
         }
-        free(table->columns);
+        FERN_FREE(table->columns);
         for (int64_t r = 0; r < table->row_count; r++) {
             for (int64_t c = 0; c < table->rows[r].cell_count; c++) {
-                free(table->rows[r].cells[c]);
+                FERN_FREE(table->rows[r].cells[c]);
             }
-            free(table->rows[r].cells);
+            FERN_FREE(table->rows[r].cells);
         }
-        free(table->rows);
-        free(table);
+        FERN_FREE(table->rows);
+        FERN_FREE(table);
     }
 }
 
 /* ========== Progress Bar Module ========== */
 
 FernProgress* fern_progress_new(int64_t total) {
-    FernProgress* p = malloc(sizeof(FernProgress));
+    FernProgress* p = FERN_ALLOC(sizeof(FernProgress));
     if (!p) return NULL;
     
     p->total = total > 0 ? total : 100;
     p->completed = 0;
     p->width = 40;
     p->description = NULL;
-    p->fill_char = strdup("█");
-    p->empty_char = strdup("░");
+    p->fill_char = FERN_STRDUP("█");
+    p->empty_char = FERN_STRDUP("░");
     p->show_percentage = 1;
     p->show_count = 0;
     
@@ -2852,8 +2927,8 @@ FernProgress* fern_progress_new(int64_t total) {
 
 FernProgress* fern_progress_description(FernProgress* p, const char* desc) {
     if (!p) return NULL;
-    if (p->description) free(p->description);
-    p->description = desc ? strdup(desc) : NULL;
+    if (p->description) FERN_FREE(p->description);
+    p->description = desc ? FERN_STRDUP(desc) : NULL;
     return p;
 }
 
@@ -2880,7 +2955,7 @@ FernProgress* fern_progress_set(FernProgress* p, int64_t value) {
 }
 
 char* fern_progress_render(FernProgress* p) {
-    if (!p) return strdup("");
+    if (!p) return FERN_STRDUP("");
     
     double ratio = p->total > 0 ? (double)p->completed / p->total : 0;
     int filled = (int)(ratio * p->width);
@@ -2892,8 +2967,8 @@ char* fern_progress_render(FernProgress* p) {
     size_t empty_len = strlen(p->empty_char);
     size_t buf_size = desc_len + filled * fill_len + empty * empty_len + 50;
     
-    char* result = malloc(buf_size);
-    if (!result) return strdup("");
+    char* result = FERN_ALLOC(buf_size);
+    if (!result) return FERN_STRDUP("");
     result[0] = '\0';
     
     /* Description */
@@ -2936,12 +3011,12 @@ char* fern_progress_render(FernProgress* p) {
     return result;
 }
 
-void fern_progress_free(FernProgress* p) {
+void fern_progress_FERN_FREE(FernProgress* p) {
     if (p) {
-        free(p->description);
-        free(p->fill_char);
-        free(p->empty_char);
-        free(p);
+        FERN_FREE(p->description);
+        FERN_FREE(p->fill_char);
+        FERN_FREE(p->empty_char);
+        FERN_FREE(p);
     }
 }
 
@@ -2984,7 +3059,7 @@ static const char* SPINNER_FRAMES_CLOCK[] = {
 static const int SPINNER_FRAMES_CLOCK_COUNT = 12;
 
 FernSpinner* fern_spinner_new(void) {
-    FernSpinner* s = malloc(sizeof(FernSpinner));
+    FernSpinner* s = FERN_ALLOC(sizeof(FernSpinner));
     if (!s) return NULL;
     
     s->style = SPINNER_DOTS;
@@ -2996,8 +3071,8 @@ FernSpinner* fern_spinner_new(void) {
 
 FernSpinner* fern_spinner_message(FernSpinner* s, const char* message) {
     if (!s) return NULL;
-    if (s->message) free(s->message);
-    s->message = message ? strdup(message) : NULL;
+    if (s->message) FERN_FREE(s->message);
+    s->message = message ? FERN_STRDUP(message) : NULL;
     return s;
 }
 
@@ -3035,7 +3110,7 @@ FernSpinner* fern_spinner_tick(FernSpinner* s) {
 }
 
 char* fern_spinner_render(FernSpinner* s) {
-    if (!s) return strdup("");
+    if (!s) return FERN_STRDUP("");
     
     const char* frame = NULL;
     switch (s->style) {
@@ -3053,8 +3128,8 @@ char* fern_spinner_render(FernSpinner* s) {
     size_t msg_len = s->message ? strlen(s->message) : 0;
     size_t buf_size = strlen(frame) + msg_len + 10;
     
-    char* result = malloc(buf_size);
-    if (!result) return strdup("");
+    char* result = FERN_ALLOC(buf_size);
+    if (!result) return FERN_STRDUP("");
     
     if (s->message) {
         snprintf(result, buf_size, "%s %s", frame, s->message);
@@ -3065,10 +3140,10 @@ char* fern_spinner_render(FernSpinner* s) {
     return result;
 }
 
-void fern_spinner_free(FernSpinner* s) {
+void fern_spinner_FERN_FREE(FernSpinner* s) {
     if (s) {
-        free(s->message);
-        free(s);
+        FERN_FREE(s->message);
+        FERN_FREE(s);
     }
 }
 
@@ -3085,8 +3160,8 @@ char* fern_prompt_input(const char* prompt) {
     ssize_t read = getline(&line, &len, stdin);
     
     if (read <= 0) {
-        free(line);
-        return strdup("");
+        FERN_FREE(line);
+        return FERN_STRDUP("");
     }
     
     /* Remove trailing newline */
@@ -3108,13 +3183,13 @@ int fern_prompt_confirm(const char* prompt) {
     ssize_t read = getline(&line, &len, stdin);
     
     if (read <= 0) {
-        free(line);
+        FERN_FREE(line);
         return 0;
     }
     
     /* Check for yes */
     int result = (line[0] == 'y' || line[0] == 'Y');
-    free(line);
+    FERN_FREE(line);
     return result;
 }
 
@@ -3139,13 +3214,13 @@ int fern_prompt_select(const char* prompt, FernStringList* choices) {
     ssize_t read = getline(&line, &len, stdin);
     
     if (read <= 0) {
-        free(line);
+        FERN_FREE(line);
         return -1;
     }
     
     /* Parse selection */
     long selection = strtol(line, NULL, 10);
-    free(line);
+    FERN_FREE(line);
     
     if (selection < 1 || selection > choices->len) {
         return -1;
@@ -3176,8 +3251,8 @@ char* fern_prompt_password(const char* prompt) {
     printf("\n");  /* Print newline since user's enter was hidden */
     
     if (read <= 0) {
-        free(line);
-        return strdup("");
+        FERN_FREE(line);
+        return FERN_STRDUP("");
     }
     
     /* Remove trailing newline */
@@ -3199,14 +3274,14 @@ int64_t fern_prompt_int(const char* prompt, int64_t min, int64_t max) {
     ssize_t read = getline(&line, &len, stdin);
     
     if (read <= 0) {
-        free(line);
+        FERN_FREE(line);
         return min;
     }
     
     /* Parse number */
     char* endptr;
     long long value = strtoll(line, &endptr, 10);
-    free(line);
+    FERN_FREE(line);
     
     /* Validate */
     if (value < min) return min;
