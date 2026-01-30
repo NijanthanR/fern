@@ -1,6 +1,8 @@
 # Build artifacts
 build/
+build2/
 bin/
+bin2/
 
 # Editor and IDE files
 .vscode/
@@ -31,6 +33,12 @@ sum_fern
 # Python
 __pycache__/
 *.pyc
+.venv/
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Misc test files
 check_style_simple
 test_file_read
 test_simple_str
