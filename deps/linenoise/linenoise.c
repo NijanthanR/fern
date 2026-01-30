@@ -1,5 +1,7 @@
-/* Enable POSIX functions like strdup, fileno, fchmod in strict C99/C11 mode */
+/* Enable POSIX/BSD functions in strict C99/C11 mode */
 #define _POSIX_C_SOURCE 200809L
+#define _DEFAULT_SOURCE  /* For strcasecmp on glibc */
+#define _BSD_SOURCE      /* For older glibc versions */
 
 /* linenoise.c -- guerrilla line editing library against the idea that a
  * line editing lib needs to be 20,000 lines of C code.
@@ -112,6 +114,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>  /* For strcasecmp */
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/stat.h>
