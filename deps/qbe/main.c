@@ -5,6 +5,9 @@
  * Modified to expose library interface for Fern compiler.
  */
 
+// Enable POSIX functions like fmemopen() in strict C99 mode
+#define _POSIX_C_SOURCE 200809L
+
 #include "all.h"
 #include "config.h"
 #include <ctype.h>
