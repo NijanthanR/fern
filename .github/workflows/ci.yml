@@ -22,12 +22,13 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang make
+          sudo apt-get install -y clang make libgc-dev
 
       - name: Install dependencies (macOS)
         if: matrix.os == 'macos-latest'
         run: |
           # Xcode command line tools should be pre-installed
+          brew install bdw-gc
           clang --version
 
       - name: Build (Debug)
