@@ -2,6 +2,9 @@
  * Fern Compiler - Error Reporting Implementation
  */
 
+// Enable POSIX functions like fileno() in strict C11 mode
+#define _POSIX_C_SOURCE 200809L
+
 #include "errors.h"
 #include <stdarg.h>
 #include <stdlib.h>
