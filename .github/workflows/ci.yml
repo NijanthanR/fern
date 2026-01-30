@@ -56,7 +56,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang clang-format
+          sudo apt-get install -y clang clang-format libgc-dev
 
       - name: Set up Python
         uses: actions/setup-python@v5

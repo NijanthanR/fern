@@ -4,6 +4,11 @@
  * Core functions for compiled Fern programs.
  */
 
+/* Enable POSIX/BSD functions in strict C11 mode */
+#define _POSIX_C_SOURCE 200809L
+#define _DEFAULT_SOURCE
+#define _BSD_SOURCE
+
 #include "fern_runtime.h"
 #include "fern_gc.h"
 #include <stdio.h>
