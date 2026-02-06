@@ -96,6 +96,22 @@ Fern runtime now exposes Perceus-style object header metadata for RC-managed pay
 
 These semantics are regression-tested via runtime C-ABI harness coverage in `test_runtime_rc_header_and_core_type_ops` (`tests/test_runtime_surface.c`).
 
+### Milestone 7.7 Step C Codegen Dup/Drop Contract (2026-02-06)
+
+Fern codegen now inserts initial ownership operations for a constrained subset:
+
+1. Pointer alias let-bindings:
+   - `let y = x` where `x` is tracked as pointer-owned emits `fern_dup(x)` at bind site.
+2. Function-scope owned pointer names:
+   - Pointer parameters and pointer let-bindings are tracked as owned names.
+   - `fern_drop(name)` is emitted at function return sites for tracked owned names.
+3. Returned-identifier preservation:
+   - If the return value is an owned identifier (including block-final identifier), that identifier is excluded from drop emission at that return site.
+4. Scope note:
+   - This is an intentionally constrained Step C baseline and does not yet provide full ownership inference across all control-flow shapes.
+
+These semantics are regression-tested in `tests/test_codegen.c` via `test_codegen_dup_inserted_for_pointer_alias_binding` and `test_codegen_drop_inserted_for_unreturned_pointer_bindings`.
+
 ## Deprecation Lifecycle
 
 Every removal or incompatible behavior change must follow this sequence:

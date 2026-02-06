@@ -719,6 +719,35 @@ void test_codegen_if_returns_string(void) {
     arena_destroy(arena);
 }
 
+void test_codegen_dup_inserted_for_pointer_alias_binding(void) {
+    Arena* arena = arena_create(8192);
+
+    const char* qbe = generate_qbe(arena,
+        "fn keep_alias(x: String) -> String: let y = x y");
+
+    ASSERT_NOT_NULL(qbe);
+    ASSERT_TRUE(strstr(qbe, "function l $keep_alias(l %x)") != NULL);
+    ASSERT_TRUE(strstr(qbe, "%y =l call $fern_dup(l %x)") != NULL);
+    ASSERT_TRUE(strstr(qbe, "call $fern_drop(l %x)") != NULL);
+    ASSERT_TRUE(strstr(qbe, "call $fern_drop(l %y)") == NULL);
+
+    arena_destroy(arena);
+}
+
+void test_codegen_drop_inserted_for_unreturned_pointer_bindings(void) {
+    Arena* arena = arena_create(8192);
+
+    const char* qbe = generate_qbe(arena,
+        "fn use_alias(x: String) -> Int: let y = x 0");
+
+    ASSERT_NOT_NULL(qbe);
+    ASSERT_TRUE(strstr(qbe, "%y =l call $fern_dup(l %x)") != NULL);
+    ASSERT_TRUE(strstr(qbe, "call $fern_drop(l %y)") != NULL);
+    ASSERT_TRUE(strstr(qbe, "call $fern_drop(l %x)") != NULL);
+
+    arena_destroy(arena);
+}
+
 /* ========== Lowercase Stdlib API Tests ========== */
 
 void test_codegen_fs_read_calls_runtime(void) {
@@ -930,6 +959,8 @@ void run_codegen_tests(void) {
     TEST_RUN(test_codegen_fn_string_param);
     TEST_RUN(test_codegen_fn_list_param);
     TEST_RUN(test_codegen_if_returns_string);
+    TEST_RUN(test_codegen_dup_inserted_for_pointer_alias_binding);
+    TEST_RUN(test_codegen_drop_inserted_for_unreturned_pointer_bindings);
 
     /* Lowercase stdlib API stabilization */
     TEST_RUN(test_codegen_fs_read_calls_runtime);

@@ -39,6 +39,10 @@ struct Codegen {
     /* Track variables that are 64-bit (pointers: lists, strings) */
     String* wide_vars[MAX_WIDE_VARS];
     int wide_var_count;
+
+    /* Track named owned pointer variables for constrained dup/drop insertion. */
+    String* owned_ptr_vars[MAX_WIDE_VARS];
+    int owned_ptr_var_count;
     
     /* Track functions that return tuples (pointers) */
     String* tuple_return_funcs[MAX_TUPLE_FUNCS];
@@ -226,6 +230,75 @@ static void clear_wide_vars(Codegen* cg) {
     /* FERN_STYLE: allow(assertion-density) - simple reset function */
     assert(cg != NULL);
     cg->wide_var_count = 0;
+}
+
+/**
+ * Check if a named variable is tracked as an owned pointer.
+ * @param cg The codegen context.
+ * @param name The variable name.
+ * @return True if tracked as owned pointer.
+ */
+static bool is_owned_ptr_var(Codegen* cg, String* name) {
+    assert(cg != NULL);
+    assert(name != NULL);
+    for (int i = 0; i < cg->owned_ptr_var_count; i++) {
+        if (strcmp(string_cstr(cg->owned_ptr_vars[i]), string_cstr(name)) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Register a named variable as an owned pointer once.
+ * @param cg The codegen context.
+ * @param name The variable name.
+ */
+static void register_owned_ptr_var(Codegen* cg, String* name) {
+    assert(cg != NULL);
+    assert(name != NULL);
+    assert(cg->owned_ptr_var_count < MAX_WIDE_VARS);
+    if (is_owned_ptr_var(cg, name)) return;
+    cg->owned_ptr_vars[cg->owned_ptr_var_count++] = name;
+}
+
+/**
+ * Emit semantic drops for owned pointers, optionally preserving one name.
+ * @param cg The codegen context.
+ * @param preserve_name Variable name to preserve, or NULL.
+ */
+static void emit_owned_ptr_drops(Codegen* cg, const char* preserve_name) {
+    assert(cg != NULL);
+    assert(cg->owned_ptr_var_count >= 0);
+    for (int i = cg->owned_ptr_var_count - 1; i >= 0; i--) {
+        String* name = cg->owned_ptr_vars[i];
+        assert(name != NULL);
+        const char* raw_name = string_cstr(name);
+        if (preserve_name != NULL && strcmp(raw_name, preserve_name) == 0) continue;
+        emit(cg, "    call $fern_drop(l %%%s)\n", raw_name);
+    }
+}
+
+/**
+ * Find the owned pointer identifier preserved as the return value.
+ * Supports constrained Step C shapes: direct identifier and block final identifier.
+ * @param cg The codegen context.
+ * @param expr The returned expression.
+ * @return Preserved variable name, or NULL.
+ */
+static const char* preserved_owned_ptr_name(Codegen* cg, Expr* expr) {
+    assert(cg != NULL);
+    assert(expr != NULL);
+    if (expr->type == EXPR_IDENT && is_owned_ptr_var(cg, expr->data.ident.name)) {
+        return string_cstr(expr->data.ident.name);
+    }
+    if (expr->type == EXPR_BLOCK) {
+        BlockExpr* block = &expr->data.block;
+        if (block->final_expr != NULL) {
+            return preserved_owned_ptr_name(cg, block->final_expr);
+        }
+    }
+    return NULL;
 }
 
 /**
@@ -705,6 +778,7 @@ Codegen* codegen_new(Arena* arena) {
     cg->string_counter = 0;
     cg->defer_count = 0;
     cg->wide_var_count = 0;
+    cg->owned_ptr_var_count = 0;
     cg->tuple_func_count = 0;
     cg->returned = false;
     return cg;
@@ -3222,6 +3296,7 @@ static void codegen_fn_def(Codegen* cg, FunctionDef* fn) {
     /* Clear defer stack, wide vars, and return flag at function start */
     clear_defers(cg);
     cg->wide_var_count = 0;
+    cg->owned_ptr_var_count = 0;
     cg->returned = false;
     
     /* Check if this is main() with no return type (Unit return) */
@@ -3259,6 +3334,7 @@ static void codegen_fn_def(Codegen* cg, FunctionDef* fn) {
                     /* Tuples are heap-allocated pointers */
                     param_type = 'l';
                     register_wide_var(cg, param->name);
+                    register_owned_ptr_var(cg, param->name);
                 } else if (param->type_ann->kind == TYPEEXPR_NAMED) {
                     const char* type_name = string_cstr(param->type_ann->data.named.name);
                     /* String, List are heap pointers; Option is packed 64-bit; Result is heap pointer */
@@ -3267,6 +3343,7 @@ static void codegen_fn_def(Codegen* cg, FunctionDef* fn) {
                         param_type = 'l';
                         /* Register as wide var so uses within function body use correct type */
                         register_wide_var(cg, param->name);
+                        register_owned_ptr_var(cg, param->name);
                     }
                 }
             }
@@ -3279,9 +3356,11 @@ static void codegen_fn_def(Codegen* cg, FunctionDef* fn) {
     
     /* Function body */
     String* result = codegen_expr(cg, fn->body);
+    const char* preserve_name = preserved_owned_ptr_name(cg, fn->body);
     
     /* Emit deferred expressions before final return */
     emit_defers(cg);
+    emit_owned_ptr_drops(cg, preserve_name);
     
     /* For main() with Unit return, always return 0 (success exit code) */
     if (is_main_unit) {
@@ -3381,9 +3460,19 @@ void codegen_stmt(Codegen* cg, Stmt* stmt) {
                 }
                 if (is_pointer_type) {
                     register_wide_var(cg, let->pattern->data.ident);
+                    register_owned_ptr_var(cg, let->pattern->data.ident);
+                    type_spec = 'l';
                 }
-                emit(cg, "    %%%s =%c copy %s\n", 
-                    string_cstr(let->pattern->data.ident), type_spec, string_cstr(val));
+                if (is_pointer_type &&
+                    let->value->type == EXPR_IDENT &&
+                    is_wide_var(cg, let->value->data.ident.name)) {
+                    emit(cg, "    %%%s =l call $fern_dup(l %%%s)\n",
+                        string_cstr(let->pattern->data.ident),
+                        string_cstr(let->value->data.ident.name));
+                } else {
+                    emit(cg, "    %%%s =%c copy %s\n", 
+                        string_cstr(let->pattern->data.ident), type_spec, string_cstr(val));
+                }
             } else {
                 emit(cg, "    # TODO: pattern binding\n");
             }
@@ -3397,12 +3486,16 @@ void codegen_stmt(Codegen* cg, Stmt* stmt) {
         
         case STMT_RETURN: {
             ReturnStmt* ret = &stmt->data.return_stmt;
+            const char* preserve_name = NULL;
+            if (ret->value) preserve_name = preserved_owned_ptr_name(cg, ret->value);
             /* Emit deferred expressions before returning */
             emit_defers(cg);
             if (ret->value) {
                 String* val = codegen_expr(cg, ret->value);
+                emit_owned_ptr_drops(cg, preserve_name);
                 emit(cg, "    ret %s\n", string_cstr(val));
             } else {
+                emit_owned_ptr_drops(cg, NULL);
                 emit(cg, "    ret 0\n");
             }
             /* Mark that we've returned - no more code should be emitted
