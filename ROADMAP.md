@@ -8,7 +8,7 @@ Detailed historical logs and old iteration notes were moved to:
 
 ## Current Snapshot
 
-- Build/tests: `make test` passing (**433/433**)
+- Build/tests: `make test` passing (**443/443**)
 - Style: `make style` passing
 - Foundation status: lexer, parser, type checker, codegen pipeline, core runtime, and embedded toolchain are working
 - Current focus: Gate C Task 1 (stdlib API stabilization), then Milestone 7.7 implementation tranche before actor runtime core work
@@ -67,12 +67,12 @@ Gates are sequential. Only one gate is active at a time.
 
 ### Gate C: Product Surface and Standard Library Quality
 
-**Status:** QUEUED
+**Status:** ACTIVE (2026-02-06)
 **Maps to milestones:** 7, 8, 9
 **Dependency:** Gate B passed
 
 **Implementation checklist:**
-- [ ] Stabilize stdlib module APIs (`fs`, `http`, `json`, `sql`, `actors`)
+- [ ] Stabilize stdlib module APIs (`fs`, `http`, `json`, `sql`, `actors`) - Phase 1 complete (compiler/checker/codegen surface + regression tests), runtime behavior/docs still in progress
 - [ ] Milestone 7.7 / Step A: Introduce runtime memory abstraction (`alloc/dup/drop` API surface) behind current Boehm implementation
 - [ ] Milestone 7.7 / Step B: Add Perceus object header + refcount ops for core heap value types
 - [ ] Milestone 7.7 / Step C: Add initial dup/drop insertion in codegen for a constrained, test-covered subset
@@ -136,7 +136,7 @@ Gates are sequential. Only one gate is active at a time.
 
 Gate C is now unblocked. Start with API stabilization, then complete Milestone 7.7 implementation tranche before actor runtime core work.
 
-1. [ ] Gate C / Task 1: Stabilize stdlib module APIs (`fs`, `http`, `json`, `sql`, `actors`) and document compatibility guarantees
+1. [ ] Gate C / Task 1: Stabilize stdlib module APIs (`fs`, `http`, `json`, `sql`, `actors`) and document compatibility guarantees (Phase 1 compiler surface + tests completed)
 2. [ ] Gate C / Task 1.5a: Milestone 7.7 - implement runtime memory abstraction layer (`alloc/dup/drop`) backed by Boehm
 3. [ ] Gate C / Task 1.5b: Milestone 7.7 - implement Perceus object header and RC ops for core heap types
 4. [ ] Gate C / Task 1.5c: Milestone 7.7 - add constrained dup/drop insertion in codegen with focused tests

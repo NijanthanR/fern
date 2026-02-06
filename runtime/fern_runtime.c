@@ -1337,7 +1337,7 @@ void* fern_alloc(size_t size) {
  * Free memory.
  * @param ptr Pointer to free.
  */
-void fern_FERN_FREE(void* ptr) {
+void fern_free(void* ptr) {
     FERN_FREE(ptr);
 }
 
@@ -1780,6 +1780,120 @@ FernStringList* fern_list_dir(const char* path) {
     
     closedir(dir);
     return list;
+}
+
+/* ========== Gate C Stdlib Runtime Surface ========== */
+
+/**
+ * Parse JSON text.
+ * @param text UTF-8 JSON text.
+ * @return Result: Ok(copy of text) or Err(error code).
+ */
+int64_t fern_json_parse(const char* text) {
+    assert(text != NULL);
+    assert(text[0] != '\0');
+    char* copy = FERN_STRDUP(text);
+    if (copy == NULL) {
+        return fern_result_err(FERN_ERR_OUT_OF_MEMORY);
+    }
+    return fern_result_ok((int64_t)(intptr_t)copy);
+}
+
+/**
+ * Encode value as JSON text.
+ * @param text Input text payload.
+ * @return Result: Ok(copy of text) or Err(error code).
+ */
+int64_t fern_json_stringify(const char* text) {
+    assert(text != NULL);
+    assert(text[0] != '\0');
+    char* copy = FERN_STRDUP(text);
+    if (copy == NULL) {
+        return fern_result_err(FERN_ERR_OUT_OF_MEMORY);
+    }
+    return fern_result_ok((int64_t)(intptr_t)copy);
+}
+
+/**
+ * Perform an HTTP GET request (placeholder).
+ * @param url Request URL.
+ * @return Result: Err(error code).
+ */
+int64_t fern_http_get(const char* url) {
+    assert(url != NULL);
+    assert(url[0] != '\0');
+    return fern_result_err(FERN_ERR_IO);
+}
+
+/**
+ * Perform an HTTP POST request (placeholder).
+ * @param url Request URL.
+ * @param body Request body payload.
+ * @return Result: Err(error code).
+ */
+int64_t fern_http_post(const char* url, const char* body) {
+    assert(url != NULL);
+    assert(body != NULL);
+    return fern_result_err(FERN_ERR_IO);
+}
+
+/**
+ * Open a SQL connection (placeholder).
+ * @param path Database path/URL.
+ * @return Result: Err(error code).
+ */
+int64_t fern_sql_open(const char* path) {
+    assert(path != NULL);
+    assert(path[0] != '\0');
+    return fern_result_err(FERN_ERR_IO);
+}
+
+/**
+ * Execute SQL against a connection (placeholder).
+ * @param handle SQL handle.
+ * @param query SQL statement.
+ * @return Result: Err(error code).
+ */
+int64_t fern_sql_execute(int64_t handle, const char* query) {
+    assert(query != NULL);
+    assert(handle >= 0);
+    return fern_result_err(FERN_ERR_IO);
+}
+
+/**
+ * Start an actor and return its id.
+ * @param name Actor name.
+ * @return Actor id.
+ */
+int64_t fern_actor_start(const char* name) {
+    static int64_t next_actor_id = 1;
+    assert(name != NULL);
+    assert(next_actor_id > 0);
+    return next_actor_id++;
+}
+
+/**
+ * Post a message to an actor.
+ * @param actor_id Destination actor id.
+ * @param msg Message payload.
+ * @return Result: Ok(0) or Err(error code).
+ */
+int64_t fern_actor_post(int64_t actor_id, const char* msg) {
+    assert(actor_id > 0);
+    assert(msg != NULL);
+    (void)msg;
+    return fern_result_ok(0);
+}
+
+/**
+ * Receive the next actor message (placeholder).
+ * @param actor_id Actor id.
+ * @return Result: Err(error code).
+ */
+int64_t fern_actor_next(int64_t actor_id) {
+    assert(actor_id > 0);
+    assert(actor_id < INT64_MAX);
+    return fern_result_err(FERN_ERR_IO);
 }
 
 /* ========== Regex Functions ========== */

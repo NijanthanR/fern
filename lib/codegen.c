@@ -150,6 +150,31 @@ static String* try_build_module_path(Arena* arena, Expr* expr) {
 }
 
 /**
+ * Canonicalize built-in module names, including compatibility aliases.
+ * @param name Module name from source.
+ * @return Canonical module name or NULL if not built-in.
+ */
+static const char* canonical_builtin_module_name(const char* name) {
+    assert(name != NULL);
+    assert(name[0] != '\0');
+    if (strcmp(name, "String") == 0 || strcmp(name, "List") == 0 ||
+        strcmp(name, "System") == 0 || strcmp(name, "Regex") == 0 ||
+        strcmp(name, "Tui.Term") == 0 || strcmp(name, "Tui.Panel") == 0 ||
+        strcmp(name, "Tui.Table") == 0 || strcmp(name, "Tui.Style") == 0 ||
+        strcmp(name, "Tui.Status") == 0 || strcmp(name, "Tui.Live") == 0 ||
+        strcmp(name, "Tui.Progress") == 0 || strcmp(name, "Tui.Spinner") == 0 ||
+        strcmp(name, "Tui.Prompt") == 0) {
+        return name;
+    }
+    if (strcmp(name, "File") == 0 || strcmp(name, "fs") == 0) return "File";
+    if (strcmp(name, "json") == 0 || strcmp(name, "Json") == 0) return "json";
+    if (strcmp(name, "http") == 0 || strcmp(name, "Http") == 0) return "http";
+    if (strcmp(name, "sql") == 0 || strcmp(name, "Sql") == 0) return "sql";
+    if (strcmp(name, "actors") == 0 || strcmp(name, "Actors") == 0) return "actors";
+    return NULL;
+}
+
+/**
  * Check if a name is a built-in module (for codegen).
  * @param name The name to check.
  * @return True if the name is a built-in module.
@@ -157,27 +182,7 @@ static String* try_build_module_path(Arena* arena, Expr* expr) {
 static bool is_builtin_module(const char* name) {
     assert(name != NULL);
     assert(strlen(name) < 256);  /* Module names have reasonable length */
-    /* Top-level modules */
-    if (strcmp(name, "String") == 0 ||
-        strcmp(name, "List") == 0 ||
-        strcmp(name, "File") == 0 ||
-        strcmp(name, "System") == 0 ||
-        strcmp(name, "Regex") == 0 ||
-        strcmp(name, "Tui.Term") == 0) {
-        return true;
-    }
-    /* Tui submodules */
-    if (strcmp(name, "Tui.Panel") == 0 ||
-        strcmp(name, "Tui.Table") == 0 ||
-        strcmp(name, "Tui.Style") == 0 ||
-        strcmp(name, "Tui.Status") == 0 ||
-        strcmp(name, "Tui.Live") == 0 ||
-        strcmp(name, "Tui.Progress") == 0 ||
-        strcmp(name, "Tui.Spinner") == 0 ||
-        strcmp(name, "Tui.Prompt") == 0) {
-        return true;
-    }
-    return false;
+    return canonical_builtin_module_name(name) != NULL;
 }
 
 /* ========== QBE Type Helpers ========== */
@@ -1346,7 +1351,8 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                 /* Try to build module path for nested modules like Tui.Panel */
                 String* module_path = try_build_module_path(cg->arena, dot->object);
                 if (module_path != NULL && is_builtin_module(string_cstr(module_path))) {
-                    const char* module = string_cstr(module_path);
+                    const char* module = canonical_builtin_module_name(string_cstr(module_path));
+                    assert(module != NULL);
                     const char* func = string_cstr(dot->field);
                     
                     /* ===== String module ===== */
@@ -1666,6 +1672,88 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                             String* path = codegen_expr(cg, call->args->data[0].value);
                             emit(cg, "    %s =l call $fern_list_dir(l %s)\n",
                                 string_cstr(result), string_cstr(path));
+                            return result;
+                        }
+                    }
+
+                    /* ===== json module ===== */
+                    if (strcmp(module, "json") == 0) {
+                        /* json.parse(text) -> Result(String, Int) */
+                        if (strcmp(func, "parse") == 0 && call->args->len == 1) {
+                            String* text = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    %s =l call $fern_json_parse(l %s)\n",
+                                string_cstr(result), string_cstr(text));
+                            return result;
+                        }
+                        /* json.stringify(text) -> Result(String, Int) */
+                        if (strcmp(func, "stringify") == 0 && call->args->len == 1) {
+                            String* text = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    %s =l call $fern_json_stringify(l %s)\n",
+                                string_cstr(result), string_cstr(text));
+                            return result;
+                        }
+                    }
+
+                    /* ===== http module ===== */
+                    if (strcmp(module, "http") == 0) {
+                        /* http.get(url) -> Result(String, Int) */
+                        if (strcmp(func, "get") == 0 && call->args->len == 1) {
+                            String* url = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    %s =l call $fern_http_get(l %s)\n",
+                                string_cstr(result), string_cstr(url));
+                            return result;
+                        }
+                        /* http.post(url, body) -> Result(String, Int) */
+                        if (strcmp(func, "post") == 0 && call->args->len == 2) {
+                            String* url = codegen_expr(cg, call->args->data[0].value);
+                            String* body = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_http_post(l %s, l %s)\n",
+                                string_cstr(result), string_cstr(url), string_cstr(body));
+                            return result;
+                        }
+                    }
+
+                    /* ===== sql module ===== */
+                    if (strcmp(module, "sql") == 0) {
+                        /* sql.open(path) -> Result(Int, Int) */
+                        if (strcmp(func, "open") == 0 && call->args->len == 1) {
+                            String* path = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    %s =l call $fern_sql_open(l %s)\n",
+                                string_cstr(result), string_cstr(path));
+                            return result;
+                        }
+                        /* sql.execute(handle, query) -> Result(Int, Int) */
+                        if (strcmp(func, "execute") == 0 && call->args->len == 2) {
+                            String* handle = codegen_expr(cg, call->args->data[0].value);
+                            String* query = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_sql_execute(w %s, l %s)\n",
+                                string_cstr(result), string_cstr(handle), string_cstr(query));
+                            return result;
+                        }
+                    }
+
+                    /* ===== actors module ===== */
+                    if (strcmp(module, "actors") == 0) {
+                        /* actors.start(name) -> Int */
+                        if (strcmp(func, "start") == 0 && call->args->len == 1) {
+                            String* name = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    %s =w call $fern_actor_start(l %s)\n",
+                                string_cstr(result), string_cstr(name));
+                            return result;
+                        }
+                        /* actors.post(actor_id, msg) -> Result(Int, Int) */
+                        if (strcmp(func, "post") == 0 && call->args->len == 2) {
+                            String* actor_id = codegen_expr(cg, call->args->data[0].value);
+                            String* msg = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_actor_post(w %s, l %s)\n",
+                                string_cstr(result), string_cstr(actor_id), string_cstr(msg));
+                            return result;
+                        }
+                        /* actors.next(actor_id) -> Result(String, Int) */
+                        if (strcmp(func, "next") == 0 && call->args->len == 1) {
+                            String* actor_id = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    %s =l call $fern_actor_next(w %s)\n",
+                                string_cstr(result), string_cstr(actor_id));
                             return result;
                         }
                     }

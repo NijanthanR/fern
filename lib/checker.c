@@ -209,6 +209,32 @@ static String* try_build_module_path(Arena* arena, Expr* expr) {
 }
 
 /**
+ * Canonicalize built-in module names, including compatibility aliases.
+ * @param name Module name from source.
+ * @return Canonical module name or NULL if not built-in.
+ */
+static const char* canonical_builtin_module_name(const char* name) {
+    assert(name != NULL);
+    assert(name[0] != '\0');
+    if (strcmp(name, "String") == 0 || strcmp(name, "List") == 0 ||
+        strcmp(name, "System") == 0 || strcmp(name, "Regex") == 0 ||
+        strcmp(name, "Result") == 0 || strcmp(name, "Option") == 0 ||
+        strcmp(name, "Tui.Term") == 0 || strcmp(name, "Tui.Panel") == 0 ||
+        strcmp(name, "Tui.Table") == 0 || strcmp(name, "Tui.Style") == 0 ||
+        strcmp(name, "Tui.Status") == 0 || strcmp(name, "Tui.Live") == 0 ||
+        strcmp(name, "Tui.Progress") == 0 || strcmp(name, "Tui.Spinner") == 0 ||
+        strcmp(name, "Tui.Prompt") == 0) {
+        return name;
+    }
+    if (strcmp(name, "File") == 0 || strcmp(name, "fs") == 0) return "File";
+    if (strcmp(name, "json") == 0 || strcmp(name, "Json") == 0) return "json";
+    if (strcmp(name, "http") == 0 || strcmp(name, "Http") == 0) return "http";
+    if (strcmp(name, "sql") == 0 || strcmp(name, "Sql") == 0) return "sql";
+    if (strcmp(name, "actors") == 0 || strcmp(name, "Actors") == 0) return "actors";
+    return NULL;
+}
+
+/**
  * Check if a name is a built-in module.
  * Supports nested modules like "Tui.Panel".
  * @param name The name to check.
@@ -217,29 +243,8 @@ static String* try_build_module_path(Arena* arena, Expr* expr) {
 static bool is_builtin_module(const char* name) {
     assert(name != NULL);
     assert(name[0] != '\0');  /* Name must be non-empty */
-    /* Top-level modules */
-    if (strcmp(name, "String") == 0 ||
-        strcmp(name, "List") == 0 ||
-        strcmp(name, "File") == 0 ||
-        strcmp(name, "System") == 0 ||
-        strcmp(name, "Regex") == 0 ||
-        strcmp(name, "Result") == 0 ||
-        strcmp(name, "Option") == 0 ||
-        strcmp(name, "Tui.Term") == 0 ||
-        strcmp(name, "Tui.Progress") == 0 ||
-        strcmp(name, "Tui.Spinner") == 0 ||
-        strcmp(name, "Tui.Prompt") == 0) {
-        return true;
-    }
-    /* Tui submodules */
-    if (strcmp(name, "Tui.Panel") == 0 ||
-        strcmp(name, "Tui.Table") == 0 ||
-        strcmp(name, "Tui.Style") == 0 ||
-        strcmp(name, "Tui.Status") == 0 ||
-        strcmp(name, "Tui.Live") == 0) {
-        return true;
-    }
-    return false;
+    assert(strlen(name) < 256);
+    return canonical_builtin_module_name(name) != NULL;
 }
 
 /**
@@ -254,6 +259,8 @@ static Type* lookup_module_function(Checker* checker, const char* module, const 
     assert(checker != NULL);
     assert(module != NULL);
     assert(func != NULL);
+    module = canonical_builtin_module_name(module);
+    if (module == NULL) return NULL;
     Arena* arena = checker->arena;
     TypeVec* params;
     Type* var;
@@ -776,6 +783,111 @@ static Type* lookup_module_function(Checker* checker, const char* module, const 
         if (strcmp(func, "color_support") == 0) {
             params = TypeVec_new(arena);
             return type_fn(arena, params, type_int(arena));
+        }
+    }
+
+    /* ===== json module ===== */
+    if (strcmp(module, "json") == 0) {
+        /* json.parse(String) -> Result(String, Int) */
+        if (strcmp(func, "parse") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            result_args = TypeVec_new(arena);
+            TypeVec_push(arena, result_args, type_string(arena));
+            TypeVec_push(arena, result_args, type_int(arena));
+            result_type = type_con(arena, string_new(arena, "Result"), result_args);
+            return type_fn(arena, params, result_type);
+        }
+        /* json.stringify(String) -> Result(String, Int) */
+        if (strcmp(func, "stringify") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            result_args = TypeVec_new(arena);
+            TypeVec_push(arena, result_args, type_string(arena));
+            TypeVec_push(arena, result_args, type_int(arena));
+            result_type = type_con(arena, string_new(arena, "Result"), result_args);
+            return type_fn(arena, params, result_type);
+        }
+    }
+
+    /* ===== http module ===== */
+    if (strcmp(module, "http") == 0) {
+        /* http.get(String) -> Result(String, Int) */
+        if (strcmp(func, "get") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            result_args = TypeVec_new(arena);
+            TypeVec_push(arena, result_args, type_string(arena));
+            TypeVec_push(arena, result_args, type_int(arena));
+            result_type = type_con(arena, string_new(arena, "Result"), result_args);
+            return type_fn(arena, params, result_type);
+        }
+        /* http.post(String, String) -> Result(String, Int) */
+        if (strcmp(func, "post") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            TypeVec_push(arena, params, type_string(arena));
+            result_args = TypeVec_new(arena);
+            TypeVec_push(arena, result_args, type_string(arena));
+            TypeVec_push(arena, result_args, type_int(arena));
+            result_type = type_con(arena, string_new(arena, "Result"), result_args);
+            return type_fn(arena, params, result_type);
+        }
+    }
+
+    /* ===== sql module ===== */
+    if (strcmp(module, "sql") == 0) {
+        /* sql.open(String) -> Result(Int, Int) */
+        if (strcmp(func, "open") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            result_args = TypeVec_new(arena);
+            TypeVec_push(arena, result_args, type_int(arena));
+            TypeVec_push(arena, result_args, type_int(arena));
+            result_type = type_con(arena, string_new(arena, "Result"), result_args);
+            return type_fn(arena, params, result_type);
+        }
+        /* sql.execute(Int, String) -> Result(Int, Int) */
+        if (strcmp(func, "execute") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_int(arena));
+            TypeVec_push(arena, params, type_string(arena));
+            result_args = TypeVec_new(arena);
+            TypeVec_push(arena, result_args, type_int(arena));
+            TypeVec_push(arena, result_args, type_int(arena));
+            result_type = type_con(arena, string_new(arena, "Result"), result_args);
+            return type_fn(arena, params, result_type);
+        }
+    }
+
+    /* ===== actors module ===== */
+    if (strcmp(module, "actors") == 0) {
+        /* actors.start(String) -> Int */
+        if (strcmp(func, "start") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_string(arena));
+            return type_fn(arena, params, type_int(arena));
+        }
+        /* actors.post(Int, String) -> Result(Int, Int) */
+        if (strcmp(func, "post") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_int(arena));
+            TypeVec_push(arena, params, type_string(arena));
+            result_args = TypeVec_new(arena);
+            TypeVec_push(arena, result_args, type_int(arena));
+            TypeVec_push(arena, result_args, type_int(arena));
+            result_type = type_con(arena, string_new(arena, "Result"), result_args);
+            return type_fn(arena, params, result_type);
+        }
+        /* actors.next(Int) -> Result(String, Int) */
+        if (strcmp(func, "next") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_int(arena));
+            result_args = TypeVec_new(arena);
+            TypeVec_push(arena, result_args, type_string(arena));
+            TypeVec_push(arena, result_args, type_int(arena));
+            result_type = type_con(arena, string_new(arena, "Result"), result_args);
+            return type_fn(arena, params, result_type);
         }
     }
 

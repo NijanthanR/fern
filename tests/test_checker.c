@@ -1659,6 +1659,67 @@ void test_check_interp_string_undefined_var(void) {
     arena_destroy(arena);
 }
 
+/* ========== Lowercase Stdlib API Tests ========== */
+
+void test_check_fs_read_returns_result(void) {
+    Arena* arena = arena_create(4096);
+
+    Type* t = check_expr(arena, "fs.read(\"notes.txt\")");
+
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_CON);
+    ASSERT_STR_EQ(string_cstr(t->data.con.name), "Result");
+
+    arena_destroy(arena);
+}
+
+void test_check_json_parse_returns_result(void) {
+    Arena* arena = arena_create(4096);
+
+    Type* t = check_expr(arena, "json.parse(\"[]\")");
+
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_CON);
+    ASSERT_STR_EQ(string_cstr(t->data.con.name), "Result");
+
+    arena_destroy(arena);
+}
+
+void test_check_http_get_returns_result(void) {
+    Arena* arena = arena_create(4096);
+
+    Type* t = check_expr(arena, "http.get(\"https://example.com\")");
+
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_CON);
+    ASSERT_STR_EQ(string_cstr(t->data.con.name), "Result");
+
+    arena_destroy(arena);
+}
+
+void test_check_sql_open_returns_result(void) {
+    Arena* arena = arena_create(4096);
+
+    Type* t = check_expr(arena, "sql.open(\"app.db\")");
+
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_CON);
+    ASSERT_STR_EQ(string_cstr(t->data.con.name), "Result");
+
+    arena_destroy(arena);
+}
+
+void test_check_actors_start_returns_int(void) {
+    Arena* arena = arena_create(4096);
+
+    Type* t = check_expr(arena, "actors.start(\"worker\")");
+
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_INT);
+
+    arena_destroy(arena);
+}
+
 /* ========== Tui Module Tests ========== */
 
 void test_check_tui_style_returns_string(void) {
@@ -1994,7 +2055,14 @@ void run_checker_tests(void) {
     TEST_RUN(test_check_interp_string_int);
     TEST_RUN(test_check_interp_string_expr);
     TEST_RUN(test_check_interp_string_undefined_var);
-    
+
+    // Lowercase stdlib API stabilization
+    TEST_RUN(test_check_fs_read_returns_result);
+    TEST_RUN(test_check_json_parse_returns_result);
+    TEST_RUN(test_check_http_get_returns_result);
+    TEST_RUN(test_check_sql_open_returns_result);
+    TEST_RUN(test_check_actors_start_returns_int);
+
     // Tui module type checking
     TEST_RUN(test_check_tui_style_returns_string);
     TEST_RUN(test_check_tui_style_bold_returns_string);

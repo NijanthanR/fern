@@ -19,6 +19,22 @@ Compatibility baseline:
 3. Breaking changes are allowed only in major releases and must include migration notes.
 4. Experimental features must be clearly marked experimental and may change before stabilization.
 
+## Standard Library API Contract (Gate C)
+
+As of 2026-02-06, Fern reserves and stabilizes the following top-level stdlib entry points:
+
+1. `fs`
+2. `json`
+3. `http`
+4. `sql`
+5. `actors`
+
+Compatibility alias policy:
+
+1. `File.*` remains supported as a compatibility alias for `fs.*`.
+2. Any future alias deprecation must follow the lifecycle below and keep the minimum 2-minor-release support window.
+3. New APIs may be added to these modules in minor releases, but existing signatures must remain backward compatible.
+
 ## Deprecation Lifecycle
 
 Every removal or incompatible behavior change must follow this sequence:

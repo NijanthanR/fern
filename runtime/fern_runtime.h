@@ -720,6 +720,83 @@ FernStringList* fern_list_dir(const char* path);
 #define FERN_ERR_OUT_OF_MEMORY   4
 #define FERN_ERR_NOT_A_DIR       5
 
+/* ========== Gate C Stdlib Runtime Surface ========== */
+
+/**
+ * Parse JSON text.
+ * Current implementation is a placeholder bridge used during Gate C API work.
+ * @param text UTF-8 JSON text.
+ * @return Result: Ok(normalized JSON string) or Err(error code).
+ */
+int64_t fern_json_parse(const char* text);
+
+/**
+ * Encode value as JSON text.
+ * Current implementation is a placeholder bridge used during Gate C API work.
+ * @param text Input text payload.
+ * @return Result: Ok(JSON string) or Err(error code).
+ */
+int64_t fern_json_stringify(const char* text);
+
+/**
+ * Perform an HTTP GET request.
+ * Current implementation returns Err(FERN_ERR_IO) until HTTP runtime lands.
+ * @param url Request URL.
+ * @return Result: Ok(response body) or Err(error code).
+ */
+int64_t fern_http_get(const char* url);
+
+/**
+ * Perform an HTTP POST request.
+ * Current implementation returns Err(FERN_ERR_IO) until HTTP runtime lands.
+ * @param url Request URL.
+ * @param body Request body payload.
+ * @return Result: Ok(response body) or Err(error code).
+ */
+int64_t fern_http_post(const char* url, const char* body);
+
+/**
+ * Open a SQL connection handle.
+ * Current implementation returns Err(FERN_ERR_IO) until SQL runtime lands.
+ * @param path Database path/URL.
+ * @return Result: Ok(handle) or Err(error code).
+ */
+int64_t fern_sql_open(const char* path);
+
+/**
+ * Execute a SQL statement.
+ * Current implementation returns Err(FERN_ERR_IO) until SQL runtime lands.
+ * @param handle SQL handle.
+ * @param query SQL statement.
+ * @return Result: Ok(rows affected) or Err(error code).
+ */
+int64_t fern_sql_execute(int64_t handle, const char* query);
+
+/**
+ * Start an actor and return its id.
+ * Current implementation assigns deterministic process-local ids.
+ * @param name Actor name.
+ * @return Actor id (positive integer).
+ */
+int64_t fern_actor_start(const char* name);
+
+/**
+ * Post a message to an actor.
+ * Current implementation accepts and drops the message.
+ * @param actor_id Destination actor id.
+ * @param msg Message payload.
+ * @return Result: Ok(0) or Err(error code).
+ */
+int64_t fern_actor_post(int64_t actor_id, const char* msg);
+
+/**
+ * Receive the next actor message.
+ * Current implementation returns Err(FERN_ERR_IO) when no queue is available.
+ * @param actor_id Actor id.
+ * @return Result: Ok(message) or Err(error code).
+ */
+int64_t fern_actor_next(int64_t actor_id);
+
 /* ========== Regex Functions ========== */
 
 /**

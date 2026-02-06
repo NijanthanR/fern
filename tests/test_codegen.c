@@ -719,6 +719,63 @@ void test_codegen_if_returns_string(void) {
     arena_destroy(arena);
 }
 
+/* ========== Lowercase Stdlib API Tests ========== */
+
+void test_codegen_fs_read_calls_runtime(void) {
+    Arena* arena = arena_create(8192);
+
+    const char* qbe = generate_expr_qbe(arena, "fs.read(\"notes.txt\")");
+
+    ASSERT_NOT_NULL(qbe);
+    ASSERT_TRUE(strstr(qbe, "$fern_read_file") != NULL);
+
+    arena_destroy(arena);
+}
+
+void test_codegen_json_parse_calls_runtime(void) {
+    Arena* arena = arena_create(8192);
+
+    const char* qbe = generate_expr_qbe(arena, "json.parse(\"[]\")");
+
+    ASSERT_NOT_NULL(qbe);
+    ASSERT_TRUE(strstr(qbe, "$fern_json_parse") != NULL);
+
+    arena_destroy(arena);
+}
+
+void test_codegen_http_get_calls_runtime(void) {
+    Arena* arena = arena_create(8192);
+
+    const char* qbe = generate_expr_qbe(arena, "http.get(\"https://example.com\")");
+
+    ASSERT_NOT_NULL(qbe);
+    ASSERT_TRUE(strstr(qbe, "$fern_http_get") != NULL);
+
+    arena_destroy(arena);
+}
+
+void test_codegen_sql_open_calls_runtime(void) {
+    Arena* arena = arena_create(8192);
+
+    const char* qbe = generate_expr_qbe(arena, "sql.open(\"app.db\")");
+
+    ASSERT_NOT_NULL(qbe);
+    ASSERT_TRUE(strstr(qbe, "$fern_sql_open") != NULL);
+
+    arena_destroy(arena);
+}
+
+void test_codegen_actors_start_calls_runtime(void) {
+    Arena* arena = arena_create(8192);
+
+    const char* qbe = generate_expr_qbe(arena, "actors.start(\"worker\")");
+
+    ASSERT_NOT_NULL(qbe);
+    ASSERT_TRUE(strstr(qbe, "$fern_actor_start") != NULL);
+
+    arena_destroy(arena);
+}
+
 /* ========== Tui Prompt Tests ========== */
 
 void test_codegen_tui_prompt_input(void) {
@@ -873,6 +930,13 @@ void run_codegen_tests(void) {
     TEST_RUN(test_codegen_fn_string_param);
     TEST_RUN(test_codegen_fn_list_param);
     TEST_RUN(test_codegen_if_returns_string);
+
+    /* Lowercase stdlib API stabilization */
+    TEST_RUN(test_codegen_fs_read_calls_runtime);
+    TEST_RUN(test_codegen_json_parse_calls_runtime);
+    TEST_RUN(test_codegen_http_get_calls_runtime);
+    TEST_RUN(test_codegen_sql_open_calls_runtime);
+    TEST_RUN(test_codegen_actors_start_calls_runtime);
 
     /* Tui.Prompt runtime calls */
     TEST_RUN(test_codegen_tui_prompt_input);
