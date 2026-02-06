@@ -156,22 +156,22 @@ The ROADMAP.md is the single source of truth for project progress. Failing to up
 
 ```bash
 # Single command that does EVERYTHING (strict mode - warnings are errors):
-make check
+just check
 ```
 
 This runs the consolidated quality checker (`scripts/check_style.py`) which:
-1. **Clean build** - `make clean && make` (catches stale .o files)
-2. **Unit tests** - `make test` (all 346+ tests must pass)
+1. **Clean build** - `just clean && just debug` (catches stale .o files)
+2. **Unit tests** - `just test` (all 346+ tests must pass)
 3. **Examples** - Type-checks all `examples/*.fn` files
 4. **FERN_STYLE** - Code compliance (assertions, function length, docs, etc.)
 
 **Alternative commands:**
 ```bash
-make check          # Full check (build + test + examples + style) - STRICT
-make style          # FERN_STYLE only (strict mode)
-make style-lenient  # FERN_STYLE only (warnings allowed, for development)
-make pre-commit     # Pre-commit hook mode (includes git hygiene checks)
-make test-examples  # Type-check all examples/*.fn files
+just check          # Full check (build + test + examples + style) - STRICT
+just style          # FERN_STYLE only (strict mode)
+just style-lenient  # FERN_STYLE only (warnings allowed, for development)
+just pre-commit     # Pre-commit hook mode (includes git hygiene checks)
+just test-examples  # Type-check all examples/*.fn files
 ```
 
 **Strict mode (default):** All warnings are treated as errors. This ensures:
@@ -181,20 +181,20 @@ make test-examples  # Type-check all examples/*.fn files
 - No raw char* parameters
 
 **Why this matters:**
-- `make clean` removes stale `.o` files that can mask errors
+- `just clean` removes stale `.o` files that can mask errors
 - Unit tests verify no regressions in compiler code
 - Examples test the full compilation pipeline end-to-end
 - Style checker enforces FERN_STYLE requirements
 
-**DO NOT commit if `make check` fails.**
+**DO NOT commit if `just check` fails.**
 
 ### Pre-Commit Checklist
 
 Before every commit, verify:
 
-- [ ] Clean build passes: `make clean && make`
-- [ ] All tests pass: `make test`
-- [ ] Style check passes: `make style`
+- [ ] Clean build passes: `just clean && just debug`
+- [ ] All tests pass: `just test`
+- [ ] Style check passes: `just style`
 - [ ] ROADMAP.md is updated with progress
 - [ ] Code follows DESIGN.md specification
 - [ ] Code follows FERN_STYLE.md (min 2 assertions per function, <70 lines)
@@ -836,7 +836,7 @@ Expr **arr = malloc(size * sizeof(Expr*));
 Before committing code, verify:
 
 **Mandatory Verification (single command):**
-- [ ] `make check` - Full quality check (build + test + examples + style)
+- [ ] `just check` - Full quality check (build + test + examples + style)
 - [ ] ROADMAP.md updated with completed tasks
 
 This single command runs:
@@ -889,13 +889,13 @@ The Zed editor extension (`editor/zed-fern/`) provides full language support for
 
 **ALWAYS regenerate after changing the language:**
 
-Run `make editor-support` after:
+Run `just editor-support` after:
 - Adding a new keyword to `include/token.h`
 - Adding a new operator
 - Removing or renaming tokens
 - Any change to the language syntax
 
-**The pre-commit hook automatically runs `make editor-support` when `include/token.h` changes.**
+**The pre-commit hook automatically runs `just editor-support` when `include/token.h` changes.**
 
 ### Adding a New Token
 
@@ -922,15 +922,15 @@ When adding a new keyword or operator to Fern:
 
 4. **Regenerate**:
    ```bash
-   make editor-support           # Generate grammar.js and highlights.scm
-   make editor-support-compile   # Compile to WASM (requires tree-sitter CLI)
+   just editor-support           # Generate grammar.js and highlights.scm
+   just editor-support-compile   # Compile to WASM (requires tree-sitter CLI)
    ```
 
 ### Compilation Workflow
 
 **Development (quick iteration):**
 ```bash
-make editor-support  # Generates grammar.js and highlights.scm
+just editor-support  # Generates grammar.js and highlights.scm
 # Changes visible in highlights.scm immediately
 # grammar.js needs compilation to test Tree-sitter features
 ```
@@ -941,7 +941,7 @@ make editor-support  # Generates grammar.js and highlights.scm
 npm install -g tree-sitter-cli
 
 # After changing tokens:
-make editor-support-compile  # Generates + compiles to fern.wasm
+just editor-support-compile  # Generates + compiles to fern.wasm
 ```
 
 This command:
@@ -954,10 +954,10 @@ This command:
 
 The git pre-commit hook (`scripts/install-hooks.sh`) automatically:
 - Detects changes to `include/token.h`
-- Runs `make editor-support`
+- Runs `just editor-support`
 - Stages the generated `grammar.js` and `highlights.scm`
 
-**You still need to manually run `make editor-support-compile` to update the WASM binary.**
+**You still need to manually run `just editor-support-compile` to update the WASM binary.**
 
 ### File Structure
 
@@ -987,7 +987,7 @@ editor/
 - `editor/tree-sitter-fern/grammar.js`
 - `editor/zed-fern/languages/fern/highlights.scm`
 
-Running `make editor-support` will overwrite manual changes.
+Running `just editor-support` will overwrite manual changes.
 
 **The grammar captures Fern's syntax structure**, including:
 - Function definitions with type annotations
@@ -1023,6 +1023,6 @@ The entire safety strategy is:
 These rules eliminate 90% of C's danger while keeping AI productivity high. The FERN_STYLE.md requirements ensure assertions document invariants and small functions fit in AI context windows.
 
 **After EVERY task:**
-1. Run `make check` (build + test + examples + style, strict mode)
+1. Run `just check` (build + test + examples + style, strict mode)
 2. Update ROADMAP.md
 3. Then commit

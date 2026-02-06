@@ -42,8 +42,8 @@ void test_justfile_exposes_core_recipes(void) {
     ASSERT_TRUE(strstr(justfile, "release-package:") != NULL);
     ASSERT_TRUE(strstr(justfile, "benchmark-report:") != NULL);
 
-    ASSERT_TRUE(strstr(justfile, "make debug") != NULL);
-    ASSERT_TRUE(strstr(justfile, "make check") != NULL);
+    ASSERT_TRUE(strstr(justfile, "_build-fern mode") != NULL);
+    ASSERT_TRUE(strstr(justfile, "runtime-lib:") != NULL);
 
     free(justfile);
 }

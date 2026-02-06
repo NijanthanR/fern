@@ -132,14 +132,14 @@ fn collect_paths_rec(i: Int, end: Int, result: List(String)) -> List(String):
 
 # Check that the project builds cleanly
 fn check_build() -> (Bool, String):
-    # Run make clean first
-    let clean_result = System.exec("make clean 2>&1")
+    # Run just clean first
+    let clean_result = System.exec("just clean 2>&1")
     let clean_code: Int = clean_result.0
     if clean_code != 0:
-        (false, "make clean failed")
+        (false, "just clean failed")
     else:
-        # Run make debug
-        let build_result = System.exec("make debug 2>&1")
+        # Run just debug
+        let build_result = System.exec("just debug 2>&1")
         let build_code: Int = build_result.0
         let build_out: String = build_result.1
         if build_code != 0:
@@ -153,7 +153,7 @@ fn check_build() -> (Bool, String):
 
 # Run the test suite
 fn check_tests() -> (Bool, String):
-    let result = System.exec("make test 2>&1")
+    let result = System.exec("just test 2>&1")
     let code: Int = result.0
     let out: String = result.1
     if code != 0:

@@ -8,11 +8,11 @@ Detailed historical logs and old iteration notes were moved to:
 
 ## Current Snapshot
 
-- Build/tests: `make test` passing (**484/484**)
-- Style: `make style` passing
+- Build/tests: `just test` passing (**484/484**)
+- Style: `just style` passing
 - Foundation status: lexer, parser, type checker, codegen pipeline, core runtime, and embedded toolchain are working
 - Release automation: conventional-commit-driven semver + release notes configured via `release-please` (initial version pinned to `0.1.0`, breaking changes map to minor while `<1.0.0`)
-- Task runner UX: `Justfile` added as primary command surface over existing `Makefile` targets
+- Task runner UX: `Justfile` is the primary command surface for all build/test/release tasks
 - Current focus: Post-Gate D stabilization and adoption docs maintenance
 
 ## Working Model
@@ -20,7 +20,7 @@ Detailed historical logs and old iteration notes were moved to:
 All active work follows strict TDD:
 1. Write tests first (red)
 2. Implement (green)
-3. Run full checks (`make check`)
+3. Run full checks (`just check`)
 4. Update this roadmap immediately
 
 ## Execution Gates
@@ -45,10 +45,10 @@ Gates are sequential. Only one gate is active at a time.
 - [x] End-to-end golden tests for `build`/`check`/`parse`/`fmt` (`test_cli_e2e_command_flow_fmt_parse_check_build`)
 
 **Pass criteria (all required):**
-- [x] Onboarding flow can be completed from docs/examples without manual intervention (validated via `test_cli_e2e_command_flow_fmt_parse_check_build` + `make check` examples pass)
+- [x] Onboarding flow can be completed from docs/examples without manual intervention (validated via `test_cli_e2e_command_flow_fmt_parse_check_build` + `just check` examples pass)
 - [x] Diagnostic golden tests cover representative syntax/type/check failures (`tests/test_cli_parse.c` + `tests/test_cli_main.c`)
-- [x] `fern fmt` determinism is validated in CI (`make check` includes `test_cli_fmt_normalizes_and_is_deterministic`)
-- [x] `make check` remains green after each merged Gate A task (Task 1-4 all validated with `make check`)
+- [x] `fern fmt` determinism is validated in CI (`just check` includes `test_cli_fmt_normalizes_and_is_deterministic`)
+- [x] `just check` remains green after each merged Gate A task (Task 1-4 all validated with `just check`)
 
 ### Gate B: Reliability and Regression Resistance
 
@@ -57,14 +57,14 @@ Gates are sequential. Only one gate is active at a time.
 **Dependency:** Gate A passed
 
 **Implementation checklist:**
-- [x] Grammar/property fuzzing with seed corpus and CI integration (FernFuzz) (`tests/fuzz/fuzz_runner.c`, `tests/fuzz/fuzz_generator.c`, `tests/fuzz/corpus/*.fn`, `make fuzz-smoke`, CI step `Run fuzz smoke test`, richer templates for `if`/`match`/`with`/typed signatures/layout)
+- [x] Grammar/property fuzzing with seed corpus and CI integration (FernFuzz) (`tests/fuzz/fuzz_runner.c`, `tests/fuzz/fuzz_generator.c`, `tests/fuzz/corpus/*.fn`, `just fuzz-smoke`, CI step `Run fuzz smoke test`, richer templates for `if`/`match`/`with`/typed signatures/layout)
 - [x] Deterministic actor simulation scaffolding (FernSim foundation) (`include/fernsim.h`, `lib/fernsim.c`, `tests/test_fernsim.c`)
-- [x] CI performance budgets: compile time, startup latency, binary size (`scripts/check_perf_budget.py`, `make perf-budget`, CI step `Check performance budgets`)
-- [x] Compatibility/deprecation policy for language and stdlib changes (`docs/COMPATIBILITY_POLICY.md`, `scripts/check_release_policy.py`, `make release-policy-check`, `.github/workflows/release.yml`)
+- [x] CI performance budgets: compile time, startup latency, binary size (`scripts/check_perf_budget.py`, `just perf-budget`, CI step `Check performance budgets`)
+- [x] Compatibility/deprecation policy for language and stdlib changes (`docs/COMPATIBILITY_POLICY.md`, `scripts/check_release_policy.py`, `just release-policy-check`, `.github/workflows/release.yml`)
 
 **Pass criteria (all required):**
-- [x] Regressions are caught by deterministic tests + fuzz jobs in CI (`make check` + CI fuzz smoke + FernSim deterministic unit tests)
-- [x] Performance thresholds are enforced with failing CI on regressions (`make perf-budget` in CI)
+- [x] Regressions are caught by deterministic tests + fuzz jobs in CI (`just check` + CI fuzz smoke + FernSim deterministic unit tests)
+- [x] Performance thresholds are enforced with failing CI on regressions (`just perf-budget` in CI)
 - [x] Upgrade policy is documented and referenced in release workflow (`docs/COMPATIBILITY_POLICY.md` + `.github/workflows/release.yml`)
 
 ### Gate C: Product Surface and Standard Library Quality
@@ -81,16 +81,16 @@ Gates are sequential. Only one gate is active at a time.
 - [x] Milestone 7.7 / Step D: Benchmark/compare Boehm bridge vs Perceus baseline vs WasmGC feasibility and record default + fallback path (`scripts/compare_memory_paths.py`, `docs/reports/memory-path-comparison-2026-02-06.md`)
 - [x] Complete actor runtime core (`spawn`, `send`, `receive`, scheduler) with in-memory mailbox FIFO + round-robin scheduler tickets (`test_runtime_actors_post_and_next_mailbox_contract`, `test_runtime_actor_scheduler_round_robin_contract`)
 - [x] Ship canonical templates/examples: tiny CLI, HTTP API, actor-based app (`examples/tiny_cli.fn`, `examples/http_api.fn`, `examples/actor_app.fn`, `tests/test_canonical_examples.c`)
-- [x] Continuous example validation + doc tests in CI (`.github/workflows/ci.yml` step `Validate examples` runs `make test-examples`)
+- [x] Continuous example validation + doc tests in CI (`.github/workflows/ci.yml` step `Validate examples` runs `just test-examples`)
 - [x] Add initial `fern doc` documentation generation pipeline (`src/main.c` `doc` command + `scripts/generate_docs.py` + CLI tests in `tests/test_cli_main.c`)
-- [x] Advance bootstrapping tools (`fern doc`, `fern test`, `fern-style` parity targets) (`src/main.c` doc/test command updates, `scripts/generate_docs.py`, `Makefile` targets `style-fern` and `style-parity`, CLI coverage in `tests/test_cli_main.c`)
+- [x] Advance bootstrapping tools (`fern doc`, `fern test`, `fern-style` parity targets) (`src/main.c` doc/test command updates, `scripts/generate_docs.py`, `Justfile` targets `style-fern` and `style-parity`, CLI coverage in `tests/test_cli_main.c`)
 - [x] Expand `fern doc` output quality: cross-linked markdown module/function index, richer `@doc """..."""` extraction, and optional HTML output (`scripts/generate_docs.py`, `src/main.c`, `tests/test_cli_main.c`)
 
 **Pass criteria (all required):**
-- [x] Canonical examples and templates are continuously green in CI (`make test-examples` in CI + `tests/test_canonical_examples.c`)
+- [x] Canonical examples and templates are continuously green in CI (`just test-examples` in CI + `tests/test_canonical_examples.c`)
 - [x] Core stdlib APIs are stable and documented (`docs/STDLIB_API_REFERENCE.md`, `docs/COMPATIBILITY_POLICY.md`, `test_check_fs_api_signatures`, `test_check_json_api_signatures`, `test_check_http_api_signatures`, `test_check_sql_api_signatures`, `test_check_actors_api_signatures`, `test_check_file_alias_api_signatures`)
 - [x] Milestone 7.7 implementation tranche (A-D) is complete with tests and measured tradeoffs, and a chosen default memory path for first WASM target (`docs/reports/memory-path-comparison-2026-02-06.md`, `docs/MEMORY_MANAGEMENT.md`, `DECISIONS.md`)
-- [x] Actor baseline scenarios pass deterministic tests (`test_runtime_actors_post_and_next_mailbox_contract`, `test_runtime_actor_scheduler_round_robin_contract`, `make check`)
+- [x] Actor baseline scenarios pass deterministic tests (`test_runtime_actors_post_and_next_mailbox_contract`, `test_runtime_actor_scheduler_round_robin_contract`, `just check`)
 
 ### Gate D: Ecosystem and Adoption
 
@@ -105,7 +105,7 @@ Gates are sequential. Only one gate is active at a time.
 
 **Pass criteria (all required):**
 - [x] First-run developer workflow is smooth across supported platforms (`release.yml` bundle matrix for Linux/macOS + release layout validation)
-- [x] Benchmark claims are reproducible from repository scripts (`make benchmark-report`, `scripts/publish_benchmarks.py`, report artifact upload in release workflow)
+- [x] Benchmark claims are reproducible from repository scripts (`just benchmark-report`, `scripts/publish_benchmarks.py`, report artifact upload in release workflow)
 - [x] Adoption docs/templates are versioned and maintained (canonical examples + published benchmark case-study report in `docs/reports/`)
 
 ## Milestone Status (Condensed)

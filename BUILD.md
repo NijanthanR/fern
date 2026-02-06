@@ -3,49 +3,48 @@
 ## Prerequisites
 
 - C compiler (clang or gcc)
-- Make
+- Just task runner (`just`)
 - macOS, Linux, or other Unix-like OS
 
 ## Quick Start
 
 ```bash
 # Build the compiler (debug mode)
-make
-
+just debug
 # Run tests
-make test
+just test
 
 # Build release version
-make release
+just release
 
 # Clean build artifacts
-make clean
+just clean
 ```
 
 ## Build Targets
 
 ### Development
 
-- `make` or `make debug` - Build debug version with symbols and assertions
-- `make test` - Build and run all tests
-- `make clean` - Remove all build artifacts
+- `just debug` - Build debug version with symbols and assertions
+- `just test` - Build and run all tests
+- `just clean` - Remove all build artifacts
 
 ### Production
 
-- `make release` - Build optimized release version
+- `just release` - Build optimized release version
 
 ### Installation
 
-- `make install` - Install fern to `/usr/local/bin`
-- `make uninstall` - Remove installed fern
+- `just install` - Install fern to `/usr/local/bin`
+- `just uninstall` - Remove installed fern
 
 ### Debugging
 
-- `make memcheck` - Run with Valgrind for memory leak detection
+- `just memcheck` - Run with Valgrind for memory leak detection
 
 ### Code Quality
 
-- `make fmt` - Format code with clang-format
+- `just fmt` - Format code with clang-format
 
 ## Project Structure
 
@@ -71,7 +70,7 @@ fern/
 ## Running Tests
 
 ```bash
-make test
+just test
 ```
 
 All tests should pass. If any test fails, please report it as a bug.
@@ -94,7 +93,7 @@ This installs a pre-commit hook that automatically:
 ### Daily Development
 
 1. Make changes to source code
-2. Run `make test` to verify (or rely on pre-commit hook)
+2. Run `just test` to verify (or rely on pre-commit hook)
 3. Commit changes (pre-commit hook runs automatically)
 4. Update ROADMAP.md to track progress
 
@@ -133,24 +132,24 @@ sudo apt-get install clang
 sudo dnf install clang
 ```
 
-### "make: command not found"
+### "just: command not found"
 
-Install make:
+Install just:
 ```bash
 # macOS
-xcode-select --install
+brew install just
 
 # Ubuntu/Debian
-sudo apt-get install build-essential
+sudo apt-get install just
 
 # Fedora
-sudo dnf groupinstall "Development Tools"
+sudo dnf install just
 ```
 
 ### Tests fail
 
-1. Run `make clean` to remove stale build artifacts
-2. Run `make test` again
+1. Run `just clean` to remove stale build artifacts
+2. Run `just test` again
 3. If still failing, check the error message and report a bug
 
 ## Next Steps

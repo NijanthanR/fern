@@ -1098,8 +1098,8 @@ static int cmd_test(Arena* arena, const char* filename) {
 
     const char* test_override = getenv("FERN_TEST_CMD");
     const char* doc_override = getenv("FERN_TEST_DOC_CMD");
-    const char* test_command = (test_override && test_override[0] != '\0') ? test_override : "make test";
-    const char* doc_command = (doc_override && doc_override[0] != '\0') ? doc_override : "make test-examples";
+    const char* test_command = (test_override && test_override[0] != '\0') ? test_override : "just test";
+    const char* doc_command = (doc_override && doc_override[0] != '\0') ? doc_override : "just test-examples";
 
     if (g_test_doc_mode) {
         log_info("Running documentation tests...\n");

@@ -22,7 +22,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang make libgc-dev
+          sudo apt-get install -y clang libgc-dev
 
       - name: Install dependencies (macOS)
         if: matrix.os == 'macos-latest'
@@ -31,26 +31,29 @@ jobs:
           brew install bdw-gc
           clang --version
 
+      - name: Install just
+        uses: taiki-e/install-action@just
+
       - name: Build (Debug)
-        run: make clean && make debug
+        run: just clean && just debug
 
       - name: Run tests
-        run: make test
+        run: just test
 
       - name: Validate examples
-        run: make test-examples
+        run: just test-examples
 
       - name: Run fuzz smoke test
         if: matrix.os == 'ubuntu-latest'
-        run: make fuzz-smoke ITERS=64 SEED=0xC0FFEE
+        run: ITERS=64 SEED=0xC0FFEE just fuzz-smoke
 
       - name: Check performance budgets
         if: matrix.os == 'ubuntu-latest'
-        run: make perf-budget
+        run: just perf-budget
 
       - name: Build (Release)
         if: matrix.os == 'macos-latest'
-        run: make clean && make release
+        run: just clean && just release
 
       - name: Check binary size (macOS)
         if: matrix.os == 'macos-latest'
@@ -70,6 +73,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y clang clang-format libgc-dev
+
+      - name: Install just
+        uses: taiki-e/install-action@just
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -94,7 +100,7 @@ jobs:
           fi
 
       - name: Compile with all warnings
-        run: make clean && make debug
+        run: just clean && just debug
 
       - name: Validate compatibility policy
-        run: make release-policy-check
+        run: just release-policy-check

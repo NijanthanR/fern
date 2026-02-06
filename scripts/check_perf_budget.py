@@ -56,13 +56,13 @@ def check_compile_budget(budget_seconds: float) -> float:
 
     start = time.perf_counter()
 
-    clean = run(["make", "clean"])
+    clean = run(["just", "clean"])
     if clean.returncode != 0:
-        fail(f"make clean failed:\n{clean.stdout}{clean.stderr}")
+        fail(f"just clean failed:\n{clean.stdout}{clean.stderr}")
 
-    build = run(["make", "release"])
+    build = run(["just", "release"])
     if build.returncode != 0:
-        fail(f"make release failed:\n{build.stdout}{build.stderr}")
+        fail(f"just release failed:\n{build.stdout}{build.stderr}")
 
     elapsed = time.perf_counter() - start
     print(f"compile_time_seconds={elapsed:.2f} (budget <= {budget_seconds:.2f})")

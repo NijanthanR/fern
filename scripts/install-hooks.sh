@@ -47,12 +47,12 @@ echo "$CODE_FILES" | sed 's/^/   /'
 
 # 2. Clean build
 echo -e "\n🧹 Cleaning build artifacts..."
-make clean > /dev/null 2>&1
+just clean > /dev/null 2>&1
 print_status $? "Clean build"
 
 # 3. Compile with strict warnings
 echo -e "\n🔨 Compiling with strict warnings..."
-if make debug 2>&1 | tee /tmp/fern_build.log | grep -q "error:"; then
+if just debug 2>&1 | tee /tmp/fern_build.log | grep -q "error:"; then
     echo -e "${RED}✗ Compilation failed${NC}"
     cat /tmp/fern_build.log
     exit 1
@@ -61,7 +61,7 @@ print_status 0 "Compilation (no warnings/errors)"
 
 # 4. Run all tests
 echo -e "\n🧪 Running test suite..."
-make test > /tmp/fern_test.log 2>&1
+just test > /tmp/fern_test.log 2>&1
 TEST_EXIT_CODE=$?
 
 if [ $TEST_EXIT_CODE -ne 0 ]; then
@@ -96,13 +96,13 @@ fi
 TOKEN_CHANGED=$(echo "$CODE_FILES" | grep "include/token.h" || true)
 if [ -n "$TOKEN_CHANGED" ]; then
     echo -e "\n🎨 Regenerating editor support (token.h changed)..."
-    make editor-support > /dev/null 2>&1
+    just editor-support > /dev/null 2>&1
     if [ $? -eq 0 ]; then
         # Stage the generated files
         git add editor/tree-sitter-fern/grammar.js 2>/dev/null || true
         git add editor/zed-fern/languages/fern/highlights.scm 2>/dev/null || true
         print_status 0 "Editor support regenerated and staged"
-        echo "   Note: Run 'make editor-support-compile' to compile WASM (requires tree-sitter CLI)"
+        echo "   Note: Run 'just editor-support-compile' to compile WASM (requires tree-sitter CLI)"
     else
         echo -e "${YELLOW}⚠${NC}  Warning: Failed to regenerate editor support"
     fi

@@ -168,9 +168,9 @@ Workflow/config files:
 
 Before any tagged release:
 
-1. Run `make check`.
-2. Run `make perf-budget` (or `make perf-budget PERF_BUDGET_FLAGS=--skip-build` if release build already ran in the same job).
-3. Run `make release-policy-check`.
+1. Run `just check`.
+2. Run `just perf-budget` (or `PERF_BUDGET_FLAGS=--skip-build just perf-budget` if release build already ran in the same job).
+3. Run `just release-policy-check`.
 4. Publish release notes with:
    - compatibility notes,
    - deprecations and removals,
@@ -183,5 +183,5 @@ The release workflow must fail if policy checks fail.
 
 ## Workflow Linkage
 
-The GitHub release workflow references this policy via `make release-policy-check`.
+The GitHub release workflow references this policy via `just release-policy-check`.
 This ensures compatibility/deprecation requirements are evaluated on every release run.

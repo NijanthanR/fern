@@ -398,7 +398,7 @@ Token tok = next();  // consume the opening paren
 ### Doc Comments (API Documentation)
 
 Use `/** */` doc comments for **all functions** (not just public ones).
-These are checked automatically by `make style`.
+These are checked automatically by `just style`.
 
 **Format:**
 ```c
@@ -421,7 +421,7 @@ These are checked automatically by `make style`.
  */
 ```
 
-**Required (checked by `make style`):**
+**Required (checked by `just style`):**
 - **Description** - First line of comment OR `@brief` tag
 - `@param` - For each parameter (rule: `doc-params`)
 - `@return` - For non-void functions (rule: `doc-return`)
@@ -674,7 +674,7 @@ Before committing code, verify:
 
 **Run automated checks:**
 ```bash
-make clean && make && make test && make style
+just clean && just debug && just test && just style
 ```
 
 **Code Quality:**

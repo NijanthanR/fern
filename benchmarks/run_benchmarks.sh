@@ -11,7 +11,7 @@ echo ""
 # Ensure fern is built
 if [ ! -f bin/fern ]; then
     echo "Building Fern compiler..."
-    make debug > /dev/null 2>&1
+    just debug > /dev/null 2>&1
 fi
 
 RUNS=5

@@ -10,7 +10,7 @@ The grammar is generated from the compiler's token definitions:
 
 ```bash
 # From the fern project root:
-make editor-support  # Generates grammar.js
+just editor-support  # Generates grammar.js
 ```
 
 ## Compilation
@@ -27,7 +27,7 @@ npm install -g tree-sitter-cli
 
 ```bash
 # From the fern project root:
-make editor-support-compile
+just editor-support-compile
 ```
 
 This will:

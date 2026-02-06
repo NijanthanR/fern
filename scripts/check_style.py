@@ -10,7 +10,7 @@ Fern Quality Checker - Consolidated pre-commit and style checker.
 
 This script combines ALL quality checks into one place:
 1. Build verification (clean compile with no warnings)
-2. Unit tests (make test)
+2. Unit tests (just test)
 3. Examples testing (type-check all examples/*.fn files)
 4. FERN_STYLE code compliance
 
@@ -176,11 +176,11 @@ ALLOW_PATTERN = re.compile(r"(?://|/\*)\s*FERN_STYLE:\s*allow\(([^)]+)\)")
 
 def check_build() -> CheckResult:
     """Run clean build and check for errors/warnings."""
-    code, _, _ = run_command(["make", "clean"])
+    code, _, _ = run_command(["just", "clean"])
     if code != 0:
         return CheckResult(False, "Clean failed", "")
 
-    code, stdout, stderr = run_command(["make", "debug"])
+    code, stdout, stderr = run_command(["just", "debug"])
     output = stdout + stderr
 
     if code != 0:
@@ -194,7 +194,7 @@ def check_build() -> CheckResult:
 
 def check_tests() -> CheckResult:
     """Run test suite."""
-    code, stdout, stderr = run_command(["make", "test"])
+    code, stdout, stderr = run_command(["just", "test"])
     output = stdout + stderr
 
     if code != 0:
@@ -220,7 +220,7 @@ def check_examples() -> CheckResult:
 
     fern_bin = Path("bin/fern")
     if not fern_bin.exists():
-        return CheckResult(False, "Fern compiler not built", "Run make first")
+        return CheckResult(False, "Fern compiler not built", "Run just debug first")
 
     failed = []
     passed = 0
@@ -711,8 +711,8 @@ Modes:
   --pre-commit        Pre-commit hook mode (includes git hygiene)
 
 All Checks Run:
-  1. Build            make clean && make (no warnings)
-  2. Tests            make test (all must pass)
+  1. Build            just clean && just debug (no warnings)
+  2. Tests            just test (all must pass)
   3. Examples         Type-check all examples/*.fn files
   4. FERN_STYLE       Code compliance checks
 """,

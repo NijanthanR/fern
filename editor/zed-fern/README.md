@@ -20,8 +20,8 @@ The `fern` compiler must be installed and available in your PATH. The extension 
 # Clone and build
 git clone https://github.com/niklas-heer/fern
 cd fern
-make release
-make install  # Installs to /usr/local/bin
+just release
+just install  # Installs to /usr/local/bin
 ```
 
 ## Installation

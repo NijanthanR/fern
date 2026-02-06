@@ -18,22 +18,25 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang make libgc-dev python3
+          sudo apt-get install -y clang libgc-dev python3
+
+      - name: Install just
+        uses: taiki-e/install-action@just
 
       - name: Build release binary
-        run: make clean && make release
+        run: just clean && just release
 
       - name: Validate release staging layout
-        run: make release-package-check
+        run: just release-package-check
 
       - name: Validate compatibility policy
-        run: make release-policy-check
+        run: just release-policy-check
 
       - name: Enforce performance budgets
-        run: make perf-budget PERF_BUDGET_FLAGS=--skip-build
+        run: PERF_BUDGET_FLAGS=--skip-build just perf-budget
 
       - name: Generate benchmark + case-study report
-        run: make benchmark-report BENCHMARK_FLAGS="--skip-release-build --output dist/benchmark-case-studies.md"
+        run: BENCHMARK_FLAGS="--skip-release-build --output dist/benchmark-case-studies.md" just benchmark-report
 
       - name: Upload readiness binary artifact
         uses: actions/upload-artifact@v4
@@ -68,7 +71,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang make libgc-dev python3
+          sudo apt-get install -y clang libgc-dev python3
 
       - name: Install dependencies (macOS)
         if: matrix.os == 'macos-latest'
@@ -76,8 +79,11 @@ jobs:
           brew install bdw-gc
           clang --version
 
+      - name: Install just
+        uses: taiki-e/install-action@just
+
       - name: Build and package release bundle
-        run: make clean && make release-package
+        run: just clean && just release-package
 
       - name: Upload packaged artifacts
         uses: actions/upload-artifact@v4
