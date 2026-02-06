@@ -11,7 +11,7 @@ Detailed historical logs and old iteration notes were moved to:
 - Build/tests: `make test` passing (**484/484**)
 - Style: `make style` passing
 - Foundation status: lexer, parser, type checker, codegen pipeline, core runtime, and embedded toolchain are working
-- Release automation: conventional-commit-driven semver + release notes configured via `release-please`
+- Release automation: conventional-commit-driven semver + release notes configured via `release-please` (initial version pinned to `0.1.0`, breaking changes map to minor while `<1.0.0`)
 - Task runner UX: `Justfile` added as primary command surface over existing `Makefile` targets
 - Current focus: Post-Gate D stabilization and adoption docs maintenance
 

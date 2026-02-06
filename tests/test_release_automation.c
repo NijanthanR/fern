@@ -47,6 +47,8 @@ void test_release_automation_config_tracks_version_header(void) {
     char* config = read_file_text(".github/release-please-config.json");
     ASSERT_NOT_NULL(config);
     ASSERT_TRUE(strstr(config, "\"release-type\": \"simple\"") != NULL);
+    ASSERT_TRUE(strstr(config, "\"initial-version\": \"0.1.0\"") != NULL);
+    ASSERT_TRUE(strstr(config, "\"bump-minor-pre-major\": true") != NULL);
     ASSERT_TRUE(strstr(config, "\"include-v-in-tag\": true") != NULL);
     ASSERT_TRUE(strstr(config, "\"include/version.h\"") != NULL);
     free(config);

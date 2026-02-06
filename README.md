@@ -167,10 +167,11 @@ make benchmark-report  # Publish reproducible benchmark + case-study report
 ## Release Automation
 
 Fern uses [release-please](https://github.com/googleapis/release-please) with conventional commits to drive release PRs, semver bumps, and changelog notes automatically.
+The initial release baseline is pinned to `0.1.0` (not `1.0.0`).
 
 - `fix:` commits trigger patch bumps
 - `feat:` commits trigger minor bumps
-- `feat!:` or `BREAKING CHANGE:` triggers major bumps
+- `feat!:` or `BREAKING CHANGE:` triggers minor bumps while `<1.0.0` (and major bumps once `>=1.0.0`)
 - Release notes/changelog entries are generated from conventional-commit history
 
 The workflow in `.github/workflows/release-please.yml` requires `RELEASE_PLEASE_TOKEN` to be set in repo secrets to open/update release PRs.
