@@ -125,6 +125,7 @@ static int cmd_check(Arena* arena, const char* filename);
 static int cmd_emit(Arena* arena, const char* filename);
 static int cmd_lex(Arena* arena, const char* filename);
 static int cmd_parse(Arena* arena, const char* filename);
+static int cmd_fmt(Arena* arena, const char* filename);
 static int cmd_test(Arena* arena, const char* filename);
 static int cmd_lsp(Arena* arena, const char* filename);
 static int cmd_repl(Arena* arena, const char* filename);
@@ -141,6 +142,7 @@ static const Command COMMANDS[] = {
     {"emit",  "<file>", "Emit QBE IR to stdout",       cmd_emit},
     {"lex",   "<file>", "Show tokens (debug)",         cmd_lex},
     {"parse", "<file>", "Show AST (debug)",            cmd_parse},
+    {"fmt",   "<file>", "Format source deterministically", cmd_fmt},
     {"test",  "",       "Run project tests",           cmd_test},
     {"lsp",   "",       "Start language server",       cmd_lsp},
     {"repl",  "",       "Interactive mode",            cmd_repl},
@@ -916,6 +918,124 @@ static int cmd_parse(Arena* arena, const char* filename) {
 }
 
 /**
+ * Write text content to a file path.
+ * @param filename Output file path.
+ * @param text UTF-8 text to write.
+ * @return True on success, false on I/O failure.
+ */
+static bool write_text_file(const char* filename, const char* text) {
+    // FERN_STYLE: allow(assertion-density) thin I/O helper with explicit checks
+    assert(filename != NULL);
+    assert(text != NULL);
+    if (!filename || !text) {
+        return false;
+    }
+
+    FILE* file = fopen(filename, "wb");
+    if (!file) {
+        return false;
+    }
+
+    size_t len = strlen(text);
+    size_t wrote = fwrite(text, 1, len, file);
+    if (fclose(file) != 0) {
+        return false;
+    }
+    return wrote == len;
+}
+
+/**
+ * Normalize Fern source deterministically.
+ * Rules: convert CRLF/CR to LF, trim trailing spaces/tabs per line,
+ * and keep exactly one trailing newline.
+ * @param arena Arena for output allocation.
+ * @param source Input source text.
+ * @return Normalized text allocated in arena.
+ */
+static const char* normalize_source(Arena* arena, const char* source) {
+    // FERN_STYLE: allow(function-length) line-oriented normalization with edge-case handling
+    assert(arena != NULL);
+    assert(source != NULL);
+    if (!arena || !source) {
+        return "";
+    }
+
+    size_t src_len = strlen(source);
+    char* out = arena_alloc(arena, src_len + 2);
+    size_t out_len = 0;
+    const char* p = source;
+
+    while (*p != '\0') {
+        const char* line_start = p;
+        while (*p != '\0' && *p != '\n' && *p != '\r') {
+            p++;
+        }
+
+        const char* line_end = p;
+        while (line_end > line_start && (line_end[-1] == ' ' || line_end[-1] == '\t')) {
+            line_end--;
+        }
+
+        size_t trimmed_len = (size_t)(line_end - line_start);
+        if (trimmed_len > 0) {
+            memcpy(out + out_len, line_start, trimmed_len);
+            out_len += trimmed_len;
+        }
+
+        if (*p == '\r') {
+            p++;
+            if (*p == '\n') {
+                p++;
+            }
+            out[out_len++] = '\n';
+            continue;
+        }
+        if (*p == '\n') {
+            p++;
+            out[out_len++] = '\n';
+        }
+    }
+
+    while (out_len > 0 && out[out_len - 1] == '\n') {
+        out_len--;
+    }
+
+    out[out_len++] = '\n';
+    out[out_len] = '\0';
+    return out;
+}
+
+/**
+ * Fmt command: normalize source formatting deterministically in-place.
+ * @param arena The arena for allocations.
+ * @param filename The source file path.
+ * @return Exit code.
+ */
+static int cmd_fmt(Arena* arena, const char* filename) {
+    // FERN_STYLE: allow(assertion-density) formatter command orchestration
+    assert(arena != NULL);
+    assert(filename != NULL);
+    if (!arena || !filename) {
+        return 1;
+    }
+
+    char* source = read_file(arena, filename);
+    if (!source) {
+        error_print("cannot read file '%s'", filename);
+        return 1;
+    }
+
+    const char* normalized = normalize_source(arena, source);
+    if (!write_text_file(filename, normalized)) {
+        error_print("cannot write formatted source to '%s'", filename);
+        return 1;
+    }
+
+    log_info("Formatted %s\n", filename);
+    return 0;
+}
+
+/**
  * Test command: run unit tests or doc-style tests.
  * @param arena Unused for test command (may be NULL).
  * @param filename Unused for test command (may be NULL).
@@ -1037,7 +1157,8 @@ int main(int argc, char** argv) {
             arg_index++;
             continue;
         }
-        break;
+        error_print("unknown option '%s'", argv[arg_index]);
+        return 1;
     }
 
     if (arg_index >= argc) {
@@ -1055,7 +1176,6 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    log_verbose("verbose: command=%s\n", cmd->name);
     arg_index++;
     
     // Check if command requires a file argument (args field is non-empty)
@@ -1104,6 +1224,8 @@ int main(int argc, char** argv) {
             return 1;
         }
     }
+
+    log_verbose("verbose: command=%s\n", cmd->name);
     
     // Need a file argument for commands that require it
     const char* filename = NULL;

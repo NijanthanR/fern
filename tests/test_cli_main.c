@@ -83,6 +83,42 @@ static char* write_tmp_source(const char* source) {
     return path;
 }
 
+static char* read_file_all(const char* path) {
+    if (!path) return NULL;
+
+    FILE* file = fopen(path, "rb");
+    if (!file) return NULL;
+
+    if (fseek(file, 0, SEEK_END) != 0) {
+        fclose(file);
+        return NULL;
+    }
+    long size = ftell(file);
+    if (size < 0) {
+        fclose(file);
+        return NULL;
+    }
+    if (fseek(file, 0, SEEK_SET) != 0) {
+        fclose(file);
+        return NULL;
+    }
+
+    char* buf = (char*)malloc((size_t)size + 1);
+    if (!buf) {
+        fclose(file);
+        return NULL;
+    }
+
+    size_t read_size = fread(buf, 1, (size_t)size, file);
+    fclose(file);
+    if (read_size != (size_t)size) {
+        free(buf);
+        return NULL;
+    }
+    buf[size] = '\0';
+    return buf;
+}
+
 void test_cli_help_lists_global_flags(void) {
     CmdResult result = run_cmd("./bin/fern --help 2>&1");
     ASSERT_EQ(result.exit_code, 0);
@@ -135,6 +171,23 @@ void test_cli_verbose_emits_debug_lines(void) {
     free(source_path);
 }
 
+void test_cli_verbose_after_command_emits_debug_lines(void) {
+    char* source_path = write_tmp_source("fn main():\n    0\n");
+    ASSERT_NOT_NULL(source_path);
+
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd), "./bin/fern check --verbose %s 2>&1", source_path);
+    CmdResult verbose = run_cmd(cmd);
+
+    ASSERT_EQ(verbose.exit_code, 0);
+    ASSERT_NOT_NULL(verbose.output);
+    ASSERT_TRUE(strstr(verbose.output, "verbose: command=check") != NULL);
+
+    free(verbose.output);
+    unlink(source_path);
+    free(source_path);
+}
+
 void test_cli_color_mode_always_and_never(void) {
     CmdResult always = run_cmd("./bin/fern --color=always build 2>&1");
     ASSERT_EQ(always.exit_code, 1);
@@ -148,6 +201,45 @@ void test_cli_color_mode_always_and_never(void) {
 
     free(always.output);
     free(never.output);
+}
+
+void test_cli_unknown_global_option_reports_unknown_option(void) {
+    CmdResult result = run_cmd("./bin/fern --bogus 2>&1");
+    ASSERT_EQ(result.exit_code, 1);
+    ASSERT_NOT_NULL(result.output);
+    ASSERT_TRUE(strstr(result.output, "unknown option '--bogus'") != NULL);
+
+    free(result.output);
+}
+
+void test_cli_fmt_normalizes_and_is_deterministic(void) {
+    char* source_path = write_tmp_source("fn main():  \r\n\tlet x = 1\t\t\r\n\tx\r\n\r\n");
+    ASSERT_NOT_NULL(source_path);
+
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd), "./bin/fern fmt %s 2>&1", source_path);
+    CmdResult first = run_cmd(cmd);
+    ASSERT_EQ(first.exit_code, 0);
+    ASSERT_NOT_NULL(first.output);
+
+    char* once = read_file_all(source_path);
+    ASSERT_NOT_NULL(once);
+    ASSERT_STR_EQ(once, "fn main():\n\tlet x = 1\n\tx\n");
+
+    CmdResult second = run_cmd(cmd);
+    ASSERT_EQ(second.exit_code, 0);
+    ASSERT_NOT_NULL(second.output);
+
+    char* twice = read_file_all(source_path);
+    ASSERT_NOT_NULL(twice);
+    ASSERT_STR_EQ(twice, once);
+
+    free(first.output);
+    free(second.output);
+    free(once);
+    free(twice);
+    unlink(source_path);
+    free(source_path);
 }
 
 void test_cli_check_syntax_error_includes_note_and_help(void) {
@@ -214,7 +306,10 @@ void run_cli_main_tests(void) {
     TEST_RUN(test_cli_help_lists_global_flags);
     TEST_RUN(test_cli_quiet_suppresses_check_success_output);
     TEST_RUN(test_cli_verbose_emits_debug_lines);
+    TEST_RUN(test_cli_verbose_after_command_emits_debug_lines);
     TEST_RUN(test_cli_color_mode_always_and_never);
+    TEST_RUN(test_cli_unknown_global_option_reports_unknown_option);
+    TEST_RUN(test_cli_fmt_normalizes_and_is_deterministic);
     TEST_RUN(test_cli_check_syntax_error_includes_note_and_help);
     TEST_RUN(test_cli_check_type_error_includes_snippet_note_and_help);
     TEST_RUN(test_cli_test_command_runs_unit_tests);
