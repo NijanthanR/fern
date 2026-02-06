@@ -357,6 +357,49 @@ void test_runtime_memory_alloc_dup_drop_contract(void) {
     free_build_run_result(&result);
 }
 
+void test_runtime_rc_header_and_core_type_ops(void) {
+    BuildRunResult result = build_and_run_c_source(
+        "#include <stdint.h>\n"
+        "#include \"fern_runtime.h\"\n"
+        "\n"
+        "int fern_main(void) {\n"
+        "    int64_t* payload = (int64_t*)fern_rc_alloc(sizeof(int64_t), FERN_RC_TYPE_TUPLE);\n"
+        "    if (payload == NULL) return 20;\n"
+        "    if (fern_rc_refcount(payload) != 1) return 21;\n"
+        "    if (fern_rc_type_tag(payload) != FERN_RC_TYPE_TUPLE) return 22;\n"
+        "\n"
+        "    fern_rc_set_flags(payload, FERN_RC_FLAG_UNIQUE);\n"
+        "    if (fern_rc_flags(payload) != FERN_RC_FLAG_UNIQUE) return 23;\n"
+        "\n"
+        "    if (fern_rc_dup(NULL) != NULL) return 24;\n"
+        "    fern_rc_drop(NULL);\n"
+        "\n"
+        "    int64_t* alias = (int64_t*)fern_rc_dup(payload);\n"
+        "    if (alias != payload) return 25;\n"
+        "    if (fern_rc_refcount(payload) != 2) return 26;\n"
+        "\n"
+        "    fern_rc_drop(alias);\n"
+        "    if (fern_rc_refcount(payload) != 1) return 27;\n"
+        "    fern_rc_drop(payload);\n"
+        "    if (fern_rc_refcount(payload) != 0) return 28;\n"
+        "\n"
+        "    int64_t result_ptr = fern_result_ok(42);\n"
+        "    if (fern_rc_type_tag((void*)(intptr_t)result_ptr) != FERN_RC_TYPE_RESULT) return 29;\n"
+        "\n"
+        "    FernList* list = fern_list_new();\n"
+        "    if (list == NULL) return 30;\n"
+        "    if (fern_rc_type_tag(list) != FERN_RC_TYPE_LIST) return 31;\n"
+        "    if (fern_rc_refcount(list) != 1) return 32;\n"
+        "\n"
+        "    return 0;\n"
+        "}\n");
+
+    ASSERT_EQ(result.build.exit_code, 0);
+    ASSERT_EQ(result.run.exit_code, 0);
+
+    free_build_run_result(&result);
+}
+
 void run_runtime_surface_tests(void) {
     printf("\n=== Runtime Surface Tests ===\n");
     TEST_RUN(test_runtime_json_parse_empty_returns_err_code);
@@ -368,4 +411,5 @@ void run_runtime_surface_tests(void) {
     TEST_RUN(test_runtime_actors_start_returns_monotonic_ids);
     TEST_RUN(test_runtime_actors_post_and_next_placeholder_contract);
     TEST_RUN(test_runtime_memory_alloc_dup_drop_contract);
+    TEST_RUN(test_runtime_rc_header_and_core_type_ops);
 }

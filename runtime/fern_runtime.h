@@ -632,11 +632,86 @@ char* fern_home(void);
 /* ========== Memory Functions ========== */
 
 /**
+ * Perceus-style object header for heap values.
+ *
+ * This header lives immediately before payload data for RC-managed objects.
+ * Under the current Boehm backend it is used for metadata and refcount
+ * bookkeeping only; memory reclamation is still GC-driven.
+ */
+typedef struct {
+    uint32_t refcount;
+    uint16_t type_tag;
+    uint16_t flags;
+} FernObjectHeader;
+
+/* Core heap value type tags for RC metadata. */
+#define FERN_RC_TYPE_UNKNOWN      ((uint16_t)0)
+#define FERN_RC_TYPE_STRING       ((uint16_t)1)
+#define FERN_RC_TYPE_LIST         ((uint16_t)2)
+#define FERN_RC_TYPE_STRING_LIST  ((uint16_t)3)
+#define FERN_RC_TYPE_RESULT       ((uint16_t)4)
+#define FERN_RC_TYPE_TUPLE        ((uint16_t)5)
+
+/* RC header flags. */
+#define FERN_RC_FLAG_NONE      ((uint16_t)0)
+#define FERN_RC_FLAG_UNIQUE    ((uint16_t)(1u << 0))
+#define FERN_RC_FLAG_BORROWED  ((uint16_t)(1u << 1))
+
+/**
  * Allocate memory.
  * @param size Number of bytes.
  * @return Pointer to allocated memory.
  */
 void* fern_alloc(size_t size);
+
+/**
+ * Allocate an RC-managed payload with an object header.
+ * @param payload_size Payload bytes (excluding header).
+ * @param type_tag Core heap type tag.
+ * @return Pointer to payload (header is stored immediately before payload).
+ */
+void* fern_rc_alloc(size_t payload_size, uint16_t type_tag);
+
+/**
+ * Duplicate an RC-managed reference.
+ * @param ptr Payload pointer returned by fern_rc_alloc().
+ * @return Same payload pointer (or NULL).
+ */
+void* fern_rc_dup(void* ptr);
+
+/**
+ * Drop an RC-managed reference.
+ * @param ptr Payload pointer returned by fern_rc_alloc().
+ */
+void fern_rc_drop(void* ptr);
+
+/**
+ * Get current RC refcount for an object payload pointer.
+ * @param ptr Payload pointer returned by fern_rc_alloc().
+ * @return Current refcount, or 0 for NULL.
+ */
+uint32_t fern_rc_refcount(const void* ptr);
+
+/**
+ * Get RC type tag for an object payload pointer.
+ * @param ptr Payload pointer returned by fern_rc_alloc().
+ * @return Object type tag, or FERN_RC_TYPE_UNKNOWN for NULL.
+ */
+uint16_t fern_rc_type_tag(const void* ptr);
+
+/**
+ * Get RC flags for an object payload pointer.
+ * @param ptr Payload pointer returned by fern_rc_alloc().
+ * @return Object flags, or FERN_RC_FLAG_NONE for NULL.
+ */
+uint16_t fern_rc_flags(const void* ptr);
+
+/**
+ * Set RC flags for an object payload pointer.
+ * @param ptr Payload pointer returned by fern_rc_alloc().
+ * @param flags Flags bitmask.
+ */
+void fern_rc_set_flags(void* ptr, uint16_t flags);
 
 /**
  * Duplicate an owned reference.

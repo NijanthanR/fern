@@ -74,6 +74,28 @@ Fern runtime now exposes an explicit memory ownership API surface:
 
 These semantics are regression-tested via runtime C-ABI harness coverage in `test_runtime_memory_alloc_dup_drop_contract` (`tests/test_runtime_surface.c`).
 
+### Milestone 7.7 Step B RC Header and Type-Tag Contract (2026-02-06)
+
+Fern runtime now exposes Perceus-style object header metadata for RC-managed payloads:
+
+1. `fern_rc_alloc(payload_size, type_tag)`:
+   - Allocates payload with a header carrying `refcount`, `type_tag`, and `flags`.
+   - New objects start with `refcount = 1` and `FERN_RC_FLAG_UNIQUE`.
+2. `fern_rc_dup(ptr)`:
+   - Increments refcount for non-NULL payload pointers.
+   - Clears `FERN_RC_FLAG_UNIQUE` when refcount exceeds 1.
+3. `fern_rc_drop(ptr)`:
+   - Decrements refcount for non-NULL payload pointers (floored at 0).
+   - Marks `FERN_RC_FLAG_UNIQUE` when refcount returns to 1.
+4. Metadata accessors:
+   - `fern_rc_refcount(ptr)`, `fern_rc_type_tag(ptr)`, `fern_rc_flags(ptr)`, `fern_rc_set_flags(ptr, flags)`.
+5. Core runtime type tags:
+   - `fern_result_ok/err` allocations are tagged `FERN_RC_TYPE_RESULT`.
+   - `fern_list_new/with_capacity` allocations are tagged `FERN_RC_TYPE_LIST`.
+   - Runtime `FernStringList` allocations are tagged `FERN_RC_TYPE_STRING_LIST`.
+
+These semantics are regression-tested via runtime C-ABI harness coverage in `test_runtime_rc_header_and_core_type_ops` (`tests/test_runtime_surface.c`).
+
 ## Deprecation Lifecycle
 
 Every removal or incompatible behavior change must follow this sequence:

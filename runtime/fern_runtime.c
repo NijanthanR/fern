@@ -398,7 +398,7 @@ FernStringList* fern_str_split(const char* s, const char* delim) {
     assert(s != NULL);
     assert(delim != NULL);
     
-    FernStringList* list = FERN_ALLOC(sizeof(FernStringList));
+    FernStringList* list = fern_rc_alloc(sizeof(FernStringList), FERN_RC_TYPE_STRING_LIST);
     assert(list != NULL);
     list->cap = 8;
     list->len = 0;
@@ -466,7 +466,7 @@ FernStringList* fern_str_split(const char* s, const char* delim) {
 FernStringList* fern_str_lines(const char* s) {
     assert(s != NULL);
     
-    FernStringList* list = FERN_ALLOC(sizeof(FernStringList));
+    FernStringList* list = fern_rc_alloc(sizeof(FernStringList), FERN_RC_TYPE_STRING_LIST);
     assert(list != NULL);
     list->cap = 8;
     list->len = 0;
@@ -653,7 +653,7 @@ FernList* fern_list_new(void) {
  */
 FernList* fern_list_with_capacity(int64_t cap) {
     assert(cap > 0);
-    FernList* list = FERN_ALLOC(sizeof(FernList));
+    FernList* list = fern_rc_alloc(sizeof(FernList), FERN_RC_TYPE_LIST);
     assert(list != NULL);
     list->data = FERN_ALLOC((size_t)cap * sizeof(int64_t));
     assert(list->data != NULL);
@@ -1046,7 +1046,7 @@ char* fern_arg(int64_t index) {
 FernStringList* fern_args(void) {
     assert(g_argv != NULL || g_argc == 0);
     
-    FernStringList* list = FERN_ALLOC(sizeof(FernStringList));
+    FernStringList* list = fern_rc_alloc(sizeof(FernStringList), FERN_RC_TYPE_STRING_LIST);
     assert(list != NULL);
     list->len = g_argc;
     list->cap = g_argc > 0 ? g_argc : 1;
@@ -1351,6 +1351,139 @@ static void fern_memory_backend_drop(void* ptr) {
 }
 
 /**
+ * Compute payload offset for RC objects with max alignment.
+ * @return Offset from block base to payload start.
+ */
+static size_t fern_rc_payload_offset(void) {
+    size_t align = _Alignof(max_align_t);
+    size_t header_size = sizeof(FernObjectHeader);
+    size_t rem = header_size % align;
+    if (rem == 0) return header_size;
+    return header_size + (align - rem);
+}
+
+/**
+ * Convert payload pointer to its RC header pointer.
+ * @param ptr RC payload pointer.
+ * @return Pointer to RC header.
+ */
+static FernObjectHeader* fern_rc_header_mut(void* ptr) {
+    assert(ptr != NULL);
+    size_t offset = fern_rc_payload_offset();
+    return (FernObjectHeader*)((char*)ptr - offset);
+}
+
+/**
+ * Convert payload pointer to const RC header pointer.
+ * @param ptr RC payload pointer.
+ * @return Pointer to const RC header.
+ */
+static const FernObjectHeader* fern_rc_header_const(const void* ptr) {
+    assert(ptr != NULL);
+    size_t offset = fern_rc_payload_offset();
+    return (const FernObjectHeader*)((const char*)ptr - offset);
+}
+
+/**
+ * Allocate an RC-managed payload with header metadata.
+ * @param payload_size Payload bytes.
+ * @param type_tag Core heap value type tag.
+ * @return Payload pointer.
+ */
+void* fern_rc_alloc(size_t payload_size, uint16_t type_tag) {
+    size_t offset = fern_rc_payload_offset();
+    size_t alloc_size = offset + (payload_size > 0 ? payload_size : 1);
+    char* block = fern_memory_backend_alloc(alloc_size);
+    assert(block != NULL);
+
+    FernObjectHeader* header = (FernObjectHeader*)block;
+    header->refcount = 1;
+    header->type_tag = type_tag;
+    header->flags = FERN_RC_FLAG_UNIQUE;
+
+    return block + offset;
+}
+
+/**
+ * Duplicate an RC-managed reference.
+ * @param ptr RC payload pointer.
+ * @return Same payload pointer or NULL.
+ */
+void* fern_rc_dup(void* ptr) {
+    if (ptr == NULL) return NULL;
+    FernObjectHeader* header = fern_rc_header_mut(ptr);
+    if (header->refcount < UINT32_MAX) {
+        header->refcount += 1;
+    }
+    if (header->refcount > 1) {
+        header->flags &= (uint16_t)(~FERN_RC_FLAG_UNIQUE);
+    }
+    return ptr;
+}
+
+/**
+ * Drop an RC-managed reference.
+ * @param ptr RC payload pointer.
+ */
+void fern_rc_drop(void* ptr) {
+    if (ptr == NULL) return;
+    FernObjectHeader* header = fern_rc_header_mut(ptr);
+    if (header->refcount > 0) {
+        header->refcount -= 1;
+    }
+    if (header->refcount == 1) {
+        header->flags |= FERN_RC_FLAG_UNIQUE;
+    }
+    if (header->refcount == 0) {
+        header->flags &= (uint16_t)(~FERN_RC_FLAG_UNIQUE);
+    }
+}
+
+/**
+ * Get RC refcount for a payload pointer.
+ * @param ptr RC payload pointer.
+ * @return Refcount or 0 for NULL.
+ */
+uint32_t fern_rc_refcount(const void* ptr) {
+    if (ptr == NULL) return 0;
+    const FernObjectHeader* header = fern_rc_header_const(ptr);
+    return header->refcount;
+}
+
+/**
+ * Get RC type tag for a payload pointer.
+ * @param ptr RC payload pointer.
+ * @return Type tag or UNKNOWN for NULL.
+ */
+uint16_t fern_rc_type_tag(const void* ptr) {
+    if (ptr == NULL) return FERN_RC_TYPE_UNKNOWN;
+    const FernObjectHeader* header = fern_rc_header_const(ptr);
+    return header->type_tag;
+}
+
+/**
+ * Get RC flags for a payload pointer.
+ * @param ptr RC payload pointer.
+ * @return Flags or NONE for NULL.
+ */
+uint16_t fern_rc_flags(const void* ptr) {
+    if (ptr == NULL) return FERN_RC_FLAG_NONE;
+    const FernObjectHeader* header = fern_rc_header_const(ptr);
+    return header->flags;
+}
+
+/**
+ * Set RC flags for a payload pointer.
+ * @param ptr RC payload pointer.
+ * @param flags Flags bitmask.
+ */
+void fern_rc_set_flags(void* ptr, uint16_t flags) {
+    if (ptr == NULL) return;
+    FernObjectHeader* header = fern_rc_header_mut(ptr);
+    header->flags = flags;
+}
+
+/**
  * Allocate memory.
  * @param size Number of bytes.
  * @return Pointer to allocated memory.
@@ -1416,7 +1549,7 @@ typedef struct {
  * @return Pointer to heap-allocated Result.
  */
 int64_t fern_result_ok(int64_t value) {
-    FernResult* result = FERN_ALLOC(sizeof(FernResult));
+    FernResult* result = fern_rc_alloc(sizeof(FernResult), FERN_RC_TYPE_RESULT);
     result->tag = RESULT_TAG_OK;
     result->value = value;
     return (int64_t)(intptr_t)result;
@@ -1428,7 +1561,7 @@ int64_t fern_result_ok(int64_t value) {
  * @return Pointer to heap-allocated Result.
  */
 int64_t fern_result_err(int64_t value) {
-    FernResult* result = FERN_ALLOC(sizeof(FernResult));
+    FernResult* result = fern_rc_alloc(sizeof(FernResult), FERN_RC_TYPE_RESULT);
     result->tag = RESULT_TAG_ERR;
     result->value = value;
     return (int64_t)(intptr_t)result;
@@ -1796,7 +1929,7 @@ FernStringList* fern_list_dir(const char* path) {
         return NULL;
     }
     
-    FernStringList* list = FERN_ALLOC(sizeof(FernStringList));
+    FernStringList* list = fern_rc_alloc(sizeof(FernStringList), FERN_RC_TYPE_STRING_LIST);
     assert(list != NULL);
     list->cap = 16;
     list->len = 0;
@@ -2022,7 +2155,7 @@ FernStringList* fern_regex_find_all(const char* s, const char* pattern) {
     assert(s != NULL);
     assert(pattern != NULL);
     
-    FernStringList* list = FERN_ALLOC(sizeof(FernStringList));
+    FernStringList* list = fern_rc_alloc(sizeof(FernStringList), FERN_RC_TYPE_STRING_LIST);
     assert(list != NULL);
     list->cap = 8;
     list->len = 0;
@@ -2195,7 +2328,7 @@ FernStringList* fern_regex_split(const char* s, const char* pattern) {
     assert(s != NULL);
     assert(pattern != NULL);
     
-    FernStringList* list = FERN_ALLOC(sizeof(FernStringList));
+    FernStringList* list = fern_rc_alloc(sizeof(FernStringList), FERN_RC_TYPE_STRING_LIST);
     assert(list != NULL);
     list->cap = 8;
     list->len = 0;
