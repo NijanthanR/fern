@@ -57,8 +57,9 @@ Gate C runtime behavior is stabilized as:
    - `Err(FERN_ERR_IO)` placeholder response.
    - Signature stability is guaranteed; runtime backend is not implemented yet.
 4. `sql.open(path)` / `sql.execute(handle, query)`:
-   - `Err(FERN_ERR_IO)` placeholder response.
-   - Signature stability is guaranteed; runtime backend is not implemented yet.
+   - `sql.open(path)` returns `Ok(handle)` for valid paths and `Err(FERN_ERR_IO)` for invalid input/open failure.
+   - `sql.execute(handle, query)` returns `Ok(rows_affected)` for valid handles/statements and `Err(FERN_ERR_IO)` for invalid handles/input/SQL errors.
+   - SQLite-backed runtime behavior is regression-tested in `tests/test_runtime_surface.c`.
 5. `actors.start(name)`:
    - Returns deterministic, process-local, monotonic actor ids.
 6. `actors.post(actor_id, msg)`:

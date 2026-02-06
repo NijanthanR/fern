@@ -121,6 +121,12 @@ def compile_microbenchmark(source_path: Path, output_path: Path) -> None:
 
     libs = run(["pkg-config", "--libs", "bdw-gc"], check=False)
     gc_libs = libs.stdout.strip().split() if libs.returncode == 0 else ["-lgc"]
+    sqlite_libs_probe = run(["pkg-config", "--libs", "sqlite3"], check=False)
+    sqlite_libs = (
+        sqlite_libs_probe.stdout.strip().split()
+        if sqlite_libs_probe.returncode == 0
+        else ["-lsqlite3"]
+    )
     cmd = [
         "clang",
         "-O3",
@@ -131,6 +137,7 @@ def compile_microbenchmark(source_path: Path, output_path: Path) -> None:
         "-o",
         str(output_path),
         *gc_libs,
+        *sqlite_libs,
     ]
     run(cmd)
 

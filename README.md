@@ -2,7 +2,7 @@
 
 > A statically-typed, functional language with Python aesthetics that compiles to single binaries.
 
-**Status:** 🚧 In active development - Gate D complete, 502 tests passing, release packaging/benchmark publishing in CI, and a new `Justfile` task runner
+**Status:** 🚧 In active development - Gate D complete, 504 tests passing, release packaging/benchmark publishing in CI, and a new `Justfile` task runner
 
 ## What is Fern?
 
@@ -24,7 +24,7 @@ Ok(process(validated))
 
 **No surprises** - The language actively prevents the bugs that waste your afternoon. If it compiles, it probably works.
 
-**Jetpack surface included** - Core modules ship with the compiler; pre-1.0 HTTP/SQL runtime paths are currently placeholder-backed while fs/json/actors/TUI workflows are regression-tested.
+**Jetpack surface included** - Core modules ship with the compiler; SQL now has a concrete SQLite runtime backend, while HTTP remains placeholder-backed pre-1.0.
 
 ### Core Principles
 
@@ -55,7 +55,7 @@ Ok(process(validated))
 - **Garbage collected runtime** - Boehm-backed runtime plus Perceus baseline ownership primitives
 - **Language tooling** - LSP with diagnostics, hover, definition, completion, rename, and code actions
 - **Stable stdlib API surface** - `fs`, `http`, `json`, `sql`, `actors`, and `File` alias compatibility
-- **Explicit runtime readiness** - HTTP/SQL contracts are currently placeholder-backed (`Err(FERN_ERR_IO)`) and documented
+- **Explicit runtime readiness** - SQL is SQLite-backed today; HTTP currently returns placeholder `Err(FERN_ERR_IO)` and is documented as such
 - **Helpful diagnostics** - snippets, notes, and fix hints in CLI workflows
 - **Reproducible quality gates** - `just check`, fuzz smoke, perf budgets, release policy checks
 
@@ -78,7 +78,7 @@ Fern is implemented with strict TDD. See [DESIGN.md](DESIGN.md) for language det
 - ✅ Gate D (ecosystem/adoption hardening) passed
 
 **Recent outcomes:**
-- ✅ 502/502 tests passing in local `just test`
+- ✅ 504/504 tests passing in local `just test`
 - ✅ Cross-platform CI (Ubuntu + macOS) with build/test/style/perf/fuzz/example checks
 - ✅ Release packaging bundles (`fern` + `libfern_runtime.a` + policy/docs artifacts)
 - ✅ Conventional-commit-driven semver + release notes via `release-please`
@@ -109,11 +109,11 @@ Fern takes inspiration from the best features of:
 
 ## Philosophy in Action
 
-**Aspirational full-stack shape (stable API surface, placeholder-backed HTTP/SQL runtime today):**
+**Full-stack shape (stable API surface, SQL backend available, HTTP placeholder pre-1.0):**
 ```fern
 # No Redis, no RabbitMQ, no separate database
 fn main() -> Result((), Int):
-    let db = sql.open("app.db")?            # Current runtime returns Err(FERN_ERR_IO)
+    let db = sql.open("app.db")?            # SQLite-backed runtime handle
     let cache = spawn(cache_actor)          # In-memory cache (actor)
     let queue = spawn(job_queue)            # Job queue (actor)
 
@@ -139,13 +139,13 @@ fn main() -> Result((), Int):
 **Dependencies (for building the compiler):**
 ```bash
 # macOS
-brew install bdw-gc
+brew install bdw-gc sqlite
 
 # Ubuntu/Debian
-apt install libgc-dev
+apt install libgc-dev libsqlite3-dev
 
 # Fedora
-dnf install gc-devel
+dnf install gc-devel sqlite-devel
 ```
 
 Also install the task runner:
@@ -160,7 +160,7 @@ apt install just
 dnf install just
 ```
 
-> **Note:** QBE is embedded in the compiler - no external `qbe` binary needed. Boehm GC is statically linked into compiled programs. The fern binary and compiled programs are **fully standalone**. HTTP/SQL stdlib entry points currently use placeholder runtime contracts (`Err(FERN_ERR_IO)`) until those runtime backends land.
+> **Note:** QBE is embedded in the compiler - no external `qbe` binary needed. Boehm GC is statically linked into compiled programs. SQL stdlib calls link against SQLite (`sqlite3`) and HTTP stdlib calls currently use placeholder runtime contracts (`Err(FERN_ERR_IO)`).
 
 **Preferred task runner (`Justfile`):**
 ```bash

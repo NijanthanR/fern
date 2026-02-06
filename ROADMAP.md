@@ -8,7 +8,7 @@ Detailed historical logs and old iteration notes were moved to:
 
 ## Current Snapshot
 
-- Build/tests: `just test` passing (**502/502**)
+- Build/tests: `just test` passing (**504/504**)
 - Style: `just style` passing
 - Foundation status: lexer, parser, type checker, codegen pipeline, core runtime, and embedded toolchain are working
 - Release automation: conventional-commit-driven semver + release notes configured via `release-please` (initial version pinned to `0.1.0`, breaking changes map to minor while `<1.0.0`)
@@ -16,8 +16,9 @@ Detailed historical logs and old iteration notes were moved to:
 - Current focus: Post-Gate D stabilization and adoption docs maintenance
 - Post-Gate D stabilization update: checker/codegen coverage for record updates and actor primitives (`spawn`, `send`, `receive`) is in place with dedicated regression tests
 - Post-Gate D stabilization update: docs/examples now use canonical `Result(T, E)` syntax and module naming guidance (`fs`, `json`, `http`, `sql`, `actors`; `File.*` alias retained)
-- Post-Gate D stabilization update: README/stdlib compatibility docs now explicitly call out current placeholder runtime status for `http` and `sql`
+- Post-Gate D stabilization update: README/stdlib compatibility docs now explicitly call out current runtime readiness (`sql` SQLite-backed, `http` placeholder)
 - Post-Gate D stabilization update: CLI type diagnostics now include snippet/note/help coverage for binary operator mismatches (`test_cli_check_binary_type_error_includes_snippet_note_and_help`)
+- Post-Gate D stabilization update: SQL runtime now has concrete SQLite behavior (`sql.open`, `sql.execute`) with runtime surface coverage in `tests/test_runtime_surface.c`
 
 ## Working Model
 
@@ -78,7 +79,7 @@ Gates are sequential. Only one gate is active at a time.
 **Dependency:** Gate B passed
 
 **Implementation checklist:**
-- [x] Stabilize stdlib module APIs (`fs`, `http`, `json`, `sql`, `actors`) - completed with compiler/checker/codegen coverage plus runtime placeholder contract tests and compatibility docs (`tests/test_checker.c`, `tests/test_codegen.c`, `tests/test_runtime_surface.c`, `docs/COMPATIBILITY_POLICY.md`)
+- [x] Stabilize stdlib module APIs (`fs`, `http`, `json`, `sql`, `actors`) - completed with compiler/checker/codegen coverage plus runtime contract tests and compatibility docs (`tests/test_checker.c`, `tests/test_codegen.c`, `tests/test_runtime_surface.c`, `docs/COMPATIBILITY_POLICY.md`)
 - [x] Milestone 7.7 / Step A: Introduce runtime memory abstraction (`alloc/dup/drop` API surface) behind current Boehm implementation (`runtime/fern_runtime.h`, `runtime/fern_runtime.c`, `test_runtime_memory_alloc_dup_drop_contract`)
 - [x] Milestone 7.7 / Step B: Add Perceus object header + refcount ops for core heap value types (`fern_rc_alloc/dup/drop`, header metadata accessors, core type tags validated in `test_runtime_rc_header_and_core_type_ops`)
 - [x] Milestone 7.7 / Step C: Add initial dup/drop insertion in codegen for a constrained, test-covered subset (`test_codegen_dup_inserted_for_pointer_alias_binding`, `test_codegen_drop_inserted_for_unreturned_pointer_bindings`)

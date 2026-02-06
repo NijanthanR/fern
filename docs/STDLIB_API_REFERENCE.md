@@ -27,7 +27,7 @@ Canonical naming in new code/docs:
 
 ## Result Type Syntax and Error Code Type
 
-Current placeholder/runtime-facing APIs use `Int` for error codes.
+Current runtime-facing APIs use `Int` for error codes.
 
 1. Fern generic type syntax is `Result(T, E)` (parentheses, not brackets).
 2. `Result(T, Int)` means `Err(Int)` where integer values map to runtime error constants.
@@ -77,8 +77,9 @@ actors.next(actor_id: Int) -> Result(String, Int)
 ## Runtime Readiness (2026-02-06)
 
 1. `fs`, `json`, and `actors` have concrete runtime behavior covered by regression tests.
-2. `http` and `sql` signatures are stable, but current runtime implementations are placeholders returning `Err(FERN_ERR_IO)`.
-3. `File.*` is maintained for compatibility and maps to the same runtime surface as `fs.*`.
+2. `sql` signatures are stable and backed by a concrete SQLite runtime (`sql.open`, `sql.execute`).
+3. `http` signatures are stable, with current runtime implementation returning placeholder `Err(FERN_ERR_IO)`.
+4. `File.*` is maintained for compatibility and maps to the same runtime surface as `fs.*`.
 
 ### `File` compatibility alias
 

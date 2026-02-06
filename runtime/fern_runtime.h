@@ -859,7 +859,7 @@ int64_t fern_http_post(const char* url, const char* body);
 
 /**
  * Open a SQL connection handle.
- * Current implementation returns Err(FERN_ERR_IO) until SQL runtime lands.
+ * Uses SQLite backend and returns an opaque Fern handle id.
  * @param path Database path/URL.
  * @return Result: Ok(handle) or Err(error code).
  */
@@ -867,10 +867,10 @@ int64_t fern_sql_open(const char* path);
 
 /**
  * Execute a SQL statement.
- * Current implementation returns Err(FERN_ERR_IO) until SQL runtime lands.
+ * Executes SQL against a previously opened handle.
  * @param handle SQL handle.
  * @param query SQL statement.
- * @return Result: Ok(rows affected) or Err(error code).
+ * @return Result: Ok(rows affected from sqlite3_changes) or Err(error code).
  */
 int64_t fern_sql_execute(int64_t handle, const char* query);
 

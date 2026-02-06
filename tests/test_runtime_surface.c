@@ -207,6 +207,7 @@ static BuildRunResult build_and_run_c_source(const char* source) {
         "cc -std=c11 -Wall -Wextra -Werror -Iruntime "
         "%s bin/libfern_runtime.a "
         "$(pkg-config --libs bdw-gc 2>/dev/null || echo -lgc) "
+        "$(pkg-config --libs sqlite3 2>/dev/null || echo -lsqlite3) "
         "-o %s 2>&1",
         source_path,
         output_path
@@ -289,10 +290,32 @@ void test_runtime_sql_open_empty_returns_io_error(void) {
     free_build_run_result(&result);
 }
 
-void test_runtime_sql_execute_placeholder_returns_io_error(void) {
+void test_runtime_sql_open_and_execute_returns_ok(void) {
     BuildRunResult result = build_and_run_source(
         "fn main() -> Int:\n"
-        "    match sql.execute(1, \"select 1\"):\n"
+        "    match sql.open(\"/tmp/fern_runtime_sql_surface.db\"):\n"
+        "        Ok(handle) ->\n"
+        "            match sql.execute(handle, \"DROP TABLE IF EXISTS users\"):\n"
+        "                Ok(_) ->\n"
+        "                    match sql.execute(handle, \"CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT)\"):\n"
+        "                        Ok(_) ->\n"
+        "                            match sql.execute(handle, \"INSERT INTO users(name) VALUES ('fern')\"):\n"
+        "                                Ok(changed) -> if changed == 1: 0 else: 12\n"
+        "                                Err(_) -> 13\n"
+        "                        Err(_) -> 14\n"
+        "                Err(_) -> 15\n"
+        "        Err(_) -> 16\n");
+
+    ASSERT_EQ(result.build.exit_code, 0);
+    ASSERT_EQ(result.run.exit_code, 0);
+
+    free_build_run_result(&result);
+}
+
+void test_runtime_sql_execute_invalid_handle_returns_io_error(void) {
+    BuildRunResult result = build_and_run_source(
+        "fn main() -> Int:\n"
+        "    match sql.execute(424242, \"select 1\"):\n"
         "        Ok(_) -> 10\n"
         "        Err(code) -> if code == 3: 0 else: 11\n");
 
@@ -490,7 +513,8 @@ void run_runtime_surface_tests(void) {
     TEST_RUN(test_runtime_http_get_empty_returns_io_error);
     TEST_RUN(test_runtime_http_post_placeholder_returns_io_error);
     TEST_RUN(test_runtime_sql_open_empty_returns_io_error);
-    TEST_RUN(test_runtime_sql_execute_placeholder_returns_io_error);
+    TEST_RUN(test_runtime_sql_open_and_execute_returns_ok);
+    TEST_RUN(test_runtime_sql_execute_invalid_handle_returns_io_error);
     TEST_RUN(test_runtime_actors_start_returns_monotonic_ids);
     TEST_RUN(test_runtime_actors_post_and_next_mailbox_contract);
     TEST_RUN(test_runtime_actor_scheduler_round_robin_contract);

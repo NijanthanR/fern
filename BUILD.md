@@ -4,6 +4,7 @@
 
 - C compiler (clang or gcc)
 - Just task runner (`just`)
+- SQLite development library (`sqlite3`)
 - macOS, Linux, or other Unix-like OS
 
 ## Quick Start
@@ -151,6 +152,20 @@ sudo dnf install just
 1. Run `just clean` to remove stale build artifacts
 2. Run `just test` again
 3. If still failing, check the error message and report a bug
+
+### "ld: cannot find -lsqlite3" (or sqlite link errors)
+
+Install SQLite development headers/libraries:
+```bash
+# macOS
+brew install sqlite
+
+# Ubuntu/Debian
+sudo apt-get install libsqlite3-dev
+
+# Fedora
+sudo dnf install sqlite-devel
+```
 
 ## Next Steps
 
