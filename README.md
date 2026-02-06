@@ -158,6 +158,8 @@ dnf install just
 just debug
 just test
 just check
+just docs
+just docs-check
 just release-package
 just benchmark-report
 ```

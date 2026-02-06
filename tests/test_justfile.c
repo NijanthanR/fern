@@ -39,6 +39,8 @@ void test_justfile_exposes_core_recipes(void) {
     ASSERT_TRUE(strstr(justfile, "release:") != NULL);
     ASSERT_TRUE(strstr(justfile, "test:") != NULL);
     ASSERT_TRUE(strstr(justfile, "check:") != NULL);
+    ASSERT_TRUE(strstr(justfile, "docs:") != NULL);
+    ASSERT_TRUE(strstr(justfile, "docs-check:") != NULL);
     ASSERT_TRUE(strstr(justfile, "release-package:") != NULL);
     ASSERT_TRUE(strstr(justfile, "benchmark-report:") != NULL);
 

@@ -281,6 +281,15 @@ test-examples: debug
 test-doc: debug
     python3 scripts/run_doc_tests.py ${DOC_TEST_FLAGS:-}
 
+# Generate unified docs site (Fern modules + C API)
+docs:
+    python3 scripts/generate_unified_docs.py ${DOC_FLAGS:-}
+
+# Validate docs generation + public API documentation + doc examples
+docs-check: debug
+    python3 scripts/generate_unified_docs.py --check ${DOC_FLAGS:-}
+    python3 scripts/run_doc_tests.py ${DOC_TEST_FLAGS:-}
+
 # Run grammar/property fuzzing for parser + formatter stability
 fuzz: fuzz-bin
     #!/usr/bin/env bash
