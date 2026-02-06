@@ -719,6 +719,69 @@ void test_codegen_if_returns_string(void) {
     arena_destroy(arena);
 }
 
+/* ========== Tui Prompt Tests ========== */
+
+void test_codegen_tui_prompt_input(void) {
+    Arena* arena = arena_create(8192);
+
+    const char* qbe = generate_expr_qbe(arena, "Tui.Prompt.input(\"Name: \")");
+
+    ASSERT_NOT_NULL(qbe);
+    ASSERT_TRUE(strstr(qbe, "$fern_prompt_input") != NULL);
+    ASSERT_TRUE(strstr(qbe, "=l call") != NULL);
+
+    arena_destroy(arena);
+}
+
+void test_codegen_tui_prompt_confirm(void) {
+    Arena* arena = arena_create(8192);
+
+    const char* qbe = generate_expr_qbe(arena, "Tui.Prompt.confirm(\"Continue?\")");
+
+    ASSERT_NOT_NULL(qbe);
+    ASSERT_TRUE(strstr(qbe, "$fern_prompt_confirm") != NULL);
+    ASSERT_TRUE(strstr(qbe, "=w call") != NULL);
+
+    arena_destroy(arena);
+}
+
+void test_codegen_tui_prompt_select(void) {
+    Arena* arena = arena_create(8192);
+
+    const char* qbe = generate_expr_qbe(arena,
+        "Tui.Prompt.select(\"Pick one\", [\"a\", \"b\"])");
+
+    ASSERT_NOT_NULL(qbe);
+    ASSERT_TRUE(strstr(qbe, "$fern_prompt_select") != NULL);
+    ASSERT_TRUE(strstr(qbe, "=w call") != NULL);
+
+    arena_destroy(arena);
+}
+
+void test_codegen_tui_prompt_password(void) {
+    Arena* arena = arena_create(8192);
+
+    const char* qbe = generate_expr_qbe(arena, "Tui.Prompt.password(\"Password: \")");
+
+    ASSERT_NOT_NULL(qbe);
+    ASSERT_TRUE(strstr(qbe, "$fern_prompt_password") != NULL);
+    ASSERT_TRUE(strstr(qbe, "=l call") != NULL);
+
+    arena_destroy(arena);
+}
+
+void test_codegen_tui_prompt_int(void) {
+    Arena* arena = arena_create(8192);
+
+    const char* qbe = generate_expr_qbe(arena, "Tui.Prompt.int(\"Age\", 0, 120)");
+
+    ASSERT_NOT_NULL(qbe);
+    ASSERT_TRUE(strstr(qbe, "$fern_prompt_int") != NULL);
+    ASSERT_TRUE(strstr(qbe, "=w call") != NULL);
+
+    arena_destroy(arena);
+}
+
 /* ========== Test Runner ========== */
 
 void run_codegen_tests(void) {
@@ -810,4 +873,11 @@ void run_codegen_tests(void) {
     TEST_RUN(test_codegen_fn_string_param);
     TEST_RUN(test_codegen_fn_list_param);
     TEST_RUN(test_codegen_if_returns_string);
+
+    /* Tui.Prompt runtime calls */
+    TEST_RUN(test_codegen_tui_prompt_input);
+    TEST_RUN(test_codegen_tui_prompt_confirm);
+    TEST_RUN(test_codegen_tui_prompt_select);
+    TEST_RUN(test_codegen_tui_prompt_password);
+    TEST_RUN(test_codegen_tui_prompt_int);
 }

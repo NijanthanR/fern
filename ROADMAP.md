@@ -1347,7 +1347,7 @@ println(Tui.Status.info("Press Ctrl+C to cancel"))
 println(Tui.Status.debug("Verbose logging enabled"))
 ```
 
-#### Prompt Module - User Input (Planned)
+#### Prompt Module - User Input ✅ (Basic)
 ```fern
 let name = Prompt.ask("What is your name?")
 let ok = Prompt.confirm("Continue?")
@@ -1359,6 +1359,7 @@ let choice = Prompt.select("Pick one:", ["A", "B", "C"])
 - [x] Spinner animation
 - [x] Tui.Live for same-line updates
 - [x] Status badges (Tui.Status)
+- [x] Prompt input module (Tui.Prompt.input/confirm/select/password/int)
 - [ ] Input reading with line editing (Prompt module)
 - [ ] Terminal cursor control (move, hide, show)
 
@@ -1366,7 +1367,7 @@ let choice = Prompt.select("Pick one:", ["A", "B", "C"])
 - [x] Can show progress bars for long operations
 - [x] Can show spinners for indeterminate progress
 - [x] Can display status badges
-- [ ] Can prompt for user input interactively
+- [x] Can prompt for user input interactively (basic)
 
 ### Phase 3: Advanced
 
@@ -3118,4 +3119,3 @@ These features were in earlier design drafts but are now explicitly NOT part of 
 - `loop` construct — use recursion
 - Named tuples `(x: 10, y: 20)` — use `type` records instead
 - Standalone `<-` operator — use `?` for propagation, `with`/`<-` for complex handling
-

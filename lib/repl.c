@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <math.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -60,6 +61,28 @@ static void repl_completion(const char* buf, linenoiseCompletions* lc);
 static char* repl_hints(const char* buf, int* color, int* bold);
 static void repl_init_history(Repl* repl);
 static void repl_save_history(Repl* repl);
+
+/* ========== Constant Expression Evaluation ========== */
+
+typedef enum {
+    REPL_VAL_INT,
+    REPL_VAL_FLOAT,
+    REPL_VAL_STRING,
+    REPL_VAL_BOOL,
+} ReplValueKind;
+
+typedef struct {
+    ReplValueKind kind;
+    union {
+        int64_t i64;
+        double f64;
+        String* str;
+        bool b;
+    } data;
+} ExprValue;
+
+static bool repl_eval_const_expr(Expr* expr, ExprValue* out);
+static void repl_print_expr_value(ExprValue* value, String* type_str);
 
 /* ========== Keywords for Completion ========== */
 
@@ -379,25 +402,273 @@ static bool repl_eval_expression(Repl* repl, const char* line) {
         return false;
     }
     
-    // For now, just show the type (full evaluation requires compilation)
-    // TODO: Compile and execute for actual value
     String* type_str = type_to_string(repl->arena, type);
-    
-    // For simple literals, we can show the value directly
-    if (expr->type == EXPR_INT_LIT) {
-        printf("%lld : %s\n", (long long)expr->data.int_lit.value, string_cstr(type_str));
-    } else if (expr->type == EXPR_FLOAT_LIT) {
-        printf("%g : %s\n", expr->data.float_lit.value, string_cstr(type_str));
-    } else if (expr->type == EXPR_STRING_LIT) {
-        printf("\"%s\" : %s\n", string_cstr(expr->data.string_lit.value), string_cstr(type_str));
-    } else if (expr->type == EXPR_BOOL_LIT) {
-        printf("%s : %s\n", expr->data.bool_lit.value ? "true" : "false", string_cstr(type_str));
+
+    ExprValue value;
+    if (repl_eval_const_expr(expr, &value)) {
+        repl_print_expr_value(&value, type_str);
     } else {
-        // For complex expressions, show inferred type
+        /* Fall back when expression depends on runtime state or effects. */
         printf("<expr> : %s\n", string_cstr(type_str));
     }
     
     return true;
+}
+
+/**
+ * Print a computed expression value with its inferred type.
+ *
+ * @param value Evaluated expression value.
+ * @param type_str Inferred expression type string.
+ */
+static void repl_print_expr_value(ExprValue* value, String* type_str) {
+    assert(value != NULL);
+    assert(type_str != NULL);
+
+    switch (value->kind) {
+        case REPL_VAL_INT:
+            printf("%lld : %s\n", (long long)value->data.i64, string_cstr(type_str));
+            return;
+        case REPL_VAL_FLOAT:
+            printf("%g : %s\n", value->data.f64, string_cstr(type_str));
+            return;
+        case REPL_VAL_STRING:
+            printf("\"%s\" : %s\n", string_cstr(value->data.str), string_cstr(type_str));
+            return;
+        case REPL_VAL_BOOL:
+            printf("%s : %s\n", value->data.b ? "true" : "false", string_cstr(type_str));
+            return;
+    }
+}
+
+/**
+ * Evaluate a unary expression in constant-evaluation mode.
+ *
+ * Supports numeric negation and boolean negation.
+ *
+ * @param unary Unary expression AST node.
+ * @param out Output evaluated value.
+ * @return true if expression could be evaluated as a constant.
+ */
+static bool repl_eval_const_unary(const UnaryExpr* unary, ExprValue* out) {
+    assert(unary != NULL);
+    assert(out != NULL);
+
+    ExprValue operand;
+    if (!repl_eval_const_expr(unary->operand, &operand)) {
+        return false;
+    }
+
+    if (unary->op == UNOP_NEG) {
+        if (operand.kind == REPL_VAL_INT) {
+            out->kind = REPL_VAL_INT;
+            out->data.i64 = -operand.data.i64;
+            return true;
+        }
+        if (operand.kind == REPL_VAL_FLOAT) {
+            out->kind = REPL_VAL_FLOAT;
+            out->data.f64 = -operand.data.f64;
+            return true;
+        }
+        return false;
+    }
+
+    if (unary->op == UNOP_NOT && operand.kind == REPL_VAL_BOOL) {
+        out->kind = REPL_VAL_BOOL;
+        out->data.b = !operand.data.b;
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Evaluate a numeric binary expression in constant-evaluation mode.
+ *
+ * Supports Int and Float arithmetic/comparison operators.
+ *
+ * @param op Binary operator.
+ * @param left Left operand value.
+ * @param right Right operand value.
+ * @param out Output evaluated value.
+ * @return true if expression could be evaluated as a constant.
+ */
+static bool repl_eval_const_binary_numeric(
+    BinaryOp op,
+    ExprValue* left,
+    ExprValue* right,
+    ExprValue* out
+) {
+    assert(left != NULL);
+    assert(right != NULL);
+    assert(out != NULL);
+
+    bool left_num = left->kind == REPL_VAL_INT || left->kind == REPL_VAL_FLOAT;
+    bool right_num = right->kind == REPL_VAL_INT || right->kind == REPL_VAL_FLOAT;
+    if (!left_num || !right_num) {
+        return false;
+    }
+
+    if (left->kind == REPL_VAL_INT && right->kind == REPL_VAL_INT) {
+        int64_t l = left->data.i64;
+        int64_t r = right->data.i64;
+        switch (op) {
+            case BINOP_ADD: out->kind = REPL_VAL_INT; out->data.i64 = l + r; return true;
+            case BINOP_SUB: out->kind = REPL_VAL_INT; out->data.i64 = l - r; return true;
+            case BINOP_MUL: out->kind = REPL_VAL_INT; out->data.i64 = l * r; return true;
+            case BINOP_DIV:
+                if (r == 0) return false;
+                out->kind = REPL_VAL_INT;
+                out->data.i64 = l / r;
+                return true;
+            case BINOP_MOD:
+                if (r == 0) return false;
+                out->kind = REPL_VAL_INT;
+                out->data.i64 = l % r;
+                return true;
+            case BINOP_POW:
+                out->kind = REPL_VAL_FLOAT;
+                out->data.f64 = pow((double)l, (double)r);
+                return true;
+            case BINOP_LT: out->kind = REPL_VAL_BOOL; out->data.b = l < r; return true;
+            case BINOP_LE: out->kind = REPL_VAL_BOOL; out->data.b = l <= r; return true;
+            case BINOP_GT: out->kind = REPL_VAL_BOOL; out->data.b = l > r; return true;
+            case BINOP_GE: out->kind = REPL_VAL_BOOL; out->data.b = l >= r; return true;
+            default: break;
+        }
+    }
+
+    double l = (left->kind == REPL_VAL_FLOAT) ? left->data.f64 : (double)left->data.i64;
+    double r = (right->kind == REPL_VAL_FLOAT) ? right->data.f64 : (double)right->data.i64;
+    switch (op) {
+        case BINOP_ADD: out->kind = REPL_VAL_FLOAT; out->data.f64 = l + r; return true;
+        case BINOP_SUB: out->kind = REPL_VAL_FLOAT; out->data.f64 = l - r; return true;
+        case BINOP_MUL: out->kind = REPL_VAL_FLOAT; out->data.f64 = l * r; return true;
+        case BINOP_DIV:
+            if (r == 0.0) return false;
+            out->kind = REPL_VAL_FLOAT;
+            out->data.f64 = l / r;
+            return true;
+        case BINOP_POW: out->kind = REPL_VAL_FLOAT; out->data.f64 = pow(l, r); return true;
+        case BINOP_LT: out->kind = REPL_VAL_BOOL; out->data.b = l < r; return true;
+        case BINOP_LE: out->kind = REPL_VAL_BOOL; out->data.b = l <= r; return true;
+        case BINOP_GT: out->kind = REPL_VAL_BOOL; out->data.b = l > r; return true;
+        case BINOP_GE: out->kind = REPL_VAL_BOOL; out->data.b = l >= r; return true;
+        default: return false;
+    }
+}
+
+/**
+ * Evaluate a binary expression in constant-evaluation mode.
+ *
+ * Supports equality/inequality, boolean logic, and numeric operations.
+ *
+ * @param binary Binary expression AST node.
+ * @param out Output evaluated value.
+ * @return true if expression could be evaluated as a constant.
+ */
+static bool repl_eval_const_binary(const BinaryExpr* binary, ExprValue* out) {
+    assert(binary != NULL);
+    assert(out != NULL);
+
+    ExprValue left;
+    ExprValue right;
+    if (!repl_eval_const_expr(binary->left, &left) ||
+        !repl_eval_const_expr(binary->right, &right)) {
+        return false;
+    }
+
+    switch (binary->op) {
+        case BINOP_EQ:
+            out->kind = REPL_VAL_BOOL;
+            if (left.kind == REPL_VAL_INT && right.kind == REPL_VAL_INT) {
+                out->data.b = left.data.i64 == right.data.i64;
+                return true;
+            }
+            if ((left.kind == REPL_VAL_INT || left.kind == REPL_VAL_FLOAT) &&
+                (right.kind == REPL_VAL_INT || right.kind == REPL_VAL_FLOAT)) {
+                double l = (left.kind == REPL_VAL_FLOAT) ? left.data.f64 : (double)left.data.i64;
+                double r = (right.kind == REPL_VAL_FLOAT) ? right.data.f64 : (double)right.data.i64;
+                out->data.b = l == r;
+                return true;
+            }
+            if (left.kind == REPL_VAL_BOOL && right.kind == REPL_VAL_BOOL) {
+                out->data.b = left.data.b == right.data.b;
+                return true;
+            }
+            if (left.kind == REPL_VAL_STRING && right.kind == REPL_VAL_STRING) {
+                out->data.b = strcmp(string_cstr(left.data.str), string_cstr(right.data.str)) == 0;
+                return true;
+            }
+            return false;
+        case BINOP_NE:
+            if (!repl_eval_const_binary(
+                    &(BinaryExpr){ .op = BINOP_EQ, .left = binary->left, .right = binary->right },
+                    out)) {
+                return false;
+            }
+            out->data.b = !out->data.b;
+            return true;
+        case BINOP_AND:
+            if (left.kind != REPL_VAL_BOOL || right.kind != REPL_VAL_BOOL) return false;
+            out->kind = REPL_VAL_BOOL;
+            out->data.b = left.data.b && right.data.b;
+            return true;
+        case BINOP_OR:
+            if (left.kind != REPL_VAL_BOOL || right.kind != REPL_VAL_BOOL) return false;
+            out->kind = REPL_VAL_BOOL;
+            out->data.b = left.data.b || right.data.b;
+            return true;
+        default:
+            return repl_eval_const_binary_numeric(binary->op, &left, &right, out);
+    }
+}
+
+/**
+ * Evaluate an expression in constant-evaluation mode.
+ *
+ * Handles literals, unary/binary operations, and if-expressions.
+ *
+ * @param expr Expression AST node.
+ * @param out Output evaluated value.
+ * @return true if expression could be evaluated as a constant.
+ */
+static bool repl_eval_const_expr(Expr* expr, ExprValue* out) {
+    assert(expr != NULL);
+    assert(out != NULL);
+
+    switch (expr->type) {
+        case EXPR_INT_LIT:
+            out->kind = REPL_VAL_INT;
+            out->data.i64 = expr->data.int_lit.value;
+            return true;
+        case EXPR_FLOAT_LIT:
+            out->kind = REPL_VAL_FLOAT;
+            out->data.f64 = expr->data.float_lit.value;
+            return true;
+        case EXPR_STRING_LIT:
+            out->kind = REPL_VAL_STRING;
+            out->data.str = expr->data.string_lit.value;
+            return true;
+        case EXPR_BOOL_LIT:
+            out->kind = REPL_VAL_BOOL;
+            out->data.b = expr->data.bool_lit.value;
+            return true;
+        case EXPR_UNARY:
+            return repl_eval_const_unary(&expr->data.unary, out);
+        case EXPR_BINARY:
+            return repl_eval_const_binary(&expr->data.binary, out);
+        case EXPR_IF: {
+            ExprValue cond;
+            if (!repl_eval_const_expr(expr->data.if_expr.condition, &cond)) return false;
+            if (cond.kind != REPL_VAL_BOOL) return false;
+            if (cond.data.b) return repl_eval_const_expr(expr->data.if_expr.then_branch, out);
+            if (expr->data.if_expr.else_branch == NULL) return false;
+            return repl_eval_const_expr(expr->data.if_expr.else_branch, out);
+        }
+        default:
+            return false;
+    }
 }
 
 /**

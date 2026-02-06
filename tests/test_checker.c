@@ -1771,6 +1771,66 @@ void test_check_tui_live_sleep_returns_unit(void) {
     arena_destroy(arena);
 }
 
+void test_check_tui_prompt_input_returns_string(void) {
+    Arena* arena = arena_create(4096);
+
+    // Tui.Prompt.input("name? ") -> String
+    Type* t = check_expr(arena, "Tui.Prompt.input(\"name? \")");
+
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_STRING);
+
+    arena_destroy(arena);
+}
+
+void test_check_tui_prompt_confirm_returns_bool(void) {
+    Arena* arena = arena_create(4096);
+
+    // Tui.Prompt.confirm("Continue?") -> Bool
+    Type* t = check_expr(arena, "Tui.Prompt.confirm(\"Continue?\")");
+
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_BOOL);
+
+    arena_destroy(arena);
+}
+
+void test_check_tui_prompt_select_returns_int(void) {
+    Arena* arena = arena_create(4096);
+
+    // Tui.Prompt.select("Pick one", ["a", "b"]) -> Int
+    Type* t = check_expr(arena, "Tui.Prompt.select(\"Pick one\", [\"a\", \"b\"])");
+
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_INT);
+
+    arena_destroy(arena);
+}
+
+void test_check_tui_prompt_password_returns_string(void) {
+    Arena* arena = arena_create(4096);
+
+    // Tui.Prompt.password("Password: ") -> String
+    Type* t = check_expr(arena, "Tui.Prompt.password(\"Password: \")");
+
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_STRING);
+
+    arena_destroy(arena);
+}
+
+void test_check_tui_prompt_int_returns_int(void) {
+    Arena* arena = arena_create(4096);
+
+    // Tui.Prompt.int("Age", 0, 120) -> Int
+    Type* t = check_expr(arena, "Tui.Prompt.int(\"Age\", 0, 120)");
+
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_INT);
+
+    arena_destroy(arena);
+}
+
 /* ========== Test Runner ========== */
 
 void run_checker_tests(void) {
@@ -1945,4 +2005,9 @@ void run_checker_tests(void) {
     TEST_RUN(test_check_tui_term_is_tty_returns_bool);
     TEST_RUN(test_check_tui_term_color_support_returns_int);
     TEST_RUN(test_check_tui_live_sleep_returns_unit);
+    TEST_RUN(test_check_tui_prompt_input_returns_string);
+    TEST_RUN(test_check_tui_prompt_confirm_returns_bool);
+    TEST_RUN(test_check_tui_prompt_select_returns_int);
+    TEST_RUN(test_check_tui_prompt_password_returns_string);
+    TEST_RUN(test_check_tui_prompt_int_returns_int);
 }

@@ -6,6 +6,11 @@
 #include "type_env.h"
 #include "type.h"
 #include "fern_string.h"
+#include <assert.h>
+#include <unistd.h>
+
+static void capture_stdout_begin(int* saved_stdout_fd, FILE** tmp_file);
+static void capture_stdout_end(int saved_stdout_fd, FILE* tmp_file, char* buffer, size_t size);
 
 /* Test REPL creation */
 void test_repl_create(void) {
@@ -70,6 +75,26 @@ void test_repl_eval_expression(void) {
     result = repl_eval_line(repl, "10 * 5");
     ASSERT_TRUE(result);
     
+    arena_destroy(arena);
+}
+
+/* Test evaluating arithmetic expression prints computed value */
+void test_repl_eval_expression_prints_value(void) {
+    Arena* arena = arena_create(4 * 1024 * 1024);
+    Repl* repl = repl_new(arena);
+    ASSERT_NOT_NULL(repl);
+
+    int saved_stdout_fd = -1;
+    FILE* tmp_file = NULL;
+    char output[256];
+
+    capture_stdout_begin(&saved_stdout_fd, &tmp_file);
+    bool result = repl_eval_line(repl, "1 + 2");
+    ASSERT_TRUE(result);
+    capture_stdout_end(saved_stdout_fd, tmp_file, output, sizeof(output));
+
+    ASSERT_TRUE(strstr(output, "3 : Int") != NULL);
+
     arena_destroy(arena);
 }
 
@@ -219,6 +244,7 @@ void run_repl_tests(void) {
     TEST_RUN(test_repl_eval_string_literal);
     TEST_RUN(test_repl_eval_bool_literal);
     TEST_RUN(test_repl_eval_expression);
+    TEST_RUN(test_repl_eval_expression_prints_value);
     TEST_RUN(test_repl_let_binding);
     TEST_RUN(test_repl_quit_command);
     TEST_RUN(test_repl_quit_shorthand);
@@ -228,4 +254,32 @@ void run_repl_tests(void) {
     TEST_RUN(test_repl_parse_error);
     TEST_RUN(test_repl_type_error);
     TEST_RUN(test_repl_empty_line);
+}
+static void capture_stdout_begin(int* saved_stdout_fd, FILE** tmp_file) {
+    assert(saved_stdout_fd != NULL);
+    assert(tmp_file != NULL);
+
+    *tmp_file = tmpfile();
+    ASSERT_NOT_NULL(*tmp_file);
+
+    fflush(stdout);
+    *saved_stdout_fd = dup(STDOUT_FILENO);
+    ASSERT_TRUE(*saved_stdout_fd >= 0);
+    ASSERT_TRUE(dup2(fileno(*tmp_file), STDOUT_FILENO) >= 0);
+}
+
+static void capture_stdout_end(int saved_stdout_fd, FILE* tmp_file, char* buffer, size_t size) {
+    assert(tmp_file != NULL);
+    assert(buffer != NULL);
+    assert(size > 0);
+
+    fflush(stdout);
+    ASSERT_TRUE(dup2(saved_stdout_fd, STDOUT_FILENO) >= 0);
+    close(saved_stdout_fd);
+
+    rewind(tmp_file);
+    size_t n = fread(buffer, 1, size - 1, tmp_file);
+    buffer[n] = '\0';
+    fclose(tmp_file);
+    return;
 }
