@@ -4,9 +4,16 @@ This document tracks major architectural and technical decisions made during the
 
 ## Project Decision Log
 
+### 27 WASM memory strategy: Perceus target, Boehm bridge
+* **Date**: 2026-02-06
+* **Status**: ✅ Accepted ⬆️ Supersedes [26]
+* **Decision**: I will keep Boehm GC as the shipping memory system for native in the short term, use it only as an optional bridge for early WASM bring-up, and keep Perceus-style compile-time reference counting as Fern's long-term memory model for both native and WASM.
+* **Context**: Decision [26] assumed Boehm GC could not support WASM. Upstream Boehm now includes explicit WebAssembly (`WEBASSEMBLY`) support paths for Emscripten and WASI, but with practical constraints (notably wasm32 assumptions and limited threading support). Fern still needs deterministic memory behavior, predictable pauses, and a unified actor-friendly model, which align better with Perceus. We also need an incremental path that does not block Gate C work.
+* **Consequences**: Milestone 7.7 becomes a concrete engineering spike with exit criteria (prototype both Boehm-on-WASM and Perceus runtime shape, compare pause behavior, binary size, and implementation risk). Decision [26] is superseded for the "Boehm cannot support WASM" claim, but Perceus remains the preferred end-state.
+
 ### 26 Perceus-style reference counting for WASM support
 * **Date**: 2026-01-29
-* **Status**: ✅ Accepted
+* **Status**: 🔄 Superseded by [27]
 * **Decision**: I will implement Perceus-style compile-time reference counting as Fern's long-term memory management strategy, replacing Boehm GC for both native and WASM targets.
 * **Context**: Boehm GC works well for native targets but cannot support WASM (relies on stack scanning and OS features). Considered several alternatives: (1) Rust-style ownership - powerful but steep learning curve, (2) Swift ARC - requires manual weak references for cycles, (3) WasmGC - ties us to browser GC, may have pauses, (4) Perceus (from Koka/Roc) - reference counting with reuse optimization. Chose Perceus because: functional purity eliminates cycles (no weak refs needed), zero developer annotations required, works identically on native and WASM, no GC pauses, and enables "functional but in-place" optimization where unique values are mutated behind the scenes.
 * **Consequences**: Created `docs/MEMORY_MANAGEMENT.md` with detailed design. Implementation in phases: (1) Keep Boehm for now, (2) Add Perceus for WASM target, (3) Replace Boehm everywhere, (4) Add reuse optimization. Compiler will insert dup/drop operations automatically. Developers write pure functional code; compiler figures out optimal memory strategy.

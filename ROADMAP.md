@@ -11,7 +11,7 @@ Detailed historical logs and old iteration notes were moved to:
 - Build/tests: `make test` passing (**433/433**)
 - Style: `make style` passing
 - Foundation status: lexer, parser, type checker, codegen pipeline, core runtime, and embedded toolchain are working
-- Current focus: pass gates in order, one gate at a time
+- Current focus: Gate C Task 1 (stdlib API stabilization), then Milestone 7.7 implementation tranche before actor runtime core work
 
 ## Working Model
 
@@ -73,6 +73,10 @@ Gates are sequential. Only one gate is active at a time.
 
 **Implementation checklist:**
 - [ ] Stabilize stdlib module APIs (`fs`, `http`, `json`, `sql`, `actors`)
+- [ ] Milestone 7.7 / Step A: Introduce runtime memory abstraction (`alloc/dup/drop` API surface) behind current Boehm implementation
+- [ ] Milestone 7.7 / Step B: Add Perceus object header + refcount ops for core heap value types
+- [ ] Milestone 7.7 / Step C: Add initial dup/drop insertion in codegen for a constrained, test-covered subset
+- [ ] Milestone 7.7 / Step D: Benchmark/compare Boehm bridge vs Perceus baseline vs WasmGC feasibility and record default + fallback path
 - [ ] Complete actor runtime core (`spawn`, `send`, `receive`, scheduler)
 - [ ] Ship canonical templates/examples: tiny CLI, HTTP API, actor-based app
 - [ ] Continuous example validation + doc tests in CI
@@ -81,6 +85,7 @@ Gates are sequential. Only one gate is active at a time.
 **Pass criteria (all required):**
 - [ ] Canonical examples and templates are continuously green in CI
 - [ ] Core stdlib APIs are stable and documented
+- [ ] Milestone 7.7 implementation tranche (A-D) is complete with tests and measured tradeoffs, and a chosen default memory path for first WASM target
 - [ ] Actor baseline scenarios pass deterministic tests
 
 ### Gate D: Ecosystem and Adoption
@@ -118,6 +123,7 @@ Gates are sequential. Only one gate is active at a time.
 
 - Milestone 6: CLI tool polish and command surface
 - Milestone 7: Extended standard library modules
+- Milestone 7.7: WASM target + memory model implementation tranche (active, pre-actor-runtime dependency)
 - Milestone 10: TUI library completion
 
 ### Not Started / Future
@@ -125,16 +131,19 @@ Gates are sequential. Only one gate is active at a time.
 - Milestone 8: Actor runtime and supervision model
 - Milestone 9: Bootstrapping Fern tooling in Fern
 - Milestone 11: Polish and optimization wave
-- Milestone 7.7: WASM target + Perceus memory model research
 
 ## Next Session Start Here
 
-Gate C is now unblocked. Start with API stabilization and deterministic actor scenarios.
+Gate C is now unblocked. Start with API stabilization, then complete Milestone 7.7 implementation tranche before actor runtime core work.
 
 1. [ ] Gate C / Task 1: Stabilize stdlib module APIs (`fs`, `http`, `json`, `sql`, `actors`) and document compatibility guarantees
-2. [ ] Gate C / Task 2: Complete actor runtime core (`spawn`, `send`, `receive`, scheduler) building on FernSim scaffolding
-3. [ ] Gate C / Task 3: Add canonical templates/examples (tiny CLI, HTTP API, actor app) with CI validation
-4. [ ] Gate C / Task 4: Advance bootstrapping tools (`fern doc`, `fern test`, `fern-style` parity targets)
+2. [ ] Gate C / Task 1.5a: Milestone 7.7 - implement runtime memory abstraction layer (`alloc/dup/drop`) backed by Boehm
+3. [ ] Gate C / Task 1.5b: Milestone 7.7 - implement Perceus object header and RC ops for core heap types
+4. [ ] Gate C / Task 1.5c: Milestone 7.7 - add constrained dup/drop insertion in codegen with focused tests
+5. [ ] Gate C / Task 1.5d: Milestone 7.7 - benchmark WASM memory/runtime options and finalize default + fallback path in docs/decisions
+6. [ ] Gate C / Task 2: Complete actor runtime core (`spawn`, `send`, `receive`, scheduler) building on FernSim scaffolding
+7. [ ] Gate C / Task 3: Add canonical templates/examples (tiny CLI, HTTP API, actor app) with CI validation
+8. [ ] Gate C / Task 4: Advance bootstrapping tools (`fern doc`, `fern test`, `fern-style` parity targets)
 
 ## Active Backlog (By Gate)
 
@@ -155,6 +164,7 @@ Gate C is now unblocked. Start with API stabilization and deterministic actor sc
 ### Gate C/D (Later)
 
 - [ ] Extended stdlib modules with doc tests
+- [ ] Milestone 7.7 WASM memory/runtime implementation tranche (abstraction + RC baseline + codegen subset + decision artifact)
 - [ ] Actor runtime core (`spawn`, `send`, `receive`, scheduler)
 - [ ] `fern doc` documentation generation pipeline
 - [ ] LSP expansion beyond MVP (completion/rename/code actions)

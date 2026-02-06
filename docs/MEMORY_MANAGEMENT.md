@@ -1,10 +1,10 @@
 # Fern Memory Management Design
 
-> Perceus-style reference counting for native and WASM targets
+> Perceus-style reference counting as target state, with Boehm GC as current native baseline
 
 ## Executive Summary
 
-Fern will use **Perceus-style compile-time reference counting** as its memory management strategy. This approach:
+Fern targets **Perceus-style compile-time reference counting** as its long-term memory strategy. This approach:
 
 - Works on both native and WASM targets
 - Has no GC pauses (deterministic)
@@ -17,11 +17,19 @@ Fern will use **Perceus-style compile-time reference counting** as its memory ma
 **Native (now):** Boehm GC
 - Conservative garbage collector
 - Works well, no memory leaks
-- But: Won't work for WASM, has GC pauses
+- But: nondeterministic collection timing and pause behavior
 
-**WASM (blocked):** Not supported
-- Boehm GC relies on stack scanning, OS features
-- Need a different approach
+**WASM (current status):** No production Fern WASM target yet
+- Upstream Boehm has WebAssembly support paths (Emscripten/WASI), but with practical constraints
+- Fern runtime + toolchain integration for WASM is not implemented yet
+- We need a concrete milestone spike to select the first shipping path
+
+## 2026-02 Strategy Update
+
+- Keep Boehm GC for native as the shipping baseline now
+- Treat Boehm-on-WASM as an optional bridge for early bring-up only
+- Keep Perceus as the preferred end-state for native + WASM unification
+- Evaluate WasmGC as a viable alternative during Milestone 7.7, not as a default
 
 ## Proposed: Perceus Reference Counting
 
@@ -101,7 +109,7 @@ Here `list` is borrowed - we don't need to increment its refcount because we're 
 
 | Approach | Annotations | Cycles | WASM | Pauses | Complexity |
 |----------|-------------|--------|------|--------|------------|
-| **Boehm GC** | None | Yes (handles) | ❌ | Yes | Low |
+| **Boehm GC** | None | Yes (handles) | ⚠️ (toolchain-constrained) | Yes | Low |
 | **Rust Ownership** | Many | N/A | ✅ | No | High |
 | **Swift ARC** | Few (weak) | Manual | ✅ | No | Medium |
 | **Perceus** | None | Impossible | ✅ | No | Medium |
@@ -140,6 +148,11 @@ The compiler figures out the optimal memory strategy. No lifetime annotations, n
 - Focus on language features
 - Good enough for v1
 
+#### Phase 1.5: Milestone 7.7 Spike (Current Priority)
+- Build and measure first WASM prototypes
+- Compare Boehm bridge vs Perceus baseline vs WasmGC feasibility
+- Choose default + fallback path with explicit go/no-go criteria
+
 #### Phase 2: Add Perceus for WASM
 - Implement dup/drop insertion in codegen
 - WASM target uses Perceus
@@ -164,10 +177,10 @@ The compiler figures out the optimal memory strategy. No lifetime annotations, n
 
 #### Option B: WasmGC
 - Browser handles GC
-- [Now available in all major browsers](https://web.dev/blog/wasmgc-wasm-tail-call-optimizations-baseline) (Dec 2024)
-- But: ties us to browser GC, may have pauses
+- Broad browser support has improved significantly since 2024
+- But: ties behavior to host/browser GC and keeps collection timing nondeterministic
 
-We recommend **Perceus** because:
+We recommend **Perceus as default target** because:
 1. Unified model (same code for native and WASM)
 2. No GC pauses (important for games, animations)
 3. Deterministic destruction (important for resources)
@@ -237,6 +250,7 @@ Based on Koka and Roc benchmarks:
 2. **Small value optimization**: Should small values (ints, bools) be unboxed?
 3. **Weak references**: Needed for caches? (Probably not in pure FP)
 4. **Thread safety**: Full atomics or single-threaded by default?
+5. **WASM default path**: After Milestone 7.7 measurements, should first shipping target use Perceus directly or a temporary Boehm bridge?
 
 ### References
 
@@ -251,7 +265,7 @@ Based on Koka and Roc benchmarks:
 
 ## Summary
 
-Perceus gives Fern:
+Perceus gives Fern's target architecture:
 
 ✅ **No annotations** - Write normal functional code
 ✅ **No cycles** - Functional purity eliminates them
