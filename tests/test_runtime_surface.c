@@ -759,6 +759,92 @@ void test_runtime_actor_monitor_and_restart_contract(void) {
     free_build_run_result(&result);
 }
 
+void test_runtime_actor_supervise_restart_intensity_contract(void) {
+    BuildRunResult result = build_and_run_c_source(
+        "#include <stdint.h>\n"
+        "#include <stdio.h>\n"
+        "#include \"fern_runtime.h\"\n"
+        "\n"
+        "int fern_main(void) {\n"
+        "    int64_t supervisor = fern_actor_spawn(\"supervisor\");\n"
+        "    int64_t worker = fern_actor_spawn(\"worker\");\n"
+        "    if (supervisor <= 0 || worker <= supervisor) return 110;\n"
+        "\n"
+        "    int64_t spec = fern_actor_supervise(supervisor, worker, 1, 60);\n"
+        "    if (!fern_result_is_ok(spec)) return 111;\n"
+        "\n"
+        "    int64_t exited = fern_actor_exit(worker, \"boom\");\n"
+        "    if (!fern_result_is_ok(exited)) return 112;\n"
+        "\n"
+        "    int64_t down = fern_actor_next(supervisor);\n"
+        "    int64_t restart = fern_actor_next(supervisor);\n"
+        "    if (!fern_result_is_ok(down) || !fern_result_is_ok(restart)) return 113;\n"
+        "\n"
+        "    const char* down_msg = (const char*)(intptr_t)fern_result_unwrap(down);\n"
+        "    const char* restart_msg = (const char*)(intptr_t)fern_result_unwrap(restart);\n"
+        "    if (!fern_str_starts_with(down_msg, \"DOWN(\")) return 114;\n"
+        "    if (!fern_str_starts_with(restart_msg, \"RESTART(\")) return 115;\n"
+        "\n"
+        "    long long old_pid = 0;\n"
+        "    long long new_pid = 0;\n"
+        "    if (sscanf(restart_msg, \"RESTART(%lld,%lld)\", &old_pid, &new_pid) != 2) return 116;\n"
+        "    if (old_pid != worker) return 117;\n"
+        "    if (new_pid <= old_pid) return 118;\n"
+        "\n"
+        "    int64_t exited_again = fern_actor_exit((int64_t)new_pid, \"boom2\");\n"
+        "    if (fern_result_is_ok(exited_again)) return 119;\n"
+        "\n"
+        "    int64_t down2 = fern_actor_next(supervisor);\n"
+        "    int64_t escalate = fern_actor_next(supervisor);\n"
+        "    if (!fern_result_is_ok(down2) || !fern_result_is_ok(escalate)) return 120;\n"
+        "\n"
+        "    const char* esc_msg = (const char*)(intptr_t)fern_result_unwrap(escalate);\n"
+        "    if (!fern_str_starts_with(esc_msg, \"ESCALATE(\")) return 121;\n"
+        "    return 0;\n"
+        "}\n");
+
+    ASSERT_EQ(result.build.exit_code, 0);
+    ASSERT_EQ(result.run.exit_code, 0);
+
+    free_build_run_result(&result);
+}
+
+void test_runtime_actor_exit_marks_actor_dead_contract(void) {
+    BuildRunResult result = build_and_run_c_source(
+        "#include <stdint.h>\n"
+        "#include \"fern_runtime.h\"\n"
+        "\n"
+        "int fern_main(void) {\n"
+        "    int64_t worker = fern_actor_spawn(\"worker\");\n"
+        "    if (worker <= 0) return 130;\n"
+        "\n"
+        "    int64_t sent = fern_actor_send(worker, \"before-exit\");\n"
+        "    if (!fern_result_is_ok(sent)) return 131;\n"
+        "\n"
+        "    int64_t exited = fern_actor_exit(worker, \"shutdown\");\n"
+        "    if (!fern_result_is_ok(exited)) return 132;\n"
+        "\n"
+        "    if (fern_actor_mailbox_len(worker) != -1) return 133;\n"
+        "    if (fern_result_is_ok(fern_actor_send(worker, \"after-exit\"))) return 134;\n"
+        "    if (fern_result_is_ok(fern_actor_receive(worker))) return 135;\n"
+        "    if (fern_actor_scheduler_next() != 0) return 136;\n"
+        "    int64_t restarted = fern_actor_restart(worker);\n"
+        "    if (!fern_result_is_ok(restarted)) return 137;\n"
+        "    int64_t next_worker = fern_result_unwrap(restarted);\n"
+        "    if (next_worker <= worker) return 138;\n"
+        "    int64_t ok_send = fern_actor_send(next_worker, \"hello\");\n"
+        "    if (!fern_result_is_ok(ok_send)) return 139;\n"
+        "    int64_t recv = fern_actor_receive(next_worker);\n"
+        "    if (!fern_result_is_ok(recv)) return 140;\n"
+        "    return 0;\n"
+        "}\n");
+
+    ASSERT_EQ(result.build.exit_code, 0);
+    ASSERT_EQ(result.run.exit_code, 0);
+
+    free_build_run_result(&result);
+}
+
 void test_runtime_memory_alloc_dup_drop_contract(void) {
     BuildRunResult result = build_and_run_c_source(
         "#include <stdint.h>\n"
@@ -851,6 +937,8 @@ void run_runtime_surface_tests(void) {
     TEST_RUN(test_runtime_actor_scheduler_round_robin_contract);
     TEST_RUN(test_runtime_actor_spawn_link_exit_notification_contract);
     TEST_RUN(test_runtime_actor_monitor_and_restart_contract);
+    TEST_RUN(test_runtime_actor_supervise_restart_intensity_contract);
+    TEST_RUN(test_runtime_actor_exit_marks_actor_dead_contract);
     TEST_RUN(test_runtime_memory_alloc_dup_drop_contract);
     TEST_RUN(test_runtime_rc_header_and_core_type_ops);
 }

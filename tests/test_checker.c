@@ -1913,6 +1913,21 @@ void test_check_actors_restart_returns_result(void) {
     arena_destroy(arena);
 }
 
+void test_check_actors_supervise_returns_result(void) {
+    Arena* arena = arena_create(4096);
+
+    Type* t = check_expr(arena, "actors.supervise(1, 2, 3, 5)");
+
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_CON);
+    ASSERT_STR_EQ(string_cstr(t->data.con.name), "Result");
+    ASSERT_EQ(t->data.con.args->len, 2);
+    ASSERT_EQ(t->data.con.args->data[0]->kind, TYPE_INT);
+    ASSERT_EQ(t->data.con.args->data[1]->kind, TYPE_INT);
+
+    arena_destroy(arena);
+}
+
 void test_check_fs_api_signatures(void) {
     Arena* arena = arena_create(4096);
 
@@ -2091,6 +2106,18 @@ void test_check_actors_api_signatures(void) {
     Type* bad_restart_t = check_expr(arena, "actors.restart(\"worker\")");
     ASSERT_NOT_NULL(bad_restart_t);
     ASSERT_EQ(bad_restart_t->kind, TYPE_ERROR);
+
+    Type* supervise_t = check_expr(arena, "actors.supervise(1, 2, 3, 5)");
+    ASSERT_NOT_NULL(supervise_t);
+    ASSERT_EQ(supervise_t->kind, TYPE_CON);
+    ASSERT_STR_EQ(string_cstr(supervise_t->data.con.name), "Result");
+    ASSERT_EQ(supervise_t->data.con.args->len, 2);
+    ASSERT_EQ(supervise_t->data.con.args->data[0]->kind, TYPE_INT);
+    ASSERT_EQ(supervise_t->data.con.args->data[1]->kind, TYPE_INT);
+
+    Type* bad_supervise_t = check_expr(arena, "actors.supervise(1, 2, \"3\", 5)");
+    ASSERT_NOT_NULL(bad_supervise_t);
+    ASSERT_EQ(bad_supervise_t->kind, TYPE_ERROR);
 
     arena_destroy(arena);
 }
@@ -2471,6 +2498,7 @@ void run_checker_tests(void) {
     TEST_RUN(test_check_actors_start_returns_int);
     TEST_RUN(test_check_actors_monitor_returns_result);
     TEST_RUN(test_check_actors_restart_returns_result);
+    TEST_RUN(test_check_actors_supervise_returns_result);
     TEST_RUN(test_check_fs_api_signatures);
     TEST_RUN(test_check_json_api_signatures);
     TEST_RUN(test_check_http_api_signatures);

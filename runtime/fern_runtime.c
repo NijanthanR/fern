@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <regex.h>
 #include <sqlite3.h>
+#include <time.h>
 
 /* ========== I/O Functions ========== */
 
@@ -2458,7 +2459,13 @@ int64_t fern_sql_execute(int64_t handle, const char* query) {
 
 typedef struct {
     int64_t actor_id;
+    int64_t alive;
     int64_t linked_parent_id;
+    int64_t supervisor_id;
+    int64_t supervision_max_restarts;
+    int64_t supervision_period_sec;
+    int64_t supervision_window_start_sec;
+    int64_t supervision_restart_count;
     char* name;
     int64_t* monitor_ids;
     int64_t monitor_len;
@@ -2652,6 +2659,17 @@ static FernActorRecord* fern_actor_lookup(FernActorRuntimeState* state, int64_t 
 }
 
 /**
+ * Check whether an actor record is currently alive.
+ * @param actor Actor record.
+ * @return 1 when alive, 0 otherwise.
+ */
+static int fern_actor_is_alive(const FernActorRecord* actor) {
+    assert(actor != NULL);
+    assert(actor->actor_id >= 0);
+    return actor->alive != 0;
+}
+
+/**
  * Push actor id to ready queue.
  * @param state Actor runtime state.
  * @param actor_id Actor id.
@@ -2722,6 +2740,7 @@ static int64_t fern_actor_spawn_with_link(const char* name, int64_t linked_paren
     FernActorRecord* actor = &state->actors[state->actor_len];
     memset(actor, 0, sizeof(*actor));
     actor->actor_id = actor_id;
+    actor->alive = 1;
     actor->linked_parent_id = linked_parent_id;
     actor->name = FERN_STRDUP(name);
     state->actor_len++;
@@ -2793,7 +2812,8 @@ int64_t fern_actor_monitor(int64_t supervisor_id, int64_t worker_id) {
     FernActorRuntimeState* state = fern_actor_runtime_state();
     FernActorRecord* supervisor = fern_actor_lookup(state, supervisor_id);
     FernActorRecord* worker = fern_actor_lookup(state, worker_id);
-    if (supervisor == NULL || worker == NULL) {
+    if (supervisor == NULL || worker == NULL ||
+        !fern_actor_is_alive(supervisor) || !fern_actor_is_alive(worker)) {
         return fern_result_err(FERN_ERR_IO);
     }
 
@@ -2809,6 +2829,65 @@ int64_t fern_actor_monitor(int64_t supervisor_id, int64_t worker_id) {
 }
 
 /**
+ * Register supervision policy for a worker with restart intensity limits.
+ * Also ensures supervisor monitors worker so DOWN notifications are delivered.
+ * @param supervisor_id Supervisor actor id.
+ * @param worker_id Worker actor id.
+ * @param max_restarts Restart attempts allowed inside the time window.
+ * @param period_sec Window size in seconds.
+ * @return Result: Ok(0) on success, Err(error code) otherwise.
+ */
+int64_t fern_actor_supervise(int64_t supervisor_id, int64_t worker_id, int64_t max_restarts, int64_t period_sec) {
+    if (supervisor_id <= 0 || worker_id <= 0 || max_restarts <= 0 || period_sec <= 0) {
+        return fern_result_err(FERN_ERR_IO);
+    }
+
+    FernActorRuntimeState* state = fern_actor_runtime_state();
+    FernActorRecord* supervisor = fern_actor_lookup(state, supervisor_id);
+    FernActorRecord* worker = fern_actor_lookup(state, worker_id);
+    if (supervisor == NULL || worker == NULL ||
+        !fern_actor_is_alive(supervisor) || !fern_actor_is_alive(worker)) {
+        return fern_result_err(FERN_ERR_IO);
+    }
+
+    worker->supervisor_id = supervisor_id;
+    worker->supervision_max_restarts = max_restarts;
+    worker->supervision_period_sec = period_sec;
+    worker->supervision_window_start_sec = 0;
+    worker->supervision_restart_count = 0;
+
+    return fern_actor_monitor(supervisor_id, worker_id);
+}
+
+/**
+ * Consume one restart budget token from the worker supervision window.
+ * @param worker Supervised worker actor.
+ * @return 1 when restart is allowed, 0 when budget is exhausted/invalid.
+ */
+static int fern_actor_supervision_consume_budget(FernActorRecord* worker) {
+    assert(worker != NULL);
+    if (worker->supervision_max_restarts <= 0 || worker->supervision_period_sec <= 0) {
+        return 0;
+    }
+
+    time_t raw_now = time(NULL);
+    int64_t now_sec = raw_now > 0 ? (int64_t)raw_now : 0;
+
+    if (worker->supervision_window_start_sec == 0 ||
+        (now_sec - worker->supervision_window_start_sec) >= worker->supervision_period_sec) {
+        worker->supervision_window_start_sec = now_sec;
+        worker->supervision_restart_count = 0;
+    }
+
+    if (worker->supervision_restart_count >= worker->supervision_max_restarts) {
+        return 0;
+    }
+
+    worker->supervision_restart_count++;
+    return 1;
+}
+
+/**
  * Send a message to an actor mailbox.
  * @param actor_id Destination actor id.
  * @param msg Message payload.
@@ -2821,7 +2900,7 @@ int64_t fern_actor_send(int64_t actor_id, const char* msg) {
 
     FernActorRuntimeState* state = fern_actor_runtime_state();
     FernActorRecord* actor = fern_actor_lookup(state, actor_id);
-    if (actor == NULL) {
+    if (actor == NULL || !fern_actor_is_alive(actor)) {
         return fern_result_err(FERN_ERR_IO);
     }
     if (actor->scheduler_tokens == INT64_MAX) {
@@ -2865,7 +2944,7 @@ int64_t fern_actor_receive(int64_t actor_id) {
 
     FernActorRuntimeState* state = fern_actor_runtime_state();
     FernActorRecord* actor = fern_actor_lookup(state, actor_id);
-    if (actor == NULL || actor->mailbox_len <= 0) {
+    if (actor == NULL || !fern_actor_is_alive(actor) || actor->mailbox_len <= 0) {
         return fern_result_err(FERN_ERR_IO);
     }
 
@@ -2908,11 +2987,36 @@ static char* fern_actor_format_signal_message(const char* tag, int64_t actor_id,
 }
 
 /**
+ * Build a stable RESTART(old_pid,new_pid) payload.
+ * @param old_actor_id Restarted actor id.
+ * @param new_actor_id Replacement actor id.
+ * @return Newly allocated message string, or NULL on allocation failure.
+ */
+static char* fern_actor_format_restart_message(int64_t old_actor_id, int64_t new_actor_id) {
+    assert(old_actor_id > 0);
+    assert(new_actor_id > 0);
+
+    int needed = snprintf(NULL, 0, "RESTART(%lld,%lld)",
+        (long long)old_actor_id, (long long)new_actor_id);
+    if (needed < 0) {
+        return NULL;
+    }
+
+    char* message = FERN_ALLOC((size_t)needed + 1);
+    if (message == NULL) {
+        return NULL;
+    }
+    snprintf(message, (size_t)needed + 1, "RESTART(%lld,%lld)",
+        (long long)old_actor_id, (long long)new_actor_id);
+    return message;
+}
+
+/**
  * Mark an actor as exited and notify links/monitors.
  * Linked parent receives Exit(pid,reason), monitors receive DOWN(pid,reason).
  * @param actor_id Exiting actor id.
  * @param reason Exit reason string.
- * @return Result: Ok(0) when at least one notification is queued.
+ * @return Result: Ok(0) when actor transitions to exited.
  */
 int64_t fern_actor_exit(int64_t actor_id, const char* reason) {
     if (actor_id <= 0) {
@@ -2921,14 +3025,18 @@ int64_t fern_actor_exit(int64_t actor_id, const char* reason) {
 
     FernActorRuntimeState* state = fern_actor_runtime_state();
     FernActorRecord* actor = fern_actor_lookup(state, actor_id);
-    if (actor == NULL) {
+    if (actor == NULL || !fern_actor_is_alive(actor)) {
         return fern_result_err(FERN_ERR_IO);
     }
+
+    actor->alive = 0;
+    actor->scheduler_tokens = 0;
+    actor->scheduler_enqueued = 0;
 
     int delivered = 0;
     if (actor->linked_parent_id > 0) {
         FernActorRecord* parent = fern_actor_lookup(state, actor->linked_parent_id);
-        if (parent != NULL) {
+        if (parent != NULL && fern_actor_is_alive(parent)) {
             char* msg = fern_actor_format_signal_message("Exit", actor_id, reason);
             if (msg == NULL) {
                 return fern_result_err(FERN_ERR_OUT_OF_MEMORY);
@@ -2944,7 +3052,7 @@ int64_t fern_actor_exit(int64_t actor_id, const char* reason) {
     for (int64_t i = 0; i < actor->monitor_len; i++) {
         int64_t supervisor_id = actor->monitor_ids[i];
         FernActorRecord* supervisor = fern_actor_lookup(state, supervisor_id);
-        if (supervisor == NULL) {
+        if (supervisor == NULL || !fern_actor_is_alive(supervisor)) {
             continue;
         }
 
@@ -2959,15 +3067,47 @@ int64_t fern_actor_exit(int64_t actor_id, const char* reason) {
         delivered = 1;
     }
 
-    if (!delivered) {
-        return fern_result_err(FERN_ERR_IO);
+    if (actor->supervisor_id > 0) {
+        FernActorRecord* supervisor = fern_actor_lookup(state, actor->supervisor_id);
+        if (supervisor != NULL && fern_actor_is_alive(supervisor)) {
+            if (!fern_actor_supervision_consume_budget(actor)) {
+                char* escalate = fern_actor_format_signal_message("ESCALATE", actor_id, reason);
+                if (escalate == NULL) {
+                    return fern_result_err(FERN_ERR_OUT_OF_MEMORY);
+                }
+                int64_t esc_status = fern_actor_send(supervisor->actor_id, escalate);
+                if (!fern_result_is_ok(esc_status)) {
+                    return esc_status;
+                }
+                return fern_result_err(FERN_ERR_IO);
+            }
+
+            int64_t restarted = fern_actor_restart(actor_id);
+            if (!fern_result_is_ok(restarted)) {
+                return restarted;
+            }
+            int64_t new_actor_id = fern_result_unwrap(restarted);
+            char* restart_msg = fern_actor_format_restart_message(actor_id, new_actor_id);
+            if (restart_msg == NULL) {
+                return fern_result_err(FERN_ERR_OUT_OF_MEMORY);
+            }
+            int64_t restart_status = fern_actor_send(supervisor->actor_id, restart_msg);
+            if (!fern_result_is_ok(restart_status)) {
+                return restart_status;
+            }
+            delivered = 1;
+            return fern_result_ok(new_actor_id);
+        }
     }
+
+    (void)delivered;
     return fern_result_ok(0);
 }
 
 /**
  * Restart an actor and return the new actor id.
  * Restart preserves name/link baseline and carries monitor registrations.
+ * Actor must already be exited/dead.
  * @param actor_id Actor id to restart.
  * @return Result: Ok(new actor id) or Err(error code).
  */
@@ -2978,7 +3118,7 @@ int64_t fern_actor_restart(int64_t actor_id) {
 
     FernActorRuntimeState* state = fern_actor_runtime_state();
     FernActorRecord* actor = fern_actor_lookup(state, actor_id);
-    if (actor == NULL) {
+    if (actor == NULL || fern_actor_is_alive(actor)) {
         return fern_result_err(FERN_ERR_IO);
     }
 
@@ -2999,6 +3139,12 @@ int64_t fern_actor_restart(int64_t actor_id) {
         next->monitor_len = actor->monitor_len;
     }
 
+    next->supervisor_id = actor->supervisor_id;
+    next->supervision_max_restarts = actor->supervision_max_restarts;
+    next->supervision_period_sec = actor->supervision_period_sec;
+    next->supervision_window_start_sec = actor->supervision_window_start_sec;
+    next->supervision_restart_count = actor->supervision_restart_count;
+
     return fern_result_ok(next_id);
 }
 
@@ -3010,7 +3156,7 @@ int64_t fern_actor_restart(int64_t actor_id) {
 int64_t fern_actor_mailbox_len(int64_t actor_id) {
     FernActorRuntimeState* state = fern_actor_runtime_state();
     FernActorRecord* actor = fern_actor_lookup(state, actor_id);
-    if (actor == NULL) {
+    if (actor == NULL || !fern_actor_is_alive(actor)) {
         return -1;
     }
     return actor->mailbox_len;
@@ -3029,6 +3175,11 @@ int64_t fern_actor_scheduler_next(void) {
 
         if (actor == NULL) {
             (void)fern_actor_ready_pop(state);
+            continue;
+        }
+        if (!fern_actor_is_alive(actor)) {
+            (void)fern_actor_ready_pop(state);
+            actor->scheduler_enqueued = 0;
             continue;
         }
         if (actor->scheduler_tokens > actor->mailbox_len) {

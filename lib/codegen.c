@@ -1899,6 +1899,17 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                                 string_cstr(result), string_cstr(actor_id));
                             return result;
                         }
+                        /* actors.supervise(supervisor, worker, max_restarts, period_sec) -> Result(Int, Int) */
+                        if (strcmp(func, "supervise") == 0 && call->args->len == 4) {
+                            String* supervisor_id = codegen_expr(cg, call->args->data[0].value);
+                            String* worker_id = codegen_expr(cg, call->args->data[1].value);
+                            String* max_restarts = codegen_expr(cg, call->args->data[2].value);
+                            String* period_sec = codegen_expr(cg, call->args->data[3].value);
+                            emit(cg, "    %s =l call $fern_actor_supervise(w %s, w %s, w %s, w %s)\n",
+                                string_cstr(result), string_cstr(supervisor_id), string_cstr(worker_id),
+                                string_cstr(max_restarts), string_cstr(period_sec));
+                            return result;
+                        }
                     }
 
                     /* ===== System module ===== */
