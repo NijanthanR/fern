@@ -785,7 +785,7 @@ Using lightweight built-in CLI structure (Command/Option arrays with auto-genera
   - [ ] Build: `--mode=cli|full`, `--no-actors`, `--no-db`
   - [ ] Check: `--explain <code>`, `--format=json`, `--errors-only`
   - [ ] Global: `--color=auto|always|never`, `--quiet`, `--verbose`
-- [ ] Additional subcommands: test, fmt, repl, lsp
+- [ ] Additional subcommands: fmt
 
 - [x] Wire up CLI to compiler
   - [x] `fern build <file>` → lexer → parser → checker → codegen → QBE → binary
@@ -843,8 +843,8 @@ Goodbye!
 
 - [ ] Implement additional CLI commands
   ```bash
-  fern test                 # Run tests
-  fern test --doc           # Run doc tests
+  fern test                 # Run tests ✓
+  fern test --doc           # Run doc-style tests (currently examples/) ✓
   fern fmt file.fn          # Format code
   fern repl                 # Interactive mode ✓
   ```

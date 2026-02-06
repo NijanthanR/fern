@@ -150,10 +150,30 @@ void test_cli_color_mode_always_and_never(void) {
     free(never.output);
 }
 
+void test_cli_test_command_runs_unit_tests(void) {
+    CmdResult result = run_cmd("FERN_TEST_CMD='echo unit-tests-ok' ./bin/fern test 2>&1");
+    ASSERT_EQ(result.exit_code, 0);
+    ASSERT_NOT_NULL(result.output);
+    ASSERT_TRUE(strstr(result.output, "unit-tests-ok") != NULL);
+
+    free(result.output);
+}
+
+void test_cli_test_doc_command_runs_doc_tests(void) {
+    CmdResult result = run_cmd("FERN_TEST_DOC_CMD='echo doc-tests-ok' ./bin/fern test --doc 2>&1");
+    ASSERT_EQ(result.exit_code, 0);
+    ASSERT_NOT_NULL(result.output);
+    ASSERT_TRUE(strstr(result.output, "doc-tests-ok") != NULL);
+
+    free(result.output);
+}
+
 void run_cli_main_tests(void) {
     printf("\n=== CLI Main Tests ===\n");
     TEST_RUN(test_cli_help_lists_global_flags);
     TEST_RUN(test_cli_quiet_suppresses_check_success_output);
     TEST_RUN(test_cli_verbose_emits_debug_lines);
     TEST_RUN(test_cli_color_mode_always_and_never);
+    TEST_RUN(test_cli_test_command_runs_unit_tests);
+    TEST_RUN(test_cli_test_doc_command_runs_doc_tests);
 }

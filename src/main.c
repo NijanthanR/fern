@@ -124,6 +124,7 @@ static int cmd_check(Arena* arena, const char* filename);
 static int cmd_emit(Arena* arena, const char* filename);
 static int cmd_lex(Arena* arena, const char* filename);
 static int cmd_parse(Arena* arena, const char* filename);
+static int cmd_test(Arena* arena, const char* filename);
 static int cmd_lsp(Arena* arena, const char* filename);
 static int cmd_repl(Arena* arena, const char* filename);
 static void log_info(const char* fmt, ...);
@@ -137,6 +138,7 @@ static const Command COMMANDS[] = {
     {"emit",  "<file>", "Emit QBE IR to stdout",       cmd_emit},
     {"lex",   "<file>", "Show tokens (debug)",         cmd_lex},
     {"parse", "<file>", "Show AST (debug)",            cmd_parse},
+    {"test",  "",       "Run project tests",           cmd_test},
     {"lsp",   "",       "Start language server",       cmd_lsp},
     {"repl",  "",       "Interactive mode",            cmd_repl},
     {NULL, NULL, NULL, NULL}  /* Sentinel */
@@ -301,6 +303,7 @@ static const char* g_exe_path = NULL;
 
 /* Global variable for output filename (-o flag) */
 static const char* g_output_file = NULL;
+static bool g_test_doc_mode = false;
 
 typedef enum {
     LOG_NORMAL = 0,
@@ -457,6 +460,29 @@ static int run_qbe_and_link(const char* ssa_file, const char* output_file) {
     unlink(obj_file);
 
     return 0;
+}
+
+/**
+ * Run a shell command and return its process exit code.
+ * @param command Shell command to execute.
+ * @return Exit code from child process, or 1 on execution failure.
+ */
+static int run_shell_command(const char* command) {
+    assert(command != NULL);
+    assert(command[0] != '\0');
+    if (!command || command[0] == '\0') {
+        return 1;
+    }
+
+    int status = system(command);
+    if (status < 0) {
+        error_print("failed to execute command: %s", command);
+        return 1;
+    }
+    if (WIFEXITED(status)) {
+        return WEXITSTATUS(status);
+    }
+    return 1;
 }
 
 /* ========== Commands ========== */
@@ -698,6 +724,33 @@ static int cmd_parse(Arena* arena, const char* filename) {
 }
 
 /**
+ * Test command: run unit tests or doc-style tests.
+ * @param arena Unused for test command (may be NULL).
+ * @param filename Unused for test command (may be NULL).
+ * @return Exit code from the underlying test command.
+ */
+static int cmd_test(Arena* arena, const char* filename) {
+    // FERN_STYLE: allow(assertion-density) command wrapper with env overrides
+    (void)arena;
+    (void)filename;
+
+    const char* override = NULL;
+    const char* command = NULL;
+    if (g_test_doc_mode) {
+        override = getenv("FERN_TEST_DOC_CMD");
+        command = (override && override[0] != '\0') ? override : "make test-examples";
+        log_info("Running documentation tests...\n");
+    } else {
+        override = getenv("FERN_TEST_CMD");
+        command = (override && override[0] != '\0') ? override : "make test";
+        log_info("Running tests...\n");
+    }
+
+    log_verbose("verbose: test command=%s\n", command);
+    return run_shell_command(command);
+}
+
+/**
  * LSP command: start language server on stdio.
  * @param arena The arena for allocations.
  * @param filename Unused for LSP command (may be NULL).
@@ -755,6 +808,7 @@ int main(int argc, char** argv) {
     
     // Store executable path for runtime library lookup
     g_exe_path = argv[0];
+    g_test_doc_mode = false;
     
     // Need at least a command
     if (argc < 2) {
@@ -846,6 +900,13 @@ int main(int argc, char** argv) {
             }
             g_output_file = argv[arg_index + 1];
             arg_index += 2;
+        } else if (strcmp(argv[arg_index], "--doc") == 0) {
+            if (strcmp(cmd->name, "test") != 0) {
+                error_print("--doc is only valid for the test command");
+                return 1;
+            }
+            g_test_doc_mode = true;
+            arg_index++;
         } else {
             error_print("unknown option '%s'", argv[arg_index]);
             return 1;
