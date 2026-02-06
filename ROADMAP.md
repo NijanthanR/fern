@@ -8,10 +8,10 @@ Detailed historical logs and old iteration notes were moved to:
 
 ## Current Snapshot
 
-- Build/tests: `make test` passing (**456/456**)
+- Build/tests: `make test` passing (**459/459**)
 - Style: `make style` passing
 - Foundation status: lexer, parser, type checker, codegen pipeline, core runtime, and embedded toolchain are working
-- Current focus: Gate C templates/examples and CI validation after landing actor runtime core baseline
+- Current focus: Gate C bootstrapping tools after landing canonical templates/examples + CI validation
 
 ## Working Model
 
@@ -78,12 +78,12 @@ Gates are sequential. Only one gate is active at a time.
 - [x] Milestone 7.7 / Step C: Add initial dup/drop insertion in codegen for a constrained, test-covered subset (`test_codegen_dup_inserted_for_pointer_alias_binding`, `test_codegen_drop_inserted_for_unreturned_pointer_bindings`)
 - [x] Milestone 7.7 / Step D: Benchmark/compare Boehm bridge vs Perceus baseline vs WasmGC feasibility and record default + fallback path (`scripts/compare_memory_paths.py`, `docs/reports/memory-path-comparison-2026-02-06.md`)
 - [x] Complete actor runtime core (`spawn`, `send`, `receive`, scheduler) with in-memory mailbox FIFO + round-robin scheduler tickets (`test_runtime_actors_post_and_next_mailbox_contract`, `test_runtime_actor_scheduler_round_robin_contract`)
-- [ ] Ship canonical templates/examples: tiny CLI, HTTP API, actor-based app
-- [ ] Continuous example validation + doc tests in CI
+- [x] Ship canonical templates/examples: tiny CLI, HTTP API, actor-based app (`examples/tiny_cli.fn`, `examples/http_api.fn`, `examples/actor_app.fn`, `tests/test_canonical_examples.c`)
+- [x] Continuous example validation + doc tests in CI (`.github/workflows/ci.yml` step `Validate examples` runs `make test-examples`)
 - [ ] Advance bootstrapping tools (`fern doc`, `fern test`, `fern-style` parity targets)
 
 **Pass criteria (all required):**
-- [ ] Canonical examples and templates are continuously green in CI
+- [x] Canonical examples and templates are continuously green in CI (`make test-examples` in CI + `tests/test_canonical_examples.c`)
 - [ ] Core stdlib APIs are stable and documented
 - [x] Milestone 7.7 implementation tranche (A-D) is complete with tests and measured tradeoffs, and a chosen default memory path for first WASM target (`docs/reports/memory-path-comparison-2026-02-06.md`, `docs/MEMORY_MANAGEMENT.md`, `DECISIONS.md`)
 - [x] Actor baseline scenarios pass deterministic tests (`test_runtime_actors_post_and_next_mailbox_contract`, `test_runtime_actor_scheduler_round_robin_contract`, `make check`)
@@ -134,13 +134,13 @@ Gates are sequential. Only one gate is active at a time.
 
 ## Next Session Start Here
 
-Gate C Task 2 actor runtime core baseline is complete. Continue with templates/examples and CI validation next.
+Gate C Task 3 templates/examples + CI validation is complete. Continue with bootstrapping tooling next.
 
 1. [x] Gate C / Task 1.5b: Milestone 7.7 - implement Perceus object header and RC ops for core heap types (`test_runtime_rc_header_and_core_type_ops`)
 2. [x] Gate C / Task 1.5c: Milestone 7.7 - add constrained dup/drop insertion in codegen with focused tests (`test_codegen_dup_inserted_for_pointer_alias_binding`, `test_codegen_drop_inserted_for_unreturned_pointer_bindings`)
 3. [x] Gate C / Task 1.5d: Milestone 7.7 - benchmark WASM memory/runtime options and finalize default + fallback path in docs/decisions (`docs/reports/memory-path-comparison-2026-02-06.md`, Decision 33)
 4. [x] Gate C / Task 2: Complete actor runtime core (`spawn`, `send`, `receive`, scheduler) with runtime C-ABI and surface tests (`runtime/fern_runtime.c`, `runtime/fern_runtime.h`, `tests/test_runtime_surface.c`)
-5. [ ] Gate C / Task 3: Add canonical templates/examples (tiny CLI, HTTP API, actor app) with CI validation
+5. [x] Gate C / Task 3: Add canonical templates/examples (tiny CLI, HTTP API, actor app) with CI validation (`examples/tiny_cli.fn`, `examples/http_api.fn`, `examples/actor_app.fn`, `tests/test_canonical_examples.c`, `.github/workflows/ci.yml`)
 6. [ ] Gate C / Task 4: Advance bootstrapping tools (`fern doc`, `fern test`, `fern-style` parity targets)
 
 ## Active Backlog (By Gate)

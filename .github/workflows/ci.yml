@@ -37,6 +37,9 @@ jobs:
       - name: Run tests
         run: make test
 
+      - name: Validate examples
+        run: make test-examples
+
       - name: Run fuzz smoke test
         if: matrix.os == 'ubuntu-latest'
         run: make fuzz-smoke ITERS=64 SEED=0xC0FFEE

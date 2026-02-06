@@ -1,0 +1,23 @@
+# HTTP API template
+# Demonstrates an API-style flow with HTTP + JSON module calls.
+
+fn fetch_health_status(url: String) -> Int:
+    match http.get(url):
+        Ok(body) -> if String.is_empty(body): 0 else: 0
+        Err(_) -> 0
+
+fn send_create_request(url: String, payload: String) -> Int:
+    match http.post(url, payload):
+        Ok(_) -> 0
+        Err(_) -> 0
+
+fn decode_payload(payload: String) -> Int:
+    match json.parse(payload):
+        Ok(_) -> 0
+        Err(_) -> 0
+
+fn main() -> Int:
+    let health = fetch_health_status("https://example.com/health")
+    let created = send_create_request("https://example.com/users", "name=fern")
+    let decoded = decode_payload("status=ok")
+    if health == 0 and created == 0 and decoded == 0: 0 else: 1

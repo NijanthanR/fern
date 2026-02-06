@@ -1,0 +1,20 @@
+# Actor-based app template
+# Demonstrates actor startup, enqueue, and mailbox receive flow.
+
+fn post_job(pid: Int, message: String) -> Int:
+    match actors.post(pid, message):
+        Ok(_) -> 0
+        Err(_) -> 1
+
+fn next_job_status(pid: Int, expected: String) -> Int:
+    match actors.next(pid):
+        Ok(message) -> if String.eq(message, expected): 0 else: 1
+        Err(_) -> 1
+
+fn main() -> Int:
+    let worker = actors.start("worker")
+    let post_first = post_job(worker, "job:email")
+    let post_second = post_job(worker, "job:cleanup")
+    let recv_first = next_job_status(worker, "job:email")
+    let recv_second = next_job_status(worker, "job:cleanup")
+    if post_first == 0 and post_second == 0 and recv_first == 0 and recv_second == 0: 0 else: 1
