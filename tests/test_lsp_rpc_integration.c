@@ -1,5 +1,11 @@
 /* LSP JSON-RPC Integration Tests */
 
+#ifdef __linux__
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#endif
+
 #include "test.h"
 
 #include <stdio.h>

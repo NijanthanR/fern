@@ -1,3 +1,9 @@
+#ifdef __linux__
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#endif
+
 #include "fuzz_generator.h"
 
 #include <errno.h>

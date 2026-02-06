@@ -19,6 +19,7 @@ void run_lsp_tests(void);
 void run_lsp_rpc_integration_tests(void);
 void run_release_packaging_tests(void);
 void run_release_automation_tests(void);
+void run_justfile_tests(void);
 void run_benchmark_publication_tests(void);
 void run_fuzz_generator_tests(void);
 void run_fernsim_tests(void);
@@ -47,6 +48,7 @@ int main(void) {
     run_lsp_rpc_integration_tests();
     run_release_packaging_tests();
     run_release_automation_tests();
+    run_justfile_tests();
     run_benchmark_publication_tests();
     run_fuzz_generator_tests();
     run_fernsim_tests();

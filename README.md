@@ -2,7 +2,7 @@
 
 > A statically-typed, functional language with Python aesthetics that compiles to single binaries.
 
-**Status:** 🚧 In active development - Gate D complete, 479 tests passing, and release packaging/benchmark publishing in CI
+**Status:** 🚧 In active development - Gate D complete, 484 tests passing, release packaging/benchmark publishing in CI, and a new `Justfile` task runner
 
 ## What is Fern?
 
@@ -56,7 +56,7 @@ Ok(process(validated))
 - **Language tooling** - LSP with diagnostics, hover, definition, completion, rename, and code actions
 - **Stable stdlib API surface** - `fs`, `http`, `json`, `sql`, `actors`, and `File` alias compatibility
 - **Helpful diagnostics** - snippets, notes, and fix hints in CLI workflows
-- **Reproducible quality gates** - `make check`, fuzz smoke, perf budgets, release policy checks
+- **Reproducible quality gates** - `just check` (or `make check`), fuzz smoke, perf budgets, release policy checks
 
 ## Current Status
 
@@ -69,7 +69,7 @@ Fern is implemented with strict TDD. See [DESIGN.md](DESIGN.md) for language det
 - ✅ Gate D (ecosystem/adoption hardening) passed
 
 **Recent outcomes:**
-- ✅ 479/479 tests passing in local `make test`
+- ✅ 484/484 tests passing in local `make test`
 - ✅ Cross-platform CI (Ubuntu + macOS) with build/test/style/perf/fuzz/example checks
 - ✅ Release packaging bundles (`fern` + `libfern_runtime.a` + policy/docs artifacts)
 - ✅ Conventional-commit-driven semver + release notes via `release-please`
@@ -141,16 +141,39 @@ dnf install gc-devel
 
 > **Note:** QBE is embedded in the compiler - no external `qbe` binary needed. Boehm GC is statically linked into compiled programs. The fern binary and compiled programs are **fully standalone** - no runtime dependencies, just like Go.
 
-**Build the compiler:**
+**Preferred task runner (`Justfile`):**
 ```bash
-make           # Release build
+just debug
+just test
+just check
+just release-package
+just benchmark-report
+```
+
+`Justfile` is the primary developer entrypoint and delegates to the existing `Makefile` backend.
+
+**Direct Make targets (still supported):**
+```bash
+make           # Debug build (default)
 make debug     # Debug build with symbols
+make release   # Optimized release build
 make test      # Run test suite
 make check     # Build + tests + examples + strict style checks
 make style     # Check FERN_STYLE compliance only
 make release-package   # Build + package release bundle into dist/
 make benchmark-report  # Publish reproducible benchmark + case-study report
 ```
+
+## Release Automation
+
+Fern uses [release-please](https://github.com/googleapis/release-please) with conventional commits to drive release PRs, semver bumps, and changelog notes automatically.
+
+- `fix:` commits trigger patch bumps
+- `feat:` commits trigger minor bumps
+- `feat!:` or `BREAKING CHANGE:` triggers major bumps
+- Release notes/changelog entries are generated from conventional-commit history
+
+The workflow in `.github/workflows/release-please.yml` requires `RELEASE_PLEASE_TOKEN` to be set in repo secrets to open/update release PRs.
 
 ## FAQ
 
