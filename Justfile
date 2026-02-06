@@ -277,6 +277,10 @@ test-examples: debug
     echo
     echo "✓ All examples type check!"
 
+# Run doc tests extracted from @doc fenced `fern` snippets
+test-doc: debug
+    python3 scripts/run_doc_tests.py ${DOC_TEST_FLAGS:-}
+
 # Run grammar/property fuzzing for parser + formatter stability
 fuzz: fuzz-bin
     #!/usr/bin/env bash

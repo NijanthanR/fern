@@ -8,7 +8,7 @@ Detailed historical logs and old iteration notes were moved to:
 
 ## Current Snapshot
 
-- Build/tests: `just test` passing (**484/484**)
+- Build/tests: `just test` passing (**485/485**)
 - Style: `just style` passing
 - Foundation status: lexer, parser, type checker, codegen pipeline, core runtime, and embedded toolchain are working
 - Release automation: conventional-commit-driven semver + release notes configured via `release-please` (initial version pinned to `0.1.0`, breaking changes map to minor while `<1.0.0`)
@@ -162,7 +162,7 @@ Gate D pass criteria are now closed and validated with test + workflow coverage.
 
 ### Gate C/D (Later)
 
-- [ ] Extended stdlib modules with doc tests
+- [x] Extended stdlib modules with doc tests (`scripts/run_doc_tests.py`, `docs/doctests/stdlib_modules.fn`, `fern test --doc`, `test_cli_test_doc_command_honors_file_argument`)
 - [x] Milestone 7.7 WASM memory/runtime implementation tranche (abstraction + RC baseline + codegen subset + decision artifact)
 - [x] Actor runtime core baseline (`spawn`, `send`, `receive`, scheduler`) with mailbox/scheduler runtime tests
 - [x] `fern doc` documentation generation pipeline (`src/main.c`, `scripts/generate_docs.py`, `tests/test_cli_main.c`)

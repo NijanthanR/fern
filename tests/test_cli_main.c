@@ -383,6 +383,36 @@ void test_cli_test_doc_command_runs_doc_tests(void) {
     free(result.output);
 }
 
+void test_cli_test_doc_command_honors_file_argument(void) {
+    char* source_path = write_tmp_source(
+        "module doctest_fixture\n"
+        "\n"
+        "@doc \"\"\"\n"
+        "# Examples\n"
+        "\n"
+        "```fern\n"
+        "missing_identifier\n"
+        "```\n"
+        "\"\"\"\n"
+        "fn marker() -> Int:\n"
+        "    0\n"
+    );
+    ASSERT_NOT_NULL(source_path);
+
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd), "./bin/fern test --doc %s 2>&1", source_path);
+    CmdResult result = run_cmd(cmd);
+
+    ASSERT_NE(result.exit_code, 0);
+    ASSERT_NOT_NULL(result.output);
+    ASSERT_TRUE(strstr(result.output, source_path) != NULL);
+    ASSERT_TRUE(strstr(result.output, "doc test") != NULL);
+
+    free(result.output);
+    unlink(source_path);
+    free(source_path);
+}
+
 void test_cli_help_lists_doc_command(void) {
     CmdResult result = run_cmd("./bin/fern --help 2>&1");
     ASSERT_EQ(result.exit_code, 0);
@@ -519,6 +549,7 @@ void run_cli_main_tests(void) {
     TEST_RUN(test_cli_check_type_error_includes_snippet_note_and_help);
     TEST_RUN(test_cli_test_command_runs_unit_tests);
     TEST_RUN(test_cli_test_doc_command_runs_doc_tests);
+    TEST_RUN(test_cli_test_doc_command_honors_file_argument);
     TEST_RUN(test_cli_doc_command_runs_generator);
     TEST_RUN(test_cli_doc_open_command_runs_generator);
     TEST_RUN(test_cli_open_option_only_valid_for_doc);

@@ -1088,18 +1088,42 @@ static int cmd_fmt(Arena* arena, const char* filename) {
 /**
  * Test command: run unit tests or doc-style tests.
  * @param arena Unused for test command (may be NULL).
- * @param filename Unused for test command (may be NULL).
+ * @param filename Optional file/directory path for scoped doc tests.
  * @return Exit code from the underlying test command.
  */
 static int cmd_test(Arena* arena, const char* filename) {
     // FERN_STYLE: allow(assertion-density) command wrapper with env overrides
     (void)arena;
-    (void)filename;
 
     const char* test_override = getenv("FERN_TEST_CMD");
     const char* doc_override = getenv("FERN_TEST_DOC_CMD");
     const char* test_command = (test_override && test_override[0] != '\0') ? test_override : "just test";
-    const char* doc_command = (doc_override && doc_override[0] != '\0') ? doc_override : "just test-examples";
+    const char* doc_command_base = (doc_override && doc_override[0] != '\0')
+        ? doc_override
+        : "python3 scripts/run_doc_tests.py";
+    const char* doc_command = doc_command_base;
+    char quoted_path[1024];
+    char doc_command_buf[2304];
+
+    if (filename && filename[0] != '\0') {
+        if (!shell_quote_arg(filename, quoted_path, sizeof(quoted_path))) {
+            error_print("failed to process test path argument");
+            return 1;
+        }
+
+        int wrote = snprintf(
+            doc_command_buf,
+            sizeof(doc_command_buf),
+            "%s --path %s",
+            doc_command_base,
+            quoted_path
+        );
+        if (wrote < 0 || (size_t)wrote >= sizeof(doc_command_buf)) {
+            error_print("failed to build documentation test command");
+            return 1;
+        }
+        doc_command = doc_command_buf;
+    }
 
     if (g_test_doc_mode) {
         log_info("Running documentation tests...\n");

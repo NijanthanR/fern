@@ -1,0 +1,26 @@
+module stdlib_doc_examples
+
+@doc """
+Smoke coverage for the stabilized stdlib API surface.
+
+# Examples
+
+```fern
+fs.read("config.txt")
+fs.write("out.txt", "hello")
+fs.exists("out.txt")
+json.parse("json-text")
+json.stringify("ok")
+http.get("https://example.com")
+http.post("https://example.com", "payload")
+sql.open("app.db")
+sql.execute(1, "SELECT 1")
+actors.start("worker")
+actors.post(1, "ping")
+actors.next(1)
+File.read("compat.txt")
+File.exists("compat.txt")
+```
+"""
+fn stdlib_doc_smoke_examples() -> Int:
+    0
