@@ -723,6 +723,42 @@ void test_runtime_actor_spawn_link_exit_notification_contract(void) {
     free_build_run_result(&result);
 }
 
+void test_runtime_actor_monitor_and_restart_contract(void) {
+    BuildRunResult result = build_and_run_c_source(
+        "#include <stdint.h>\n"
+        "#include \"fern_runtime.h\"\n"
+        "\n"
+        "int fern_main(void) {\n"
+        "    int64_t supervisor = fern_actor_spawn(\"supervisor\");\n"
+        "    int64_t worker = fern_actor_spawn(\"worker\");\n"
+        "    if (supervisor <= 0 || worker <= supervisor) return 100;\n"
+        "\n"
+        "    int64_t mon = fern_actor_monitor(supervisor, worker);\n"
+        "    if (!fern_result_is_ok(mon)) return 101;\n"
+        "\n"
+        "    int64_t exited = fern_actor_exit(worker, \"boom\");\n"
+        "    if (!fern_result_is_ok(exited)) return 102;\n"
+        "\n"
+        "    int64_t down = fern_actor_next(supervisor);\n"
+        "    if (!fern_result_is_ok(down)) return 103;\n"
+        "    const char* down_msg = (const char*)(intptr_t)fern_result_unwrap(down);\n"
+        "    if (!fern_str_starts_with(down_msg, \"DOWN(\")) return 104;\n"
+        "    if (!fern_str_contains(down_msg, \"boom\")) return 105;\n"
+        "\n"
+        "    int64_t restarted = fern_actor_restart(worker);\n"
+        "    if (!fern_result_is_ok(restarted)) return 106;\n"
+        "\n"
+        "    int64_t new_worker = fern_result_unwrap(restarted);\n"
+        "    if (new_worker <= worker) return 107;\n"
+        "    return 0;\n"
+        "}\n");
+
+    ASSERT_EQ(result.build.exit_code, 0);
+    ASSERT_EQ(result.run.exit_code, 0);
+
+    free_build_run_result(&result);
+}
+
 void test_runtime_memory_alloc_dup_drop_contract(void) {
     BuildRunResult result = build_and_run_c_source(
         "#include <stdint.h>\n"
@@ -814,6 +850,7 @@ void run_runtime_surface_tests(void) {
     TEST_RUN(test_runtime_actors_post_and_next_mailbox_contract);
     TEST_RUN(test_runtime_actor_scheduler_round_robin_contract);
     TEST_RUN(test_runtime_actor_spawn_link_exit_notification_contract);
+    TEST_RUN(test_runtime_actor_monitor_and_restart_contract);
     TEST_RUN(test_runtime_memory_alloc_dup_drop_contract);
     TEST_RUN(test_runtime_rc_header_and_core_type_ops);
 }

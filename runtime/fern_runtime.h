@@ -893,6 +893,15 @@ int64_t fern_actor_spawn(const char* name);
 int64_t fern_actor_spawn_link(const char* name);
 
 /**
+ * Register a monitor relation from supervisor to worker.
+ * Monitors receive `DOWN(pid, reason)` notifications when worker exits.
+ * @param supervisor_id Supervisor actor id.
+ * @param worker_id Worker actor id.
+ * @return Result: Ok(0) when monitor registration succeeds, Err(error code) otherwise.
+ */
+int64_t fern_actor_monitor(int64_t supervisor_id, int64_t worker_id);
+
+/**
  * Send a message to an actor mailbox.
  * @param actor_id Destination actor id.
  * @param msg Message payload.
@@ -914,6 +923,14 @@ int64_t fern_actor_receive(int64_t actor_id);
  * @return Result: Ok(0) when notification is queued, Err(error code) otherwise.
  */
 int64_t fern_actor_exit(int64_t actor_id, const char* reason);
+
+/**
+ * Restart an actor and return the new actor id.
+ * Restart preserves actor name and linked parent baseline.
+ * @param actor_id Actor id to restart.
+ * @return Result: Ok(new actor id) or Err(error code).
+ */
+int64_t fern_actor_restart(int64_t actor_id);
 
 /**
  * Get current mailbox length for an actor.

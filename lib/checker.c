@@ -907,6 +907,27 @@ static Type* lookup_module_function(Checker* checker, const char* module, const 
             result_type = type_con(arena, string_new(arena, "Result"), result_args);
             return type_fn(arena, params, result_type);
         }
+        /* actors.monitor(Int, Int) -> Result(Int, Int) */
+        if (strcmp(func, "monitor") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_int(arena));
+            TypeVec_push(arena, params, type_int(arena));
+            result_args = TypeVec_new(arena);
+            TypeVec_push(arena, result_args, type_int(arena));
+            TypeVec_push(arena, result_args, type_int(arena));
+            result_type = type_con(arena, string_new(arena, "Result"), result_args);
+            return type_fn(arena, params, result_type);
+        }
+        /* actors.restart(Int) -> Result(Int, Int) */
+        if (strcmp(func, "restart") == 0) {
+            params = TypeVec_new(arena);
+            TypeVec_push(arena, params, type_int(arena));
+            result_args = TypeVec_new(arena);
+            TypeVec_push(arena, result_args, type_int(arena));
+            TypeVec_push(arena, result_args, type_int(arena));
+            result_type = type_con(arena, string_new(arena, "Result"), result_args);
+            return type_fn(arena, params, result_type);
+        }
     }
 
     /* ===== Tui.Style module ===== */

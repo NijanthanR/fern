@@ -1884,6 +1884,21 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
                                 string_cstr(result), string_cstr(actor_id));
                             return result;
                         }
+                        /* actors.monitor(supervisor, worker) -> Result(Int, Int) */
+                        if (strcmp(func, "monitor") == 0 && call->args->len == 2) {
+                            String* supervisor_id = codegen_expr(cg, call->args->data[0].value);
+                            String* worker_id = codegen_expr(cg, call->args->data[1].value);
+                            emit(cg, "    %s =l call $fern_actor_monitor(w %s, w %s)\n",
+                                string_cstr(result), string_cstr(supervisor_id), string_cstr(worker_id));
+                            return result;
+                        }
+                        /* actors.restart(actor_id) -> Result(Int, Int) */
+                        if (strcmp(func, "restart") == 0 && call->args->len == 1) {
+                            String* actor_id = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    %s =l call $fern_actor_restart(w %s)\n",
+                                string_cstr(result), string_cstr(actor_id));
+                            return result;
+                        }
                     }
 
                     /* ===== System module ===== */

@@ -1883,6 +1883,36 @@ void test_check_actors_start_returns_int(void) {
     arena_destroy(arena);
 }
 
+void test_check_actors_monitor_returns_result(void) {
+    Arena* arena = arena_create(4096);
+
+    Type* t = check_expr(arena, "actors.monitor(1, 2)");
+
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_CON);
+    ASSERT_STR_EQ(string_cstr(t->data.con.name), "Result");
+    ASSERT_EQ(t->data.con.args->len, 2);
+    ASSERT_EQ(t->data.con.args->data[0]->kind, TYPE_INT);
+    ASSERT_EQ(t->data.con.args->data[1]->kind, TYPE_INT);
+
+    arena_destroy(arena);
+}
+
+void test_check_actors_restart_returns_result(void) {
+    Arena* arena = arena_create(4096);
+
+    Type* t = check_expr(arena, "actors.restart(1)");
+
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->kind, TYPE_CON);
+    ASSERT_STR_EQ(string_cstr(t->data.con.name), "Result");
+    ASSERT_EQ(t->data.con.args->len, 2);
+    ASSERT_EQ(t->data.con.args->data[0]->kind, TYPE_INT);
+    ASSERT_EQ(t->data.con.args->data[1]->kind, TYPE_INT);
+
+    arena_destroy(arena);
+}
+
 void test_check_fs_api_signatures(void) {
     Arena* arena = arena_create(4096);
 
@@ -2041,6 +2071,26 @@ void test_check_actors_api_signatures(void) {
     Type* bad_t = check_expr(arena, "actors.post(1, 2)");
     ASSERT_NOT_NULL(bad_t);
     ASSERT_EQ(bad_t->kind, TYPE_ERROR);
+
+    Type* monitor_t = check_expr(arena, "actors.monitor(1, 2)");
+    ASSERT_NOT_NULL(monitor_t);
+    ASSERT_EQ(monitor_t->kind, TYPE_CON);
+    ASSERT_STR_EQ(string_cstr(monitor_t->data.con.name), "Result");
+    ASSERT_EQ(monitor_t->data.con.args->len, 2);
+    ASSERT_EQ(monitor_t->data.con.args->data[0]->kind, TYPE_INT);
+    ASSERT_EQ(monitor_t->data.con.args->data[1]->kind, TYPE_INT);
+
+    Type* restart_t = check_expr(arena, "actors.restart(1)");
+    ASSERT_NOT_NULL(restart_t);
+    ASSERT_EQ(restart_t->kind, TYPE_CON);
+    ASSERT_STR_EQ(string_cstr(restart_t->data.con.name), "Result");
+    ASSERT_EQ(restart_t->data.con.args->len, 2);
+    ASSERT_EQ(restart_t->data.con.args->data[0]->kind, TYPE_INT);
+    ASSERT_EQ(restart_t->data.con.args->data[1]->kind, TYPE_INT);
+
+    Type* bad_restart_t = check_expr(arena, "actors.restart(\"worker\")");
+    ASSERT_NOT_NULL(bad_restart_t);
+    ASSERT_EQ(bad_restart_t->kind, TYPE_ERROR);
 
     arena_destroy(arena);
 }
@@ -2419,6 +2469,8 @@ void run_checker_tests(void) {
     TEST_RUN(test_check_http_get_returns_result);
     TEST_RUN(test_check_sql_open_returns_result);
     TEST_RUN(test_check_actors_start_returns_int);
+    TEST_RUN(test_check_actors_monitor_returns_result);
+    TEST_RUN(test_check_actors_restart_returns_result);
     TEST_RUN(test_check_fs_api_signatures);
     TEST_RUN(test_check_json_api_signatures);
     TEST_RUN(test_check_http_api_signatures);

@@ -805,6 +805,28 @@ void test_codegen_actors_start_calls_runtime(void) {
     arena_destroy(arena);
 }
 
+void test_codegen_actors_monitor_calls_runtime(void) {
+    Arena* arena = arena_create(8192);
+
+    const char* qbe = generate_expr_qbe(arena, "actors.monitor(1, 2)");
+
+    ASSERT_NOT_NULL(qbe);
+    ASSERT_TRUE(strstr(qbe, "$fern_actor_monitor") != NULL);
+
+    arena_destroy(arena);
+}
+
+void test_codegen_actors_restart_calls_runtime(void) {
+    Arena* arena = arena_create(8192);
+
+    const char* qbe = generate_expr_qbe(arena, "actors.restart(1)");
+
+    ASSERT_NOT_NULL(qbe);
+    ASSERT_TRUE(strstr(qbe, "$fern_actor_restart") != NULL);
+
+    arena_destroy(arena);
+}
+
 /* ========== Tui Prompt Tests ========== */
 
 void test_codegen_tui_prompt_input(void) {
@@ -1060,6 +1082,8 @@ void run_codegen_tests(void) {
     TEST_RUN(test_codegen_http_get_calls_runtime);
     TEST_RUN(test_codegen_sql_open_calls_runtime);
     TEST_RUN(test_codegen_actors_start_calls_runtime);
+    TEST_RUN(test_codegen_actors_monitor_calls_runtime);
+    TEST_RUN(test_codegen_actors_restart_calls_runtime);
 
     /* Tui.Prompt runtime calls */
     TEST_RUN(test_codegen_tui_prompt_input);

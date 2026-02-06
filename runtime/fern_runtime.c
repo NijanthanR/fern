@@ -2460,6 +2460,9 @@ typedef struct {
     int64_t actor_id;
     int64_t linked_parent_id;
     char* name;
+    int64_t* monitor_ids;
+    int64_t monitor_len;
+    int64_t monitor_cap;
     char** mailbox_data;
     int64_t mailbox_head;
     int64_t mailbox_len;
@@ -2603,6 +2606,37 @@ static int fern_actor_mailbox_reserve(FernActorRecord* actor, int64_t needed) {
 }
 
 /**
+ * Reserve monitor-list capacity for at least needed entries.
+ * @param actor Actor record.
+ * @param needed Required monitor id count.
+ * @return 1 on success, 0 on allocation failure.
+ */
+static int fern_actor_monitor_reserve(FernActorRecord* actor, int64_t needed) {
+    assert(actor != NULL);
+    assert(needed >= 0);
+    if (needed <= actor->monitor_cap) {
+        return 1;
+    }
+
+    int64_t next_cap = actor->monitor_cap > 0 ? actor->monitor_cap : 4;
+    while (next_cap < needed) {
+        next_cap *= 2;
+    }
+
+    int64_t* next = FERN_ALLOC((size_t)next_cap * sizeof(int64_t));
+    if (next == NULL) {
+        return 0;
+    }
+    if (actor->monitor_ids != NULL && actor->monitor_len > 0) {
+        memcpy(next, actor->monitor_ids, (size_t)actor->monitor_len * sizeof(int64_t));
+    }
+
+    actor->monitor_ids = next;
+    actor->monitor_cap = next_cap;
+    return 1;
+}
+
+/**
  * Look up actor record by actor id.
  * @param state Actor runtime state.
  * @param actor_id Actor id.
@@ -2728,6 +2762,53 @@ int64_t fern_actor_spawn_link(const char* name) {
 }
 
 /**
+ * Check whether worker already has a given monitor id.
+ * @param worker Worker actor record.
+ * @param supervisor_id Supervisor actor id.
+ * @return 1 when present, 0 otherwise.
+ */
+static int fern_actor_has_monitor(const FernActorRecord* worker, int64_t supervisor_id) {
+    assert(worker != NULL);
+    assert(supervisor_id > 0);
+
+    for (int64_t i = 0; i < worker->monitor_len; i++) {
+        if (worker->monitor_ids[i] == supervisor_id) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/**
+ * Register a monitor relation from supervisor to worker.
+ * @param supervisor_id Supervisor actor id.
+ * @param worker_id Worker actor id.
+ * @return Result: Ok(0) on success, Err(error code) otherwise.
+ */
+int64_t fern_actor_monitor(int64_t supervisor_id, int64_t worker_id) {
+    if (supervisor_id <= 0 || worker_id <= 0) {
+        return fern_result_err(FERN_ERR_IO);
+    }
+
+    FernActorRuntimeState* state = fern_actor_runtime_state();
+    FernActorRecord* supervisor = fern_actor_lookup(state, supervisor_id);
+    FernActorRecord* worker = fern_actor_lookup(state, worker_id);
+    if (supervisor == NULL || worker == NULL) {
+        return fern_result_err(FERN_ERR_IO);
+    }
+
+    if (fern_actor_has_monitor(worker, supervisor_id)) {
+        return fern_result_ok(0);
+    }
+    if (!fern_actor_monitor_reserve(worker, worker->monitor_len + 1)) {
+        return fern_result_err(FERN_ERR_OUT_OF_MEMORY);
+    }
+
+    worker->monitor_ids[worker->monitor_len++] = supervisor->actor_id;
+    return fern_result_ok(0);
+}
+
+/**
  * Send a message to an actor mailbox.
  * @param actor_id Destination actor id.
  * @param msg Message payload.
@@ -2802,16 +2883,18 @@ int64_t fern_actor_receive(int64_t actor_id) {
 }
 
 /**
- * Build a stable Exit(pid, reason) message payload.
+ * Build a stable signal message payload.
+ * @param tag Signal tag, e.g. "Exit" or "DOWN".
  * @param actor_id Exiting actor id.
  * @param reason Exit reason string.
  * @return Newly allocated message string, or NULL on allocation failure.
  */
-static char* fern_actor_format_exit_message(int64_t actor_id, const char* reason) {
+static char* fern_actor_format_signal_message(const char* tag, int64_t actor_id, const char* reason) {
+    assert(tag != NULL);
     assert(actor_id > 0);
 
     const char* safe_reason = (reason != NULL && reason[0] != '\0') ? reason : "unknown";
-    int needed = snprintf(NULL, 0, "Exit(%lld,%s)", (long long)actor_id, safe_reason);
+    int needed = snprintf(NULL, 0, "%s(%lld,%s)", tag, (long long)actor_id, safe_reason);
     if (needed < 0) {
         return NULL;
     }
@@ -2820,15 +2903,16 @@ static char* fern_actor_format_exit_message(int64_t actor_id, const char* reason
     if (message == NULL) {
         return NULL;
     }
-    snprintf(message, (size_t)needed + 1, "Exit(%lld,%s)", (long long)actor_id, safe_reason);
+    snprintf(message, (size_t)needed + 1, "%s(%lld,%s)", tag, (long long)actor_id, safe_reason);
     return message;
 }
 
 /**
- * Mark an actor as exited and notify its linked supervisor.
+ * Mark an actor as exited and notify links/monitors.
+ * Linked parent receives Exit(pid,reason), monitors receive DOWN(pid,reason).
  * @param actor_id Exiting actor id.
  * @param reason Exit reason string.
- * @return Result: Ok(0) when queued, Err(error code) otherwise.
+ * @return Result: Ok(0) when at least one notification is queued.
  */
 int64_t fern_actor_exit(int64_t actor_id, const char* reason) {
     if (actor_id <= 0) {
@@ -2837,21 +2921,85 @@ int64_t fern_actor_exit(int64_t actor_id, const char* reason) {
 
     FernActorRuntimeState* state = fern_actor_runtime_state();
     FernActorRecord* actor = fern_actor_lookup(state, actor_id);
-    if (actor == NULL || actor->linked_parent_id <= 0) {
+    if (actor == NULL) {
         return fern_result_err(FERN_ERR_IO);
     }
 
-    FernActorRecord* parent = fern_actor_lookup(state, actor->linked_parent_id);
-    if (parent == NULL) {
+    int delivered = 0;
+    if (actor->linked_parent_id > 0) {
+        FernActorRecord* parent = fern_actor_lookup(state, actor->linked_parent_id);
+        if (parent != NULL) {
+            char* msg = fern_actor_format_signal_message("Exit", actor_id, reason);
+            if (msg == NULL) {
+                return fern_result_err(FERN_ERR_OUT_OF_MEMORY);
+            }
+            int64_t status = fern_actor_send(parent->actor_id, msg);
+            if (!fern_result_is_ok(status)) {
+                return status;
+            }
+            delivered = 1;
+        }
+    }
+
+    for (int64_t i = 0; i < actor->monitor_len; i++) {
+        int64_t supervisor_id = actor->monitor_ids[i];
+        FernActorRecord* supervisor = fern_actor_lookup(state, supervisor_id);
+        if (supervisor == NULL) {
+            continue;
+        }
+
+        char* msg = fern_actor_format_signal_message("DOWN", actor_id, reason);
+        if (msg == NULL) {
+            return fern_result_err(FERN_ERR_OUT_OF_MEMORY);
+        }
+        int64_t status = fern_actor_send(supervisor->actor_id, msg);
+        if (!fern_result_is_ok(status)) {
+            return status;
+        }
+        delivered = 1;
+    }
+
+    if (!delivered) {
+        return fern_result_err(FERN_ERR_IO);
+    }
+    return fern_result_ok(0);
+}
+
+/**
+ * Restart an actor and return the new actor id.
+ * Restart preserves name/link baseline and carries monitor registrations.
+ * @param actor_id Actor id to restart.
+ * @return Result: Ok(new actor id) or Err(error code).
+ */
+int64_t fern_actor_restart(int64_t actor_id) {
+    if (actor_id <= 0) {
         return fern_result_err(FERN_ERR_IO);
     }
 
-    char* msg = fern_actor_format_exit_message(actor_id, reason);
-    if (msg == NULL) {
+    FernActorRuntimeState* state = fern_actor_runtime_state();
+    FernActorRecord* actor = fern_actor_lookup(state, actor_id);
+    if (actor == NULL) {
+        return fern_result_err(FERN_ERR_IO);
+    }
+
+    const char* name = (actor->name != NULL) ? actor->name : "worker";
+    int64_t next_id = fern_actor_spawn_with_link(name, actor->linked_parent_id);
+    if (next_id <= 0) {
         return fern_result_err(FERN_ERR_OUT_OF_MEMORY);
     }
 
-    return fern_actor_send(parent->actor_id, msg);
+    FernActorRecord* next = fern_actor_lookup(state, next_id);
+    assert(next != NULL);
+
+    if (actor->monitor_len > 0) {
+        if (!fern_actor_monitor_reserve(next, actor->monitor_len)) {
+            return fern_result_err(FERN_ERR_OUT_OF_MEMORY);
+        }
+        memcpy(next->monitor_ids, actor->monitor_ids, (size_t)actor->monitor_len * sizeof(int64_t));
+        next->monitor_len = actor->monitor_len;
+    }
+
+    return fern_result_ok(next_id);
 }
 
 /**
