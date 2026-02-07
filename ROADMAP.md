@@ -2,199 +2,94 @@
 
 Last updated: 2026-02-06
 
-This is the single source of truth for current status and next priorities.
-Detailed historical logs and old iteration notes were moved to:
-- `docs/ROADMAP_ARCHIVE_2026-02-06.md`
+This file is the only active roadmap. Historical context is in [`docs/HISTORY.md`](docs/HISTORY.md).
 
-## Current Snapshot
+## Current Status Snapshot
 
-- Build/tests: `just test` passing (**533/533**)
-- Style: `just style` passing
-- Foundation status: lexer, parser, type checker, codegen pipeline, core runtime, and embedded toolchain are working
-- Release automation: conventional-commit-driven semver + release notes configured via `release-please` (initial version pinned to `0.1.0`, breaking changes map to minor while `<1.0.0`)
-- Task runner UX: `Justfile` is the primary command surface for all build/test/release tasks
-- Current focus: Post-Gate D stabilization and adoption docs maintenance
-- Post-Gate D stabilization update: checker/codegen coverage for record updates and actor primitives (`spawn`, `send`, `receive`) is in place with dedicated regression tests
-- Post-Gate D stabilization update: docs/examples now use canonical `Result(T, E)` syntax and module naming guidance (`fs`, `json`, `http`, `sql`, `actors`; `File.*` alias retained)
-- Post-Gate D stabilization update: README/stdlib compatibility docs now explicitly call out current runtime readiness (`sql` SQLite-backed, `http` civetweb-backed with TLS support)
-- Post-Gate D stabilization update: CLI type diagnostics now include snippet/note/help coverage for binary operator mismatches (`test_cli_check_binary_type_error_includes_snippet_note_and_help`)
-- Post-Gate D stabilization update: SQL runtime now has concrete SQLite behavior (`sql.open`, `sql.execute`) with runtime surface coverage in `tests/test_runtime_surface.c`
-- Post-Gate D stabilization update: supervision baseline now includes `spawn_link(...)` checker/codegen coverage and linked `Exit(...)` notifications in runtime surface tests (`test_check_spawn_link_returns_int`, `test_codegen_spawn_link_calls_runtime`, `test_runtime_actor_spawn_link_exit_notification_contract`)
-- Post-Gate D stabilization update: Erlang-inspired monitoring/restart baseline now includes `actors.monitor(...)`, `actors.restart(...)`, and `DOWN(...)` notifications for monitored exits (`test_check_actors_monitor_returns_result`, `test_codegen_actors_monitor_calls_runtime`, `test_runtime_actor_monitor_and_restart_contract`)
-- Post-Gate D stabilization update: supervision intensity baseline now includes `actors.supervise(...)` restart-budget handling with `RESTART(...)` and `ESCALATE(...)` signals (`test_check_actors_supervise_returns_result`, `test_codegen_actors_supervise_calls_runtime`, `test_runtime_actor_supervise_restart_intensity_contract`)
-- Post-Gate D stabilization update: actor lifecycle now enforces exited PID semantics (dead actors reject send/receive/mailbox access and scheduler tickets) with runtime coverage (`test_runtime_actor_exit_marks_actor_dead_contract`)
-- Post-Gate D stabilization update: `spawn_link(...)` now requires explicit current-actor context instead of implicit "last spawned actor" linkage (`fern_actor_set_current`, `fern_actor_self`, `test_runtime_actor_spawn_link_requires_current_actor_contract`)
-- Post-Gate D stabilization update: monitor lifecycle adds `actors.demonitor(...)`, and supervision treats `normal`/`shutdown` exits as non-restart paths (`test_check_actors_demonitor_returns_result`, `test_codegen_actors_demonitor_calls_runtime`, `test_runtime_actor_supervise_normal_exit_does_not_restart_contract`)
-- Post-Gate D stabilization update: supervision timing now uses deterministic runtime clock controls (`fern_actor_clock_set`, `fern_actor_clock_advance`, `fern_actor_clock_now`) instead of direct wall-clock dependence (`test_runtime_actor_supervision_uses_deterministic_clock_contract`)
-- Post-Gate D stabilization update: supervisor child tables now drive `one_for_one`, `one_for_all`, and `rest_for_one` restart targeting via Fern-native APIs (`actors.supervise`, `actors.supervise_one_for_all`, `actors.supervise_rest_for_one`) with runtime coverage (`test_runtime_actor_supervise_one_for_all_restarts_all_children_contract`, `test_runtime_actor_supervise_rest_for_one_restarts_suffix_contract`)
+- Quality gate: `just check` passing (`534/534` tests, style passing, examples passing)
+- Perf gate: `just perf-budget` passing (compile/startup/size budgets)
+- Fuzz gate: `just fuzz-smoke` passing
+- Docs gate: `just docs-check` passing
+- Release readiness: `just release-package-check` now validates the real staging layout (`dist/staging`)
 
-## Working Model
+## Canonical Documents
 
-All active work follows strict TDD:
-1. Write tests first (red)
-2. Implement (green)
-3. Run full checks (`just check`)
-4. Update this roadmap immediately
+- Project overview: [`README.md`](README.md)
+- Build guide: [`BUILD.md`](BUILD.md)
+- Design spec: [`DESIGN.md`](DESIGN.md)
+- Decision log: [`DECISIONS.md`](DECISIONS.md)
+- Coding standards: [`FERN_STYLE.md`](FERN_STYLE.md)
+- Compatibility policy: [`docs/COMPATIBILITY_POLICY.md`](docs/COMPATIBILITY_POLICY.md)
+- Documentation index: [`docs/README.md`](docs/README.md)
 
-## Execution Gates
+## Completed Foundations
 
-Gates are sequential. Only one gate is active at a time.
+- Gate A: Developer experience and language feel
+- Gate B: Reliability and regression resistance
+- Gate C: Product surface and stdlib quality baseline
+- Gate D: Ecosystem and adoption hardening
 
-1. Gate A (passed)
-2. Gate B (passed)
-3. Gate C (after Gate B passes)
-4. Gate D (after Gate C passes)
+## Active Priorities
 
-### Gate A: Developer Experience and Language Feel
+### Priority 1: Repository Hygiene and Release Flow
 
-**Status:** PASSED (2026-02-06)
-**Maps to milestones:** 6, 10, 10.5
-**Dependency:** none
+Status: Active
 
-**Implementation checklist:**
-- [x] Diagnostic UX pass: snippets, notes, fix hints, consistent formatting (`test_cli_check_syntax_error_includes_note_and_help`, `test_cli_check_type_error_includes_snippet_note_and_help`)
-- [x] CLI polish: `--color`, `--quiet`, `--verbose`, stable behavior across commands (`test_cli_verbose_emits_debug_lines`, `test_cli_verbose_after_command_emits_debug_lines`, `test_cli_unknown_global_option_reports_unknown_option`, `test_cli_color_mode_always_and_never`)
-- [x] `fern fmt` with deterministic output and regression tests (`test_cli_fmt_normalizes_and_is_deterministic`)
-- [x] End-to-end golden tests for `build`/`check`/`parse`/`fmt` (`test_cli_e2e_command_flow_fmt_parse_check_build`)
+- [x] Fix release staging validation mismatch (`release-package-check` now stages and validates `dist/staging`)
+- [x] Keep generated outputs out of source control by default (release artifacts, benchmark binaries)
+- [x] Keep documentation cross-linked and remove stale process instructions
+- [ ] Add a lightweight docs consistency check to CI (link + key status marker validation)
 
-**Pass criteria (all required):**
-- [x] Onboarding flow can be completed from docs/examples without manual intervention (validated via `test_cli_e2e_command_flow_fmt_parse_check_build` + `just check` examples pass)
-- [x] Diagnostic golden tests cover representative syntax/type/check failures (`tests/test_cli_parse.c` + `tests/test_cli_main.c`)
-- [x] `fern fmt` determinism is validated in CI (`just check` includes `test_cli_fmt_normalizes_and_is_deterministic`)
-- [x] `just check` remains green after each merged Gate A task (Task 1-4 all validated with `just check`)
+Exit criteria:
+- Working tree does not accumulate tracked generated binaries during normal benchmark/release flows.
+- Every top-level process document links to canonical docs and active roadmap.
 
-### Gate B: Reliability and Regression Resistance
+### Priority 2: Milestone 8 Follow-Through (Actor Runtime Semantics)
 
-**Status:** PASSED (2026-02-06)
-**Maps to milestones:** 11 + FernFuzz + FernSim foundation
-**Dependency:** Gate A passed
+Status: Active
 
-**Implementation checklist:**
-- [x] Grammar/property fuzzing with seed corpus and CI integration (FernFuzz) (`tests/fuzz/fuzz_runner.c`, `tests/fuzz/fuzz_generator.c`, `tests/fuzz/corpus/*.fn`, `just fuzz-smoke`, CI step `Run fuzz smoke test`, richer templates for `if`/`match`/`with`/typed signatures/layout)
-- [x] Deterministic actor simulation scaffolding (FernSim foundation) (`include/fernsim.h`, `lib/fernsim.c`, `tests/test_fernsim.c`)
-- [x] CI performance budgets: compile time, startup latency, binary size (`scripts/check_perf_budget.py`, `just perf-budget`, CI step `Check performance budgets`)
-- [x] Compatibility/deprecation policy for language and stdlib changes (`docs/COMPATIBILITY_POLICY.md`, `scripts/check_release_policy.py`, `just release-policy-check`, `.github/workflows/release.yml`)
+- [ ] Close remaining supervision/runtime behavior gaps not yet modeled end-to-end
+- [ ] Expand deterministic FernSim scenarios for supervision trees and failure policies
+- [ ] Add stronger actor runtime invariants to regression suites
 
-**Pass criteria (all required):**
-- [x] Regressions are caught by deterministic tests + fuzz jobs in CI (`just check` + CI fuzz smoke + FernSim deterministic unit tests)
-- [x] Performance thresholds are enforced with failing CI on regressions (`just perf-budget` in CI)
-- [x] Upgrade policy is documented and referenced in release workflow (`docs/COMPATIBILITY_POLICY.md` + `.github/workflows/release.yml`)
+Exit criteria:
+- Actor runtime semantics are deterministic, regression-covered, and documented as compatibility commitments.
 
-### Gate C: Product Surface and Standard Library Quality
+### Priority 3: Milestone 9 Bootstrapping
 
-**Status:** PASSED (2026-02-06)
-**Maps to milestones:** 7, 8, 9
-**Dependency:** Gate B passed
+Status: Not started
 
-**Implementation checklist:**
-- [x] Stabilize stdlib module APIs (`fs`, `http`, `json`, `sql`, `actors`) - completed with compiler/checker/codegen coverage plus runtime contract tests and compatibility docs (`tests/test_checker.c`, `tests/test_codegen.c`, `tests/test_runtime_surface.c`, `docs/COMPATIBILITY_POLICY.md`)
-- [x] Milestone 7.7 / Step A: Introduce runtime memory abstraction (`alloc/dup/drop` API surface) behind current Boehm implementation (`runtime/fern_runtime.h`, `runtime/fern_runtime.c`, `test_runtime_memory_alloc_dup_drop_contract`)
-- [x] Milestone 7.7 / Step B: Add Perceus object header + refcount ops for core heap value types (`fern_rc_alloc/dup/drop`, header metadata accessors, core type tags validated in `test_runtime_rc_header_and_core_type_ops`)
-- [x] Milestone 7.7 / Step C: Add initial dup/drop insertion in codegen for a constrained, test-covered subset (`test_codegen_dup_inserted_for_pointer_alias_binding`, `test_codegen_drop_inserted_for_unreturned_pointer_bindings`)
-- [x] Milestone 7.7 / Step D: Benchmark/compare Boehm bridge vs Perceus baseline vs WasmGC feasibility and record default + fallback path (`scripts/compare_memory_paths.py`, `docs/reports/memory-path-comparison-2026-02-06.md`)
-- [x] Complete actor runtime core (`spawn`, `send`, `receive`, scheduler) with in-memory mailbox FIFO + round-robin scheduler tickets (`test_runtime_actors_post_and_next_mailbox_contract`, `test_runtime_actor_scheduler_round_robin_contract`)
-- [x] Ship canonical templates/examples: tiny CLI, HTTP API, actor-based app (`examples/tiny_cli.fn`, `examples/http_api.fn`, `examples/actor_app.fn`, `tests/test_canonical_examples.c`)
-- [x] Continuous example validation + doc tests in CI (`.github/workflows/ci.yml` step `Validate examples` runs `just test-examples`)
-- [x] Add initial `fern doc` documentation generation pipeline (`src/main.c` `doc` command + `scripts/generate_docs.py` + CLI tests in `tests/test_cli_main.c`)
-- [x] Advance bootstrapping tools (`fern doc`, `fern test`, `fern-style` parity targets) (`src/main.c` doc/test command updates, `scripts/generate_docs.py`, `Justfile` targets `style-fern` and `style-parity`, CLI coverage in `tests/test_cli_main.c`)
-- [x] Expand `fern doc` output quality: cross-linked markdown module/function index, richer `@doc """..."""` extraction, and optional HTML output (`scripts/generate_docs.py`, `src/main.c`, `tests/test_cli_main.c`)
+- [ ] Reach feature parity for `scripts/check_style.py` in `scripts/check_style.fn`
+- [ ] Add parity assertions to CI (`just style-parity` as a required gate)
+- [ ] Make Fern-native checker the default once parity is stable
 
-**Pass criteria (all required):**
-- [x] Canonical examples and templates are continuously green in CI (`just test-examples` in CI + `tests/test_canonical_examples.c`)
-- [x] Core stdlib APIs are stable and documented (`docs/STDLIB_API_REFERENCE.md`, `docs/COMPATIBILITY_POLICY.md`, `test_check_fs_api_signatures`, `test_check_json_api_signatures`, `test_check_http_api_signatures`, `test_check_sql_api_signatures`, `test_check_actors_api_signatures`, `test_check_file_alias_api_signatures`)
-- [x] Milestone 7.7 implementation tranche (A-D) is complete with tests and measured tradeoffs, and a chosen default memory path for first WASM target (`docs/reports/memory-path-comparison-2026-02-06.md`, `docs/MEMORY_MANAGEMENT.md`, `DECISIONS.md`)
-- [x] Actor baseline scenarios pass deterministic tests (`test_runtime_actors_post_and_next_mailbox_contract`, `test_runtime_actor_scheduler_round_robin_contract`, `just check`)
+Exit criteria:
+- Style checks can run without Python for normal developer workflows.
 
-### Gate D: Ecosystem and Adoption
+### Priority 4: Milestone 10 TUI Completion
 
-**Status:** PASSED (2026-02-06)
-**Maps to milestones:** 10.5 follow-up, 11
-**Dependency:** Gate C passed
+Status: Partially complete
 
-**Implementation checklist:**
-- [x] Expand LSP beyond MVP (completion, rename, code actions, better positions) (`include/lsp.h`, `lib/lsp.c`, `tests/test_lsp.c`)
-- [x] Harden packaging/release workflow for single-binary distribution (`scripts/package_release.py`, `tests/test_release_packaging.c`, `.github/workflows/release.yml`)
-- [x] Publish reproducible benchmarks and case studies (`scripts/publish_benchmarks.py`, `tests/test_benchmark_publication.c`, `docs/reports/benchmark-case-studies-2026-02-06.md`)
+- [ ] Finish prompt line editing and richer terminal cursor controls
+- [ ] Implement tree/log modules for structured CLI UX
+- [ ] Add canonical TUI examples with deterministic test coverage
 
-**Pass criteria (all required):**
-- [x] First-run developer workflow is smooth across supported platforms (`release.yml` bundle matrix for Linux/macOS + release layout validation)
-- [x] Benchmark claims are reproducible from repository scripts (`just benchmark-report`, `scripts/publish_benchmarks.py`, report artifact upload in release workflow)
-- [x] Adoption docs/templates are versioned and maintained (canonical examples + published benchmark case-study report in `docs/reports/`)
+Exit criteria:
+- TUI surface is complete enough to support first-party tooling UX needs.
 
-## Milestone Status (Condensed)
+### Priority 5: Milestone 11 Polish and Optimization
 
-### Completed
+Status: Active
 
-- Milestone 0: Project setup
-- Milestone 0.5: FERN_STYLE enforcement
-- Milestone 1: Lexer
-- Milestone 2: Parser core
-- Milestone 3: Type system
-- Milestone 4: QBE code generation pipeline
-- Milestone 5: Standard library core runtime/builtins
-- Milestone 7.5: Boehm GC integration
-- Milestone 7.6: Self-contained toolchain (embedded QBE + static GC link)
-- Milestone 10.5: LSP MVP
+- [ ] Reduce binary size and startup variance further while preserving ergonomics
+- [ ] Tighten release checklist and pre-1.0 readiness criteria
+- [ ] Expand user-facing docs (language guide/tutorial) for adoption
 
-### Partially Complete / Active
-
-- Milestone 6: CLI tool polish and command surface
-- Milestone 7: Extended standard library modules
-- Milestone 7.7: WASM target + memory model implementation tranche (active, pre-actor-runtime dependency)
-- Milestone 8: Actor runtime and supervision model (baseline `spawn_link` + exit notification contract in place)
-- Milestone 10: TUI library completion
-
-### Not Started / Future
-
-- Milestone 9: Bootstrapping Fern tooling in Fern
-- Milestone 11: Polish and optimization wave
+Exit criteria:
+- Pre-1.0 release checklist is explicit, measurable, and continuously validated.
 
 ## Next Session Start Here
 
-Gate D pass criteria are now closed and validated with test + workflow coverage. Next work should focus on milestone polish items and adoption follow-through.
-
-1. [x] Gate D / Task 1: Expand LSP beyond MVP (completion, rename, code actions, better source positions)
-2. [x] Gate D / Task 2: Harden packaging/release workflow for single-binary distribution
-3. [x] Gate D / Task 3: Publish reproducible benchmarks and case studies
-
-## Active Backlog (By Gate)
-
-### Gate A (Passed)
-
-- [x] Diagnostic UX pass (snippets, notes, fix hints, consistency)
-- [x] CLI quality-of-life flag pass and output consistency
-- [x] `fern fmt` (stable formatting + tests)
-- [x] Gate A E2E golden test suite
-
-### Gate B (Passed)
-
-- [x] Grammar/property fuzzing framework (FernFuzz) + seed corpus + CI smoke
-- [x] Deterministic actor simulation foundation (FernSim) + seeded scheduler/virtual clock tests
-- [x] Performance budgets in CI (compile time, startup, binary size)
-- [x] Compatibility/deprecation policy document + release workflow linkage
-
-### Gate C/D (Later)
-
-- [x] Extended stdlib modules with doc tests (`scripts/run_doc_tests.py`, `docs/doctests/stdlib_modules.fn`, `fern test --doc`, `test_cli_test_doc_command_honors_file_argument`)
-- [x] Milestone 7.7 WASM memory/runtime implementation tranche (abstraction + RC baseline + codegen subset + decision artifact)
-- [x] Actor runtime core baseline (`spawn`, `send`, `receive`, scheduler`) with mailbox/scheduler runtime tests
-- [x] Milestone 8 supervision baseline: `spawn_link(...)` lowering + linked `Exit(...)` notification contract (`lib/checker.c`, `lib/codegen.c`, `runtime/fern_runtime.c`, `tests/test_runtime_surface.c`)
-- [x] Milestone 8 monitor/restart baseline: `actors.monitor(...)` + `actors.restart(...)` runtime/checker/codegen contract with `DOWN(...)` notifications (`lib/checker.c`, `lib/codegen.c`, `runtime/fern_runtime.c`, `tests/test_runtime_surface.c`)
-- [x] Milestone 8 supervision intensity baseline: `actors.supervise(...)` runtime/checker/codegen contract with restart budget + `RESTART(...)`/`ESCALATE(...)` signaling (`lib/checker.c`, `lib/codegen.c`, `runtime/fern_runtime.c`, `tests/test_runtime_surface.c`)
-- [x] Milestone 8 process lifecycle baseline: exited actors transition to dead PID state (no send/receive/mailbox/scheduler activity) with runtime contract coverage (`runtime/fern_runtime.c`, `tests/test_runtime_surface.c`)
-- [x] Milestone 8 linkage context baseline: `spawn_link(...)` now binds via explicit current-actor runtime context (`fern_actor_set_current`, `fern_actor_self`) instead of implicit last-spawn heuristic (`runtime/fern_runtime.c`, `runtime/fern_runtime.h`, `tests/test_runtime_surface.c`)
-- [x] Milestone 8 monitor lifecycle baseline: `actors.demonitor(...)` + normal-exit supervision semantics (`normal`/`shutdown` do not auto-restart) with checker/codegen/runtime coverage (`lib/checker.c`, `lib/codegen.c`, `runtime/fern_runtime.c`, `runtime/fern_runtime.h`, `tests/test_runtime_surface.c`)
-- [x] Milestone 8 deterministic supervision timing baseline: runtime clock controls for reproducible restart-intensity windows (`runtime/fern_runtime.c`, `runtime/fern_runtime.h`, `tests/test_runtime_surface.c`)
-- [x] Milestone 8 supervision strategy baseline: supervisor child-table tracking with `one_for_all` and `rest_for_one` APIs + runtime strategy behavior tests (`lib/checker.c`, `lib/codegen.c`, `runtime/fern_runtime.c`, `runtime/fern_runtime.h`, `tests/test_runtime_surface.c`)
-- [x] `fern doc` documentation generation pipeline (`src/main.c`, `scripts/generate_docs.py`, `tests/test_cli_main.c`)
-- [x] LSP expansion beyond MVP (completion/rename/code actions)
-- [x] Post-Gate D semantic parity pass for parsed-but-partial expressions: checker support for `%{ ... | ... }` + actor primitives and codegen fallback removal for generic pipe/indirect call/named field/default expr paths (`tests/test_checker.c`, `tests/test_codegen.c`, `lib/checker.c`, `lib/codegen.c`)
-
-## Out of Scope for This File
-
-To keep this roadmap clear, we no longer track:
-- Historical per-iteration implementation logs
-- Already-closed incident reports and one-off fixes
-- Deep design notes better suited for `DESIGN.md` / `DECISIONS.md`
-
-Historical details remain in `docs/ROADMAP_ARCHIVE_2026-02-06.md`.
+1. Complete repository hygiene tasks (generated artifacts + docs consistency checks).
+2. Pick one Milestone 8 actor-runtime closure task and deliver test-first.
+3. Advance Milestone 9 by landing the next parity slice for the Fern-native style checker.

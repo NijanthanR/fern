@@ -368,7 +368,19 @@ release-package: release
 
 # Validate staging layout for release packaging
 release-package-check:
-    python3 scripts/package_release.py verify-layout --staging bin
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    rm -rf dist/staging
+    mkdir -p dist/staging/docs
+
+    cp bin/fern dist/staging/fern
+    cp bin/libfern_runtime.a dist/staging/libfern_runtime.a
+    cp LICENSE dist/staging/LICENSE
+    cp README.md dist/staging/README.md
+    cp docs/COMPATIBILITY_POLICY.md dist/staging/docs/COMPATIBILITY_POLICY.md
+
+    python3 scripts/package_release.py verify-layout --staging dist/staging
 
 # End-to-end LSP JSON-RPC smoke validation
 lsp-rpc-smoke: debug

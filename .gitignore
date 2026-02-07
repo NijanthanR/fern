@@ -3,6 +3,11 @@ build/
 build2/
 bin/
 bin2/
+dist/staging/
+dist/bench/
+dist/*.tar.gz
+dist/*.tar.gz.sha256
+dist/*.md
 
 # Editor and IDE files
 .vscode/

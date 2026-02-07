@@ -4,6 +4,7 @@
 
 - C compiler (clang or gcc)
 - Just task runner (`just`)
+- Boehm GC development library (`bdw-gc`)
 - SQLite development library (`sqlite3`)
 - macOS, Linux, or other Unix-like OS
 
@@ -46,6 +47,7 @@ just clean
 ### Code Quality
 
 - `just fmt` - Format code with clang-format
+- `just check` - Full build/test/examples/style gate (recommended before commits)
 
 ## Project Structure
 
@@ -169,4 +171,4 @@ sudo dnf install sqlite-devel
 
 ## Next Steps
 
-See [ROADMAP.md](ROADMAP.md) for the implementation plan and next milestones.
+See [ROADMAP.md](ROADMAP.md) for active priorities and [docs/README.md](docs/README.md) for the full documentation map.

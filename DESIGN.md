@@ -4656,21 +4656,19 @@ match(result) {
 
 ### Development Workflow
 
-**Debug builds (all safety checks):**
+**Debug builds:**
 ```bash
-make DEBUG=1
+just debug
 
-# Enables:
-# - AddressSanitizer (-fsanitize=address)
-# - UndefinedBehaviorSanitizer (-fsanitize=undefined)
-# - Stack protector (-fstack-protector-strong)
-# - All warnings (-Wall -Wextra -Wpedantic)
-# - Static analysis (-fanalyzer)
+# Debug profile:
+# - Symbols enabled
+# - Assertions enabled
+# - Strict warnings
 ```
 
 **Release builds:**
 ```bash
-make release
+just release
 
 # Optimized, stripped, production-ready
 ```

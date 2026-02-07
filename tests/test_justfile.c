@@ -50,8 +50,19 @@ void test_justfile_exposes_core_recipes(void) {
     free(justfile);
 }
 
+void test_release_package_check_uses_dist_staging_layout(void) {
+    char* justfile = read_file_text("Justfile");
+    ASSERT_NOT_NULL(justfile);
+
+    ASSERT_TRUE(strstr(justfile, "release-package-check:") != NULL);
+    ASSERT_TRUE(strstr(justfile, "verify-layout --staging dist/staging") != NULL);
+
+    free(justfile);
+}
+
 void run_justfile_tests(void) {
     printf("\n=== Justfile Tests ===\n");
     TEST_RUN(test_justfile_exists);
     TEST_RUN(test_justfile_exposes_core_recipes);
+    TEST_RUN(test_release_package_check_uses_dist_staging_layout);
 }

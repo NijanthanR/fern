@@ -34,7 +34,7 @@
 
 ## Reproduce
 ```bash
-make release
+just release
 python3 scripts/publish_benchmarks.py --startup-runs 20 --case-runs 10
 # For faster local iteration:
 python3 scripts/publish_benchmarks.py --skip-release-build --startup-runs 20 --case-runs 10
